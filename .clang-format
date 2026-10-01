@@ -1,0 +1,21 @@
+BasedOnStyle: LLVM
+Standard: c++20
+IndentWidth: 4
+ColumnLimit: 110
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+PointerAlignment: Left
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<windows\.h>'
+    Priority: 1
+  - Regex: '^<.*\.h>'
+    Priority: 2
+  - Regex: '^<.*>'
+    Priority: 3
+  - Regex: '^"v2cp/'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 5
