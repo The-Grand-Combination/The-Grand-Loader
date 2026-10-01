@@ -5,13 +5,13 @@
 
 namespace v2cp {
 
-struct ModEntry {
-    std::wstring name;      // file stem, e.g. "community_patch"
-    std::wstring mod_file;  // absolute path to the .mod
-    std::wstring mod_dir;   // absolute path of `path =`, empty if missing
+struct PluginEntry {
+    std::wstring name;         // ini file stem, e.g. "community_patch"
+    std::wstring config_file;  // absolute path to mod\<name>.ini
+    std::wstring plugin_dir;   // absolute path to mod\<name>
 };
 
-// Resolves every `-mod=` argument of the current process against game_dir.
-std::vector<ModEntry> enabled_mods(const std::wstring& game_dir);
+// Every mod\*.ini in game_dir is a plugin declaration; the DLL is expected at mod\<name>\<name>.dll.
+std::vector<PluginEntry> discover_plugins(const std::wstring& game_dir);
 
 }  // namespace v2cp

@@ -15,10 +15,10 @@ typedef struct V2CP_HostApi {
     uint32_t api_version;
     uint32_t struct_size;
 
-    const char* plugin_name;  // .mod file stem, e.g. "community_patch"
-    const wchar_t* game_dir;  // directory containing v2game.exe, no trailing separator
-    const wchar_t* mod_file;  // absolute path of the .mod that declared this plugin
-    const wchar_t* mod_dir;   // absolute path of the .mod's `path =` directory
+    const char* plugin_name;     // ini file stem, e.g. "community_patch"
+    const wchar_t* game_dir;     // directory containing v2game.exe, no trailing separator
+    const wchar_t* config_file;  // absolute path of mod\<name>.ini
+    const wchar_t* plugin_dir;   // absolute path of mod\<name>
 
     void* exe_base;   // HMODULE of v2game.exe; exe_base + RVA == runtime address
     size_t exe_size;  // SizeOfImage

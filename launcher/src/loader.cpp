@@ -22,8 +22,8 @@ struct LoadedPlugin {
     V2CP_HostApi api;
     std::string name;
     std::wstring game_dir;
-    std::wstring mod_file;
-    std::wstring mod_dir;
+    std::wstring config_file;
+    std::wstring plugin_dir;
 };
 
 // Plugins keep the HostApi pointer, so each plugin is heap-allocated once and never moved or freed.
@@ -53,12 +53,10 @@ void plugin_log(const V2CP_HostApi* host, const char* message) {
     log::line(host && host->plugin_name ? host->plugin_name : "plugin", message ? message : "");
 }
 
-void load_plugin(const ModEntry& mod, const std::wstring& game_dir) {
-    if (mod.mod_dir.empty()) {
-        return;
-    }
-    std::wstring dll = mod.mod_dir + L"\\" + mod.name + L".dll";
+void load_plugin(const PluginEntry& entry, const std::wstring& game_dir) {
+    std::wstring dll = entry.plugin_dir + L"\\" + entry.name + L".dll";
     if (GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        log::linef(kLoaderTag, "%s: no %s, ignoring", narrow(entry.name).c_str(), narrow(dll).c_str());
         return;
     }
 
@@ -69,7 +67,7 @@ void load_plugin(const ModEntry& mod, const std::wstring& game_dir) {
     }
     auto init = reinterpret_cast<V2CP_PluginInitFn>(GetProcAddress(module, "V2CP_PluginInit"));
     if (!init) {
-        log::linef(kLoaderTag, "%s does not export V2CP_PluginInit, ignoring", narrow(mod.name).c_str());
+        log::linef(kLoaderTag, "%s does not export V2CP_PluginInit, ignoring", narrow(entry.name).c_str());
         FreeLibrary(module);
         return;
     }
@@ -78,17 +76,17 @@ void load_plugin(const ModEntry& mod, const std::wstring& game_dir) {
     GetModuleInformation(GetCurrentProcess(), GetModuleHandleW(nullptr), &info, sizeof(info));
 
     auto* plugin = new LoadedPlugin{};
-    plugin->name = narrow(mod.name);
+    plugin->name = narrow(entry.name);
     plugin->game_dir = game_dir;
-    plugin->mod_file = mod.mod_file;
-    plugin->mod_dir = mod.mod_dir;
+    plugin->config_file = entry.config_file;
+    plugin->plugin_dir = entry.plugin_dir;
     plugin->api = V2CP_HostApi{
         .api_version = V2CP_PLUGIN_API_VERSION,
         .struct_size = sizeof(V2CP_HostApi),
         .plugin_name = plugin->name.c_str(),
         .game_dir = plugin->game_dir.c_str(),
-        .mod_file = plugin->mod_file.c_str(),
-        .mod_dir = plugin->mod_dir.c_str(),
+        .config_file = plugin->config_file.c_str(),
+        .plugin_dir = plugin->plugin_dir.c_str(),
         .exe_base = info.lpBaseOfDll,
         .exe_size = info.SizeOfImage,
         .log = plugin_log,
@@ -114,10 +112,10 @@ void loader_init() {
     log::open(game_dir + L"\\v2cp.log");
     log::linef(kLoaderTag, "Community Patches loader %s", V2CP_LOADER_VERSION);
 
-    std::vector<ModEntry> mods = enabled_mods(game_dir);
-    log::linef(kLoaderTag, "%zu mod(s) on the command line", mods.size());
-    for (const ModEntry& mod : mods) {
-        load_plugin(mod, game_dir);
+    std::vector<PluginEntry> entries = discover_plugins(game_dir);
+    log::linef(kLoaderTag, "%zu plugin declaration(s) in mod\\*.ini", entries.size());
+    for (const PluginEntry& entry : entries) {
+        load_plugin(entry, game_dir);
     }
     log::linef(kLoaderTag, "%zu plugin(s) loaded", g_plugins.size());
 }

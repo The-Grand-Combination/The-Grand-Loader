@@ -21,7 +21,7 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     g_host = host;
     cp::logf("Community Patches %s", V2CP_PATCH_VERSION);
 
-    cp::Config config = cp::load_config(host->mod_file);
+    cp::Config config = cp::load_config(host->config_file);
     cp::features::install_worker_threads(config);
     return 0;
 }

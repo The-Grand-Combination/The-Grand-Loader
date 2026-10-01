@@ -11,4 +11,4 @@ target_compile_definitions(community_patch PRIVATE V2CP_PATCH_VERSION="${PROJECT
 set_target_properties(community_patch PROPERTIES PREFIX "" OUTPUT_NAME "community_patch")
 
 install(TARGETS community_patch RUNTIME DESTINATION mod/community_patch)
-install(FILES mod/community_patch.mod DESTINATION mod)
+install(FILES mod/community_patch.ini DESTINATION mod)

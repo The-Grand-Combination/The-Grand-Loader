@@ -8,7 +8,7 @@ struct Config {
     int engine_worker_threads = 0;  // 0 = leave the game default
 };
 
-// Reads Community Patches keys from the mod's own .mod descriptor.
-Config load_config(const std::wstring& mod_file);
+// Reads mod\community_patch.ini.
+Config load_config(const std::wstring& config_file);
 
 }  // namespace cp

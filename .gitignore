@@ -10,3 +10,4 @@ out/
 *.obj
 *.log
 CMakeUserPresets.json
+deploy.local.cmd
