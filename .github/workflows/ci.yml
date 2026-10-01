@@ -22,17 +22,14 @@ jobs:
       - name: Build
         run: cmake --build --preset x86-release
 
-      - name: Package
-        run: cmake --install build/x86-release
-
       - uses: actions/upload-artifact@v4
         with:
           name: Victoria2-Community-Patches
-          path: dist/
+          path: build/
 
       - name: Zip release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: Compress-Archive -Path dist/* -DestinationPath "Victoria2-Community-Patches-${{ github.ref_name }}.zip"
+        run: Compress-Archive -Path build/* -DestinationPath "Victoria2-Community-Patches-${{ github.ref_name }}.zip"
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')

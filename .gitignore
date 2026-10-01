@@ -1,5 +1,5 @@
+# build/ holds the installed, drop-in game layout; out/ holds CMake intermediates
 build/
-dist/
 out/
 .vs/
 .cache/

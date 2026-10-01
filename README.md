@@ -56,11 +56,11 @@ with the "Desktop development with C++" workload).
 ```
 # from an "x86 Native Tools Command Prompt"
 cmake --preset x86-release
-cmake --build --preset x86-release
-cmake --install build/x86-release     # lays out dist/ exactly as it goes into the game folder
+cmake --build --preset x86-release    # compiles and lays out build/ exactly as it goes into the game folder
 ```
 
-CI builds every push and attaches `dist/` as an artifact; tags matching `v*` publish a release zip.
+Intermediates go to `out/`; `build/` only ever contains the drop-in layout (`dinput8.dll` + `mod/`).
+CI builds every push and attaches `build/` as an artifact; tags matching `v*` publish a release zip.
 
 ## Reverse-engineering notes
 

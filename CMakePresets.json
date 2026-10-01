@@ -6,8 +6,8 @@
       "name": "x86-base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "installDir": "${sourceDir}/dist",
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "installDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
@@ -27,7 +27,7 @@
     }
   ],
   "buildPresets": [
-    { "name": "x86-debug", "configurePreset": "x86-debug" },
-    { "name": "x86-release", "configurePreset": "x86-release" }
+    { "name": "x86-debug", "configurePreset": "x86-debug", "targets": ["install"] },
+    { "name": "x86-release", "configurePreset": "x86-release", "targets": ["install"] }
   ]
 }
