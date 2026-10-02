@@ -4,6 +4,7 @@ add_library(dinput8 SHARED
     src/loader.cpp
     src/log.cpp
     src/modlist.cpp
+    src/version_label.cpp
     dinput8.def
 )
 

@@ -11,6 +11,7 @@
 
 #include "log.h"
 #include "modlist.h"
+#include "version_label.h"
 
 namespace v2cp {
 
@@ -118,6 +119,11 @@ void loader_init() {
         load_plugin(entry, game_dir);
     }
     log::linef(kLoaderTag, "%zu plugin(s) loaded", g_plugins.size());
+
+    if (!g_plugins.empty()) {
+        bool ok = patch_version_label(GetModuleHandleW(nullptr), " - Community Patches Loaded");
+        log::line(kLoaderTag, ok ? "version label patched" : "version label site not found, label unchanged");
+    }
 }
 
 }  // namespace v2cp
