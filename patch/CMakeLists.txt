@@ -12,6 +12,8 @@ add_library(community_patch SHARED
     src/features/decision_cull.cpp
     src/features/sample_profiler.cpp
     src/features/network_wait.cpp
+    src/features/relations_prefetch.cpp
+    src/features/flag_cache.cpp
 )
 
 target_include_directories(community_patch PRIVATE src)

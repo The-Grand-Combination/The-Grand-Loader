@@ -13,6 +13,8 @@ struct Config {
     bool decision_profiling = false;    // per-decision cost table in v2cp_decisions.log every 30 game days
     int sample_profiler = 0;            // 0 off, N = sample the game thread every N ms into v2cp_samples.tsv
     bool skip_network_wait = false;     // poll the network every frame without blocking (vanilla blocks 15-35 ms)
+    bool prefetch_relations = false;    // prefetch relation objects before the three daily country x country scans
+    bool compress_flag_cache = false;   // create, cache and load the flag atlases as DXT5 instead of uncompressed
 };
 
 // Reads mod\community_patch.ini.

@@ -32,7 +32,7 @@ Sources: `tick_profiler` logs in [raw/profiler/](../raw/profiler/), `year_timer`
 | block | ms/day | share | status |
 |---|---|---|---|
 | frame side, outside `Update_World_and_Advance_Time` | ~90 | ~45 % | **split by level 4 (2026-10-11), see below** |
-| ↳ `CommandQueue_Process` `0x009AF9F0` own | ~51 | 25 % | **solved**: ~46 of it is the ENet poll blocking in `select` (35 ms timeout); `network_wait_ms = 0` -> 155 ms/day ([network.md](network.md)) |
+| ↳ `CommandQueue_Process` `0x009AF9F0` own | ~51 | 25 % | **solved**: ~46 of it is the ENet poll blocking in `select` (35 ms timeout); `skip_network_wait = 1` -> 155 ms/day ([network.md](network.md)) |
 | ↳ `AI_FrameUpdate` `0x006874C0` | ~24–26 | 12 % | the daily AI decision loop (`AI_DecisionUpdate`); `cull_decision_checks` targets it |
 | ↳ `Render_MapFrame` `0x006592F0` | ~14.5 | 7 % | 3–4 calls/day |
 | ↳ other frame calls | ~5 | 2 % | `FUN_00654530`, `FUN_00657B60`, ... |
@@ -53,8 +53,8 @@ next step.
 ### 1. `CommandQueue_Process` (`0x009AF9F0`), ~51 ms/day own time: the network wait (done)
 
 **Result (2026-10-11):** `sample_profiler` v3 put 45.8 ms/day in `ntdll!ZwWaitForSingleObject` under
-`select` in ENet's `enet_host_service`, called every frame with a 35 ms timeout, also in single player.
-`network_wait_ms = 0` took the first year from 195–203 to **155 ms/day (−20 to −22 %)**; the simulation
+`select` in ENet's `enet_host_service`, called every frame with a 15–35 ms timeout, also in single player.
+`skip_network_wait = 1` took the first year from 195–203 to **155 ms/day (−20 to −22 %)**; the simulation
 functions kept their times. See [network.md](network.md). The analysis below is how it was found.
 
 Level 4 (2026-10-11, [raw/profiler/level4-2026-10-11.log](../raw/profiler/level4-2026-10-11.log)) split

@@ -60,6 +60,7 @@ re/
 | [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label |
 | [performance.md](systems/performance.md) | measured budget, lessons, ranked performance candidates |
 | [network.md](systems/network.md) | ENet session, the 35 ms per-frame network wait |
+| [flags.md](systems/flags.md) | flag atlases, the uncompressed managed textures, `compress_flag_cache` |
 
 ## Conventions
 

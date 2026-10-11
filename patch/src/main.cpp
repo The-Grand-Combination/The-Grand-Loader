@@ -9,6 +9,8 @@
 #include "features/tick_profiler.h"
 #include "features/sample_profiler.h"
 #include "features/network_wait.h"
+#include "features/relations_prefetch.h"
+#include "features/flag_cache.h"
 #include "features/worker_threads.h"
 #include "features/year_timer.h"
 #include "log.h"
@@ -37,6 +39,8 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     cp::features::install_year_timer();
     cp::features::install_sample_profiler(config);
     cp::features::install_network_wait(config);
+    cp::features::install_relations_prefetch(config);
+    cp::features::install_flag_cache(config);
     return 0;
 }
 

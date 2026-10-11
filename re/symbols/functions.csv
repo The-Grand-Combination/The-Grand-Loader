@@ -173,3 +173,5 @@ va,name,conf,area,src,note
 0x00A5FF00,NetSession_ctor,I,network,cp,base constructor (vtable 0x00E426A8)
 0x00A635C0,NetClient_ctor,I,network,cp,"gethostbyname; host at +0x18, timeout +0x20 = 35 ms"
 0x00A63830,NetServer_ctor,I,network,cp,"host at +0x18, timeout +0x20 = 35 ms; created from FUN_009B1190 (CommandQueue_Process path)"
+0x007E3900,FlagAtlas_BuildOrLoad,C,flags,cp,"builds the per-government flag atlas from gfx/flags/*.tga or loads gfx/flags/flagfiles*.tga; D3DX create/save/load at 0x007E5ADA/0x007E629C/0x007E6367/0x007E6492"
+0x007E1DC0,FlagAtlas_Index,I,flags,cp,"references flagfiles.txt/.tga strings; no D3DX calls"

@@ -11,14 +11,15 @@ and a comparison of medians before they mean anything.
 | `cull_decision_checks` | 1.08 min | 189 | −7 ms/day (−3.6 %) |
 | `cull_cb_checks` | 1.07 min | 185 | −11 ms/day (−5.6 %) |
 | both | 1.08 min | 187 | −9 ms/day (−4.6 %); not additive, see noise above |
-| `network_wait_ms = 0` (culls off, `engine_worker_threads = 0`, `sample_profiler = 1`) | **0.56 min** | **155** | **−40 to −48 ms/day (−20 to −22 %)** against 195–203 in the same conditions (2026-10-11) |
-| **all**: `network_wait_ms = 0` + both culls (`engine_worker_threads = 8`, no profiler) | **0.52 min** | **144** | **−52 ms/day (−26 %)** against 196 (2026-10-11) |
+| `skip_network_wait = 1` (culls off, `engine_worker_threads = 0`, `sample_profiler = 1`) | **0.56 min** | **155** | **−40 to −48 ms/day (−20 to −22 %)** against 195–203 in the same conditions (2026-10-11) |
+| **all**: `skip_network_wait = 1` + both culls (`engine_worker_threads = 8`, no profiler) | **0.52 min** | **144** | **−52 ms/day (−26 %)** against 196 (2026-10-11) |
+| all + `prefetch_relations = 1` (`engine_worker_threads = 4`, no profiler) | **0.49 min** active | **137** | **−59 ms/day (−30 %)** against 196; −7 against 144 (2026-10-11) |
 
 ## Where the 196 ms/day go (1836, tick profiler)
 
 | block | ms/day | share | patch |
 |---|---|---|---|
-| per-frame update outside the simulation | ~90 | 45 % | ~46 of it is the game thread blocked in the ENet network poll (35 ms timeout): `network_wait_ms`; render ~8 |
+| per-frame update outside the simulation | ~90 | 45 % | ~46 of it is the game thread blocked in the ENet network poll (15–35 ms timeout): `skip_network_wait`; render ~8 |
 | world market (`Economy_Update`) | 37 | 19 % | none; internals not profiled yet (level 5) |
 | per-country pre-pass (`FUN_00508590`) | 21 | 11 % | none; internals not profiled yet (level 5) |
 | `Country_DailyUpdate` own work | ~20 | 10 % | none |

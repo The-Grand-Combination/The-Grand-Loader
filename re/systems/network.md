@@ -31,30 +31,25 @@ CInGameIdler_Update
             ws2_32 / mswsock -> ntdll!ZwWaitForSingleObject
 ```
 
-## Patch: `network_wait_ms`
+## Patch: `skip_network_wait` (on by default)
 
-`patch/src/features/network_wait.cpp` redirects the `0x00A618CC` call and forwards it with
-`min(timeout, network_wait_ms)`. Every packet is still received and dispatched; at most it waits for the
-next frame's poll. Open questions before it can be a default:
+`patch/src/features/network_wait.cpp` redirects the `0x00A618CC` call and forwards it with a timeout of
+0. Every packet is still received and dispatched; at most it waits for the next frame's poll.
 
-1. **Does the day advance faster?** Measure the first year with `year_timer`, `-1` against `0`.
-2. **Is the wait the game's frame limiter when paused or at slow speed?** If it is, `0` makes the game
-   loop spin a core while paused. Check CPU use while paused; if needed, cap only at max speed.
-3. **Multiplayer:** the wait may be part of how the client paces itself on the host's commands. Test a
-   local multiplayer game before recommending it there.
+1. **Does the day advance faster?** Yes: −20 to −22 % on the first year (below).
+2. **Is the wait the game's idle mechanism when paused?** No: with the option on, CPU use still drops
+   sharply when the game is paused (checked 2026-10-11).
+3. **Multiplayer:** open. The wait may be part of how the client paces itself on the host's commands;
+   test a local multiplayer game with every player on the same setting.
 
 ## Result (2026-10-11)
 
 TGC, new game 1836, max speed, culls off, `engine_worker_threads = 0`, `sample_profiler = 1`:
 
-| `network_wait_ms` | first year | ms/day | ntdll (sampled) |
+| `skip_network_wait` | first year | ms/day | ntdll (sampled) |
 |---|---|---|---|
-| -1 (vanilla, three runs) | 1 min 11–14 s | 195–203 | ~50 ms/day |
-| 0 | **56 s** | **155** | 5 ms/day |
+| 0 (vanilla, three runs) | 1 min 11–14 s | 195–203 | ~50 ms/day |
+| 1 | **56 s** | **155** | 5 ms/day |
 
 The game's own functions kept their exclusive times, so the simulation does the same work; only the
-idle wait is gone.
-
-Question 2 answered (2026-10-11, user): with `0`, the game's CPU use still drops sharply when paused,
-so this wait is not what idles the paused game. Shipped default is now `0`; question 3 (multiplayer)
-is still open.
+idle wait is gone. With both culls as well: 52 s, 144 ms/day (−26 %).

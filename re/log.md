@@ -169,3 +169,29 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-11 — `network_wait_ms = 0` becomes the shipped default
 
 - **Checked (user):** with `0`, CPU use still drops sharply when the game is paused (not to zero): the network wait is not the paused-game idle mechanism. The shipped ini now sets `0`; a missing key still means vanilla (`-1`). Multiplayer remains untested.
+
+## 2026-10-11 — `network_wait_ms` renamed `skip_network_wait`
+
+- **Why (user):** every patch option should read `1` = on. `network_wait_ms = 0` meant "on". The option is now a plain switch, `skip_network_wait = 1` (shipped on), which polls with a timeout of 0; the numeric cap is gone. Entries above keep the old name as the history.
+
+## 2026-10-11 — The next three hot spots are one problem: relation objects; `prefetch_relations`
+
+- **Per-instruction samples (v3 leaf addresses):** `FUN_00522CF0` 91 % right after `CMP [rel+0x34],0` (0x00522E23); `CountryRelation_DailyPurge` 73 % at its first read `[rel+0x50]` and 18 % at `[rel+0xA8]`; `Country_Recalculate` 46 % after `CMP [EDI+0x20],0` and 14 % after `CMP byte [EDI+0x70],0`, with `EDI = self+0xBE8[other]`. All three are daily scans over a country's relation with every other country (683 × 683 separately allocated objects): cache-miss bound, ~20 ms/day together.
+- **Purge:** its top level reads only `+0x50 +0xA8 +0x2C +0x30 +0x28 +0x20`; everything else is behind a non-zero test, so with all six zero it does nothing. All three callees are stdcall (`RET 4` / `RET 8` / `RET 4`).
+- **Built:** `prefetch_relations` (shipped 0): register-preserving thunks on the three call sites (`0x005089DB`, `0x00487483`, `0x0050AC44`) prefetch the needed lines of every relation of the country before the scan; the purge thunk also skips relations whose six fields are zero. Results unchanged by construction. **Open:** `year_timer` against 144 ms/day (all fixes, same settings); a sampling run to see the stalls move.
+
+## 2026-10-11 — Flag atlases: `compress_flag_cache`
+
+- **Question (user):** caches converted by hand to DDS (kept as `.tga`) cut ~1 GB of RAM in TGC; can the game write and read them compressed by itself?
+- **Found:** `FlagAtlas_BuildOrLoad` (`0x007E3900`) builds each per-government atlas as A8R8G8B8 MANAGED, saves it with `D3DXSaveTextureToFileInMemory(D3DXIFF_TGA)` and loads the cache with `D3DXCreateTextureFromFileInMemoryEx(Format UNKNOWN, MANAGED)`: the format comes from the file content, which is why the renamed DDS files worked. TGC caches: 11 × 4096×2048×4 = 32 MB each, all resident as managed textures. → [systems/flags.md](systems/flags.md)
+- **Built:** `compress_flag_cache` (shipped 0): the save copy is created as DXT5, saved as DDS, and the cache load asks for DXT5 (old caches compressed on load). The individual-flag loads are untouched. Not tested in game yet.
+
+## 2026-10-11 — `prefetch_relations`: −7 ms/day, shipped on
+
+- **Measured (user):** all fixes + `prefetch_relations = 1`, `engine_worker_threads = 4`, no profiler: first year 137 ms/day (0.49 min active) against 144 without it. 196 -> 137 overall (−30 %). One run; the gain is close to the ~5 ms noise but in line with the ~20 ms/day of relation stalls it targets.
+- **Shipped default:** `prefetch_relations = 1`.
+
+## 2026-10-11 — `compress_flag_cache` works; switched to DXT1
+
+- **First run (user, TGC):** the patch rebuilt all 11 atlases as DDS/DXT5, 8 388 736 bytes each (was 33 554 463), and the game loaded them. RAM measurement still to report.
+- **Alpha check:** every 4×4 block of the DXT5 atlases has alpha 255/255; flags have no alpha (user). Switched to DXT1 (same colour encoding, 4 MB per atlas). The load wrapper skips conversion when the file is already DXT1; DXT5 or uncompressed caches are converted on every start until deleted and rebuilt.

@@ -56,4 +56,10 @@ master_no_min_interest_b,0x005237DA,E8 21 E4 60 00 39 45 08 7D 03 89 45 08,90 90
 master_aristocrat_income_share,0x004EEA2B,1F,11,documented,re,"Master EXE Mod; plus 0x004EEA2E = 11 and NOPs up to 0x004EEA41"
 master_version_label,0x00E07653,34,35,documented,re,"Master EXE Mod: ""V2 v3.04"" -> ""V2 v3.05"" (same exe)"
 world_market_throttle,0x00484309,E8 12 13 20 00,90 90 90 90 90,confirmed,re,removes a call in WorldMarketUpdate (target 0x00685620 UpdateTimeThrottle)
-cp_network_wait,0x00A618CC,E8 2F 84 02 00,call redirect,experimental,cp,network_wait_ms: CALL enet_host_service in NetSession_Service
+cp_network_wait,0x00A618CC,E8 2F 84 02 00,call redirect,shipped,cp,skip_network_wait: CALL enet_host_service in NetSession_Service
+cp_prefetch_recalc,0x005089DB,E8 B0 CA 00 00,call redirect,experimental,cp,prefetch_relations: CALL Country_Recalculate in Country_PrePass
+cp_prefetch_market,0x00487483,E8 68 B8 09 00,call redirect,experimental,cp,prefetch_relations: CALL FUN_00522CF0 in Market_AddRealDemand
+cp_prefetch_purge,0x0050AC44,E8 47 36 42 00,call redirect,experimental,cp,prefetch_relations: CALL CountryRelation_DailyPurge in Country_DailyUpdate (skips empty relations)
+cp_flag_cache_copy,0x007E629C,FF 15 1C A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXCreateTexture of the atlas copy (A8R8G8B8 -> DXT5); file bytes, relocated at runtime
+cp_flag_cache_save,0x007E6367,FF 15 18 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXSaveTextureToFileInMemory (TGA -> DDS)
+cp_flag_cache_load,0x007E6492,FF 15 24 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXCreateTextureFromFileInMemoryEx of the cache file (Format UNKNOWN -> DXT5)
