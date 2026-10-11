@@ -75,11 +75,11 @@ void prefetch_relations(uintptr_t country, const uint32_t* offsets, int count) {
     }
 }
 
-constexpr uint32_t kRecalcOffsets[] = {0x00, 0x38, 0x70};
+constexpr uint32_t kRecalcOffsets[] = {0x00, 0x2C, 0x38, 0x70};  // +0x2C: Country_PrePass loop at 0x00508DEB
 constexpr uint32_t kMarketOffsets[] = {0x34};
 constexpr uint32_t kPurgeOffsets[] = {0x20, 0x50, 0xA8};
 
-void __stdcall before_recalc(uintptr_t country) { prefetch_relations(country, kRecalcOffsets, 3); }
+void __stdcall before_recalc(uintptr_t country) { prefetch_relations(country, kRecalcOffsets, 4); }
 void __stdcall before_market(uintptr_t country) { prefetch_relations(country, kMarketOffsets, 1); }
 
 // Returns 1 when the purge of `rel` would do nothing.
@@ -136,6 +136,52 @@ __declspec(naked) void purge_thunk() {
     }
 }
 
+
+// AI target scan (2026-10-11): FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
+// reached only through vtable slot 0x00E2773C, once per AI country per day from the AI job queue. It loops
+// over every country (index 1..count, provinces or not) and tests `CMP [self+0xBE8[other] + 0x34], 0`;
+// 90 % of its samples sit right after that read (0x0084B29D). Later, rarely, it reads +0x3C.
+constexpr uint32_t kAiScanSlotRva = 0xA2773C;
+constexpr uint32_t kAiScanRva = 0x44B0F0;
+constexpr uint32_t kAiCountryIndex = 0x38;
+
+uintptr_t g_ai_scan = 0;
+
+void __stdcall before_ai_scan(uintptr_t ai) {
+    uintptr_t manager = read<uint32_t>(g_country_manager_slot);
+    if (!manager || !ai) {
+        return;
+    }
+    int countries = read<int32_t>(manager);
+    uintptr_t array = read<uint32_t>(manager + 4);
+    int self_index = read<int32_t>(ai + kAiCountryIndex);
+    if (self_index <= 0 || self_index >= countries) {
+        return;
+    }
+    uintptr_t self = read<uint32_t>(array + self_index * 4);
+    uintptr_t relations = self ? read<uint32_t>(self + kCountryRelations) : 0;
+    if (!relations) {
+        return;
+    }
+    for (int i = 1; i < countries; i++) {
+        uintptr_t other = read<uint32_t>(array + i * 4);
+        uintptr_t rel = read<uint32_t>(relations + read<uint32_t>(other + kCountryIndex) * 4);
+        _mm_prefetch(reinterpret_cast<const char*>(rel + 0x34), _MM_HINT_T0);
+    }
+}
+
+__declspec(naked) void ai_scan_thunk() {
+    __asm {
+        pushad
+        pushfd
+        push ecx
+        call before_ai_scan
+        popfd
+        popad
+        jmp dword ptr [g_ai_scan]
+    }
+}
+
 }  // namespace
 
 void install_relations_prefetch(const Config& config) {
@@ -167,6 +213,21 @@ void install_relations_prefetch(const Config& config) {
         }
     }
     logf("prefetch_relations: active on %d of 3 relation scans", active);
+}
+
+
+void install_ai_relations_prefetch(const Config& config) {
+    if (!config.prefetch_ai_relations) {
+        logf("prefetch_ai_relations: disabled");
+        return;
+    }
+    g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
+    g_ai_scan = hooks::exe_addr(kAiScanRva);
+    if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan, reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
+        logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", kAiScanSlotRva + 0x400000);
+        return;
+    }
+    logf("prefetch_ai_relations: active, relations prefetched before each AI country's daily target scan");
 }
 
 }  // namespace cp::features

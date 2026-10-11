@@ -43,3 +43,16 @@ analyzeHeadless <projectDir> v2game -process v2game.exe -noanalysis [-readOnly] 
 Decompiles every function into `<outDir>` (one `.c` per 64 KB block + `index.tsv` with size, callers,
 callees and call depth from the daily tick and from the frame). ~64 k functions; run `-readOnly`.
 Details: [re/ghidra.md](../../re/ghidra.md).
+
+## V2WriteScan.java
+
+What a set of functions can write outside their stack: from each root (a file of hex addresses, one
+per line, optional label), follows direct calls up to a depth and lists writes to absolute addresses
+(globals, statics, lazy-init guards) and calls to the RNGs. Virtual calls are not followed.
+
+```
+analyzeHeadless <projectDir> v2game -process v2game.exe -noanalysis -readOnly ^
+    -scriptPath <this folder> -postScript V2WriteScan.java <outDir> <roots.txt> <depth>
+```
+
+Used for [re/systems/parallel-triggers.md](../../re/systems/parallel-triggers.md).

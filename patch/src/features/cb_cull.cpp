@@ -442,7 +442,7 @@ void install_cb_cull(const Config& config) {
 
     uintptr_t original_scan = hooks::exe_addr(kIsAnyCBUsableRva);
     if (!hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_scope_ctor), "\x55\x8B\xEC", 3) ||
-        !hooks::expect_bytes(original_scan, "\x55\x8B\xEC\x6A\xFF", 5)) {
+        !hooks::expect_bytes(original_scan, "\x55\x8B\xEC\x83\xE4\xF8", 6)) {
         logf("cb_cull: IsAnyCBUsable / CEventScope ctor not recognised, feature off");
         return;
     }

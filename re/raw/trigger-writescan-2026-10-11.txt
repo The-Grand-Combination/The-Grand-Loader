@@ -1,0 +1,159 @@
+# V2WriteScan from the 235 trigger Evaluate functions + CDecision slot 6 (0x00A31490), direct calls, depth 8, 2026-10-11.
+# Reviewed in re/systems/parallel-triggers.md. The reached-function list is cut; rerun the script for it.
+# roots 235, functions reached 688, max depth 8
+
+## calls to watched functions: 2
+  Rng_Next (MT) at 009b7537 in FUN_009b7500 d4 path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009b7500
+  Rng_RegenerateMT at 009b761d in Rng_Next d5 path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009b7500 > Rng_Next
+
+## absolute addresses written: 63
+  00f1fc08 DAT_00f1fc08  (1 writes)
+      00aaea08 MOV dword ptr [0x00f1fc08],ESI  in FUN_00aae9af d1  path FUN_008c5da0 > FUN_00aae9af
+  00f1fc14 DAT_00f1fc14  (1 writes)
+      00aae9e8 OR dword ptr [0x00f1fc14],0x1  in FUN_00aae9af d1  path FUN_008c5da0 > FUN_00aae9af
+  00f1fc20 DAT_00f1fc20  (1 writes)
+      00abbc54 INC dword ptr [0x00f1fc20]  in __getbuf d7  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > __snprintf > __flsbuf > __getbuf
+  00f1fc2c DAT_00f1fc2c  (1 writes)
+      00ac9cb6 MOV dword ptr [0x00f1fc2c],ECX  in __set_error_mode d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > __set_error_mode
+  00f1fc64 DAT_00f1fc64  (1 writes)
+      00ab20b0 MOV [0x00f1fc64],AL  in doexit d8  path FUN_008c5da0 > FUN_00aae9af > _atexit > __onexit > FUN_00ab1f81 > __lock > __amsg_exit > __exit > doexit
+  00f1fc68 DAT_00f1fc68  (1 writes)
+      00ab20a8 MOV [0x00f1fc68],EAX  in doexit d8  path FUN_008c5da0 > FUN_00aae9af > _atexit > __onexit > FUN_00ab1f81 > __lock > __amsg_exit > __exit > doexit
+  00f1fc6c DAT_00f1fc6c  (1 writes)
+      00ab2192 MOV dword ptr [0x00f1fc6c],0x1  in doexit d8  path FUN_008c5da0 > FUN_00aae9af > _atexit > __onexit > FUN_00ab1f81 > __lock > __amsg_exit > __exit > doexit
+  00f1fec2 DAT_00f1fec2  (1 writes)
+      00ab76eb MOV [0x00f1fec2],AX  in __NMSG_WRITE d3  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE
+  00f20550 DAT_00f20550  (1 writes)
+      00abec66 MOV dword ptr [0x00f20550],0xc0000409  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20554 DAT_00f20554  (1 writes)
+      00abec70 MOV dword ptr [0x00f20554],0x1  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f2055c DAT_00f2055c  (1 writes)
+      00abec61 MOV [0x00f2055c],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f205a0 DAT_00f205a0  (1 writes)
+      00abec96 MOV [0x00f205a0],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f205a8 DAT_00f205a8  (1 writes)
+      00abec52 MOV dword ptr [0x00f205a8],0x10001  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20634 DAT_00f20634  (1 writes)
+      00abec26 MOV word ptr [0x00f20634],GS  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20638 DAT_00f20638  (1 writes)
+      00abec1f MOV word ptr [0x00f20638],FS  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f2063c DAT_00f2063c  (1 writes)
+      00abec18 MOV word ptr [0x00f2063c],ES  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20640 DAT_00f20640  (1 writes)
+      00abec11 MOV word ptr [0x00f20640],DS  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20644 DAT_00f20644  (1 writes)
+      00abebfd MOV dword ptr [0x00f20644],EDI  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20648 DAT_00f20648  (1 writes)
+      00abebf7 MOV dword ptr [0x00f20648],ESI  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f2064c DAT_00f2064c  (1 writes)
+      00abebf1 MOV dword ptr [0x00f2064c],EBX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20650 DAT_00f20650  (1 writes)
+      00abebeb MOV dword ptr [0x00f20650],EDX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20654 DAT_00f20654  (1 writes)
+      00abebe5 MOV dword ptr [0x00f20654],ECX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20658 DAT_00f20658  (1 writes)
+      00abebe0 MOV [0x00f20658],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f2065c DAT_00f2065c  (1 writes)
+      00abec37 MOV [0x00f2065c],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20660 DAT_00f20660  (1 writes)
+      00abec3f MOV [0x00f20660],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20664 DAT_00f20664  (1 writes)
+      00abec0a MOV word ptr [0x00f20664],CS  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20668 DAT_00f20668  (1 writes)
+      00abec2e POP dword ptr [0x00f20668]  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f2066c DAT_00f2066c  (1 writes)
+      00abec47 MOV [0x00f2066c],EAX  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f20670 DAT_00f20670  (1 writes)
+      00abec03 MOV word ptr [0x00f20670],SS  in ___report_gsfailure d5  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure
+  00f209c8 DAT_00f209c8  (1 writes)
+      00ac99d8 MOV [0x00f209c8],EAX  in ___crtMessageBoxW d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > ___crtMessageBoxW
+  00f209cc DAT_00f209cc  (1 writes)
+      00ac99e8 MOV [0x00f209cc],EAX  in ___crtMessageBoxW d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > ___crtMessageBoxW
+  00f209d0 DAT_00f209d0  (1 writes)
+      00ac99f8 MOV [0x00f209d0],EAX  in ___crtMessageBoxW d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > ___crtMessageBoxW
+  00f209d4 DAT_00f209d4  (1 writes)
+      00ac9a16 MOV [0x00f209d4],EAX  in ___crtMessageBoxW d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > ___crtMessageBoxW
+  00f209d8 DAT_00f209d8  (1 writes)
+      00ac9a02 MOV [0x00f209d8],EAX  in ___crtMessageBoxW d4  path FUN_008c5da0 > FUN_00aae9af > _malloc > __NMSG_WRITE > ___crtMessageBoxW
+  00f20c04 DAT_00f20c04  (1 writes)
+      00954dee MOV dword ptr [0x00f20c04],EDX  in FUN_00954a40 d1  path FUN_008c5da0 > FUN_00954a40
+  00f20c08 DAT_00f20c08  (1 writes)
+      00954e01 MOV [0x00f20c08],EAX  in FUN_00954a40 d1  path FUN_008c5da0 > FUN_00954a40
+  00f20c0c DAT_00f20c0c  (1 writes)
+      00954e14 MOV dword ptr [0x00f20c0c],ECX  in FUN_00954a40 d1  path FUN_008c5da0 > FUN_00954a40
+  012586ec DAT_012586ec  (2 writes)
+      004d8bb5 MOV [0x012586ec],EAX  in FUN_004d8b60 d3  path FUN_00902e90 > FUN_004dacc0 > FUN_004dac50 > FUN_004d8b60
+      0044efca MOV [0x012586ec],EAX  in FUN_0044ef70 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044bc60 > FUN_0044eca0 > FUN_0044ef70
+  01258728 DAT_01258728  (2 writes)
+      008fbc4c MOV dword ptr [0x01258728],ECX  in FUN_008fbb80 d0  path FUN_008fbb80
+      004b9556 MOV [0x01258728],EAX  in FUN_004b9520 d1  path FUN_008ebbe0 > FUN_004b9520
+  01258730 DAT_01258730  (2 writes)
+      004dad07 MOV [0x01258730],EAX  in FUN_004dacc0 d1  path FUN_00902e90 > FUN_004dacc0
+      004dad1d MOV [0x01258730],EAX  in FUN_004dacc0 d1  path FUN_00902e90 > FUN_004dacc0
+  012587ec DAT_012587ec  (3 writes)
+      00954b01 MOV [0x012587ec],EAX  in FUN_00954a40 d1  path FUN_008c5da0 > FUN_00954a40
+      005611c3 MOV [0x012587ec],EAX  in FUN_00561180 d2  path FUN_008e21c0 > FUN_009692c0 > FUN_00561180
+      005611d8 MOV [0x012587ec],EAX  in FUN_00561180 d2  path FUN_008e21c0 > FUN_009692c0 > FUN_00561180
+  0125880c DAT_0125880c  (3 writes)
+      00954b35 MOV [0x0125880c],EAX  in FUN_00954a40 d1  path FUN_008c5da0 > FUN_00954a40
+      00567710 MOV [0x0125880c],EAX  in FUN_005676d0 d2  path FUN_008f8120 > FUN_00969210 > FUN_005676d0
+      00567725 MOV [0x0125880c],EAX  in FUN_005676d0 d2  path FUN_008f8120 > FUN_00969210 > FUN_005676d0
+  01258a10 DAT_01258a10  (5 writes)
+      008c5e2d MOV [0x01258a10],EAX  in FUN_008c5da0 d0  path FUN_008c5da0
+      008d083e MOV [0x01258a10],EAX  in FUN_008d0760 d0  path FUN_008d0760
+      008d0dee MOV [0x01258a10],EAX  in FUN_008d0d10 d0  path FUN_008d0d10
+      008a86c8 MOV [0x01258a10],EAX  in CEventScope_ctor d1  path FUN_008b94b0 > CEventScope_ctor
+  01258a2c DAT_01258a2c  (2 writes)
+      0096bbbc MOV [0x01258a2c],EAX  in FUN_0096bb70 d2  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70
+      0096bbd3 MOV [0x01258a2c],EAX  in FUN_0096bb70 d2  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70
+  01258a34 DAT_01258a34  (1 writes)
+      0096668b MOV [0x01258a34],EAX  in FUN_009665d0 d1  path FUN_008f2030 > FUN_009665d0
+  01258a60 DAT_01258a60  (1 writes)
+      00990681 MOV dword ptr [0x01258a60],EDX  in FUN_009902d0 d4  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0
+  0125a5b4 DAT_0125a5b4  (1 writes)
+      0044ef58 MOV dword ptr [0x0125a5b4],EDI  in FUN_0044eee0 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044ee00 > FUN_0044ee80 > FUN_0044eee0
+  0125a5b8 DAT_0125a5b8  (3 writes)
+      0044ee44 MOV [0x0125a5b8],EAX  in FUN_0044ee00 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044ee00
+      0044ee6d MOV [0x0125a5b8],EAX  in FUN_0044ee00 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044ee00
+      0044ef65 MOV [0x0125a5b8],EAX  in FUN_0044eee0 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044ee00 > FUN_0044ee80 > FUN_0044eee0
+  0125a5bc DAT_0125a5bc  (1 writes)
+      0044ef5f MOV dword ptr [0x0125a5bc],EDX  in FUN_0044eee0 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_0096bb70 > FUN_0096bbf0 > FUN_0096be90 > FUN_0044ee00 > FUN_0044ee80 > FUN_0044eee0
+  0125b5e0 DAT_0125b5e0  (1 writes)
+      0047556b MOV [0x0125b5e0],EAX  in FUN_00475500 d4  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_00475500
+  0125ce80 DAT_0125ce80  (2 writes)
+      004dc36e MOV dword ptr [0x0125ce80],ESI  in FUN_004dc340 d1  path FUN_00902a40 > FUN_004dc340
+      004dc37e MOV dword ptr [0x0125ce80],ESI  in FUN_004dc340 d1  path FUN_00902a40 > FUN_004dc340
+  0125ea24 DAT_0125ea24  (2 writes)
+      0056776e MOV dword ptr [0x0125ea24],ESI  in FUN_00567740 d2  path FUN_008f8120 > FUN_00969210 > FUN_00567740
+      0056777e MOV dword ptr [0x0125ea24],ESI  in FUN_00567740 d2  path FUN_008f8120 > FUN_00969210 > FUN_00567740
+  0131acac g_cbManager  (2 writes)
+      0090d9fe MOV dword ptr [0x0131acac],ESI  in FUN_0090d9d0 d2  path CCasusBelliTrigger_Evaluate > CBManager_IsAnyCBUsable > FUN_0090d9d0
+      0090da0e MOV dword ptr [0x0131acac],ESI  in FUN_0090d9d0 d2  path CCasusBelliTrigger_Evaluate > CBManager_IsAnyCBUsable > FUN_0090d9d0
+  0131bb34 g_popTypeDb  (2 writes)
+      0042372e MOV dword ptr [0x0131bb34],ESI  in FUN_00423700 d1  path FUN_008df8c0 > FUN_00423700
+      0042373e MOV dword ptr [0x0131bb34],ESI  in FUN_00423700 d1  path FUN_008df8c0 > FUN_00423700
+  0131c5bc DAT_0131c5bc  (1 writes)
+      0040161f MOV [0x0131c5bc],EAX  in FUN_004015b0 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_004015b0
+  0131c8dc DAT_0131c8dc  (1 writes)
+      00991278 MOV dword ptr [0x0131c8dc],EDI  in FUN_00991200 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_00991120 > FUN_009911a0 > FUN_00991200
+  0131c8e0 DAT_0131c8e0  (3 writes)
+      00991164 MOV [0x0131c8e0],EAX  in FUN_00991120 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_00991120
+      0099118d MOV [0x0131c8e0],EAX  in FUN_00991120 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_00991120
+      00991285 MOV [0x0131c8e0],EAX  in FUN_00991200 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_00991120 > FUN_009911a0 > FUN_00991200
+  0131c8e4 DAT_0131c8e4  (1 writes)
+      0099127f MOV dword ptr [0x0131c8e4],EDX  in FUN_00991200 d7  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009902d0 > FUN_00991120 > FUN_009911a0 > FUN_00991200
+  0131c99c DAT_0131c99c  (2 writes)
+      009adabe MOV dword ptr [0x0131c99c],ESI  in FUN_009ada90 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009a8ee0 > FUN_009ada90
+      009adace MOV dword ptr [0x0131c99c],ESI  in FUN_009ada90 d5  path FUN_008c5da0 > FUN_00954a40 > FUN_00561080 > FUN_00560ad0 > FUN_009a8ee0 > FUN_009ada90
+  013f3abc DAT_013f3abc  (1 writes)
+      00ac9de7 AND dword ptr [0x013f3abc],0x0  in FUN_00ac9de7 d6  path FUN_00900bc0 > FUN_00401000 > FUN_00b31840 > __except1 > __security_check_cookie > ___report_gsfailure > FUN_00ac9de7
+  013f3be8 DAT_013f3be8  (1 writes)
+      00aae886 MOV [0x013f3be8],EAX  in __onexit_nolock d4  path FUN_008c5da0 > FUN_00aae9af > _atexit > __onexit > __onexit_nolock
+  013f3bec DAT_013f3bec  (1 writes)
+      00aae86e MOV [0x013f3bec],EAX  in __onexit_nolock d4  path FUN_008c5da0 > FUN_00aae9af > _atexit > __onexit > __onexit_nolock
+  ffdff000 ExceptionList  (279 writes)
+      008c25e1 MOV dword ptr FS:[0x0],ESP  in FUN_008c25d0 d0  path FUN_008c25d0
+      008c2647 MOV dword ptr FS:[0x0],ECX  in FUN_008c25d0 d0  path FUN_008c25d0
+      008c5db4 MOV dword ptr FS:[0x0],ESP  in FUN_008c5da0 d0  path FUN_008c5da0
+      008c5e85 MOV dword ptr FS:[0x0],ECX  in FUN_008c5da0 d0  path FUN_008c5da0
+

@@ -6,11 +6,13 @@
 #include "crash_log.h"
 #include "features/cb_cull.h"
 #include "features/decision_cull.h"
-#include "features/tick_profiler.h"
-#include "features/sample_profiler.h"
+#include "features/profilers/tick_profiler.h"
+#include "features/profilers/sample_profiler.h"
 #include "features/network_wait.h"
 #include "features/relations_prefetch.h"
+#include "features/pops_prefetch.h"
 #include "features/flag_cache.h"
+#include "features/ai_queue.h"
 #include "features/worker_threads.h"
 #include "features/year_timer.h"
 #include "log.h"
@@ -40,7 +42,10 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     cp::features::install_sample_profiler(config);
     cp::features::install_network_wait(config);
     cp::features::install_relations_prefetch(config);
+    cp::features::install_ai_relations_prefetch(config);
+    cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
+    cp::features::install_ai_queue(config);
     return 0;
 }
 

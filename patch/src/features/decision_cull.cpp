@@ -13,6 +13,7 @@
 #include "hooks/hourly_tick.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "parallel/worker_pool.h"
 
 // Background (re/systems/decisions.md, docs/decision-cull.md, re/raw/decision-keyword-map.txt):
 //
@@ -135,6 +136,7 @@ struct CountryLists {
     std::vector<uintptr_t> a;  // replaces manager list A
     std::vector<uintptr_t> b;  // replaces manager list B
     int32_t built_day = -1;
+    uint32_t version = 0;  // bumped on every build; parallel results are only used for the version they saw
     bool dirty = true;
 };
 std::vector<CountryLists> g_lists;
@@ -244,6 +246,7 @@ void build_lists(size_t country, int32_t day) {
     lists.a.clear();
     lists.b.clear();
     lists.built_day = day;
+    lists.version++;
     lists.dirty = false;
 
     uintptr_t object = country_object(country);
@@ -315,6 +318,215 @@ __declspec(naked) void getter_stub() {
     }
 }
 
+// --- parallel_decisions ----------------------------------------------------------------------------
+//
+// AI_DecisionUpdate, per decision of its lists: CDecision slot 6 (twice; `MOV AL,1 / RET` in 3.04),
+// potential.Evaluate(scope), allow.Evaluate(scope), then ai_will_do, CRT rand() and, on success, a
+// session command; the game itself is only changed later, when the command runs. Its scope is
+// CEventScope::ctor(scope, 0x2D) with {tag, index} of the AI object (+0x30/+0x34) at scope+0x08.
+//
+// At the start of a frame in which fast_ai_queue drains the AI queue, the countries waiting in it are
+// read from the queue, and the worker pool evaluates slot 6, potential and allow of every decision of
+// each country's list with that same scope. During the frame, AI_DecisionUpdate gets a list of only
+// the decisions that passed, in the original order, so ai_will_do, rand() and the command run as before
+// in the game's own code. Shadow mode (2) leaves the game on the full lists and compares instead.
+
+constexpr uint32_t kCountryAiObject = 0x208;     // CCountry: AI object, 0 for none (AI_FrameUpdate skips those)
+constexpr uint32_t kAiObjectTag = 0x30;
+constexpr uint32_t kDecisionAllow = 0x40;        // embedded CAndTrigger
+constexpr uint32_t kDecisionCheckSlot = 0x18;    // CDecision slot 6
+constexpr uint32_t kDecisionCheckTrivialRva = 0x631490;  // MOV AL,1 / RET
+constexpr uintptr_t kAiScopeParent = 0x2D;       // AI_DecisionUpdate: PUSH 0x2D at 0x008211B3
+constexpr uint32_t kQueueNodeCountry = 0x04;     // AI job node: +0 tag, +4 country index, +8 prev, +0xC next
+constexpr uint32_t kQueueNodeNext = 0x0C;
+constexpr int kMaxMismatchLogs = 20;
+
+int g_parallel = 0;  // 0 off, 1 on, 2 shadow
+uintptr_t g_decision_check_trivial = 0;
+
+struct Precomputed {
+    std::vector<uintptr_t> a;  // decisions of the country's list A whose checks passed, in list order
+    std::vector<uintptr_t> b;
+    uintptr_t ai = 0;
+    uint32_t lists_version = 0;
+    uint32_t frame = 0;        // frame of the computation; 0 = never
+    uint32_t queued = 0;       // frame whose batch includes this country
+    bool ok = false;           // false when a decision had an unexpected slot 6
+};
+std::vector<Precomputed> g_pre;
+std::vector<uint32_t> g_pending;  // countries of the current frame's batch
+uint32_t g_frame = 0;
+bool g_frame_open = false;
+
+// parallel statistics since load
+uint64_t g_par_frames = 0;
+uint64_t g_par_countries = 0;
+uint64_t g_par_ticks = 0;       // wall time of the batches on the game thread
+uint64_t g_par_checked = 0;     // decisions evaluated by the batches
+uint64_t g_par_passed = 0;
+uint64_t g_par_used = 0;        // AI updates served from a batch
+uint64_t g_shadow_compared = 0; // decisions compared in shadow mode
+uint64_t g_shadow_mismatches = 0;
+int g_mismatch_logs = 0;
+
+void make_ai_scope(unsigned char* scope, uintptr_t ai) {
+    std::memset(scope, 0, kScopeSize);
+    g_scope_ctor(scope, nullptr, reinterpret_cast<void*>(kAiScopeParent));
+    std::memcpy(scope + kScopeTag, reinterpret_cast<const void*>(ai + kAiObjectTag), 8);  // {tag, index}
+}
+
+// 1 = passes, 0 = fails, -1 = slot 6 is not the expected `return true`.
+inline int decision_passes(uintptr_t decision, void* scope) {
+    if (read32(read32(decision) + kDecisionCheckSlot) != g_decision_check_trivial) {
+        return -1;
+    }
+    return evaluate(decision + kDecisionPotential, scope) && evaluate(decision + kDecisionAllow, scope) ? 1 : 0;
+}
+
+// Worker task: one country. Reads the game and g_lists; writes only its own Precomputed, whose vectors
+// were reserved by the game thread, so nothing is allocated here.
+void precompute_country(int index, void*) {
+    uint32_t country = g_pending[static_cast<size_t>(index)];
+    Precomputed& p = g_pre[country];
+    const CountryLists& lists = g_lists[country];
+    alignas(16) unsigned char scope[kScopeSize];
+    make_ai_scope(scope, p.ai);
+    p.ok = true;
+    for (int which = 0; which < 2 && p.ok; which++) {
+        const std::vector<uintptr_t>& in = which == 0 ? lists.a : lists.b;
+        std::vector<uintptr_t>& out = which == 0 ? p.a : p.b;
+        for (uintptr_t decision : in) {
+            int r = decision_passes(decision, scope);
+            if (r < 0) {
+                p.ok = false;
+                break;
+            }
+            if (r) {
+                out.push_back(decision);
+            }
+        }
+    }
+    p.frame = g_frame;
+}
+
+void frame_begin(void* queue_ref) {
+    if (!g_parallel || g_decisions.empty() || !queue_ref) {
+        return;
+    }
+    g_frame++;
+    g_frame_open = true;
+    uintptr_t bucket = read32(reinterpret_cast<uintptr_t>(queue_ref));
+    int32_t day = current_day();
+    if (!bucket || day < 0) {
+        return;
+    }
+    if (g_pre.size() != g_lists.size()) {
+        g_pre.assign(g_lists.size(), Precomputed{});
+    }
+    int64_t start = qpc();
+    g_pending.clear();
+    uint64_t checks = 0;
+    // Bucket 0 is the one AI_FrameUpdate drains (the only one in single player).
+    for (uintptr_t node = read32(bucket); node; node = read32(node + kQueueNodeNext)) {
+        uint32_t country = read32(node + kQueueNodeCountry);
+        uintptr_t object = country < g_lists.size() ? country_object(country) : 0;
+        uintptr_t ai = object ? read32(object + kCountryAiObject) : 0;
+        if (!ai || g_pre[country].queued == g_frame) {
+            continue;
+        }
+        CountryLists& lists = g_lists[country];
+        if (lists.dirty || lists.built_day < 0 || day - lists.built_day >= kRefreshDays) {
+            build_lists(country, day);  // the same rebuild the AI update would do, done here on the game thread
+        }
+        Precomputed& p = g_pre[country];
+        p.a.clear();
+        p.b.clear();
+        p.a.reserve(lists.a.size());
+        p.b.reserve(lists.b.size());
+        p.ai = ai;
+        p.lists_version = lists.version;
+        p.frame = 0;
+        p.queued = g_frame;
+        g_pending.push_back(country);
+        checks += lists.a.size() + lists.b.size();
+    }
+    if (g_pending.empty()) {
+        return;
+    }
+    parallel::run(static_cast<int>(g_pending.size()), &precompute_country, nullptr);
+    for (uint32_t country : g_pending) {
+        g_par_passed += g_pre[country].a.size() + g_pre[country].b.size();
+    }
+    g_par_frames++;
+    g_par_countries += g_pending.size();
+    g_par_checked += checks;
+    g_par_ticks += static_cast<uint64_t>(qpc() - start);
+}
+
+void frame_end() { g_frame_open = false; }
+
+// The batch result for `country`, when it is still valid for this AI update.
+const Precomputed* precomputed_for(uint32_t country, uintptr_t ai) {
+    if (!g_frame_open || country >= g_pre.size()) {
+        return nullptr;
+    }
+    const Precomputed& p = g_pre[country];
+    if (p.frame != g_frame || !p.ok || p.ai != ai || p.lists_version != g_lists[country].version) {
+        return nullptr;
+    }
+    return &p;
+}
+
+// Shadow mode: evaluates the country's list here, on the game thread, right before the game does,
+// and compares with the batch.
+void shadow_compare(uint32_t country, uintptr_t ai, const Precomputed& p) {
+    const CountryLists& lists = g_lists[country];
+    alignas(16) unsigned char scope[kScopeSize];
+    make_ai_scope(scope, ai);
+    for (int which = 0; which < 2; which++) {
+        const std::vector<uintptr_t>& in = which == 0 ? lists.a : lists.b;
+        const std::vector<uintptr_t>& batch = which == 0 ? p.a : p.b;
+        size_t at = 0;
+        for (uintptr_t decision : in) {
+            bool in_batch = at < batch.size() && batch[at] == decision;
+            if (in_batch) {
+                at++;
+            }
+            bool serial = decision_passes(decision, scope) == 1;
+            g_shadow_compared++;
+            if (serial != in_batch) {
+                g_shadow_mismatches++;
+                if (g_mismatch_logs++ < kMaxMismatchLogs) {
+                    uintptr_t object = country_object(country);
+                    char tag[4] = {};
+                    if (object) {
+                        std::memcpy(tag, reinterpret_cast<const void*>(object + kCountryTag), 3);
+                    }
+                    logf("parallel_decisions: MISMATCH day %d %s (%u) %s: serial %d, parallel %d", current_day(), tag,
+                         country, decision_name(decision).c_str(), serial ? 1 : 0, in_batch ? 1 : 0);
+                }
+            }
+        }
+    }
+}
+
+void log_parallel_summary(int32_t last_day) {
+    int32_t days = last_day - g_first_day + 1;
+    if (!g_parallel || g_first_day < 0 || days <= 0 || g_par_frames == 0) {
+        return;
+    }
+    auto ull = [](uint64_t v) { return static_cast<unsigned long long>(v); };
+    logf("parallel_decisions: days %d-%d: %llu batches, %.0f countries and %.0f checks per batch, %.2f ms/day on the game "
+         "thread (%d workers + game thread), %llu passed/day, %llu AI updates served",
+         g_first_day, last_day, ull(g_par_frames), static_cast<double>(g_par_countries) / g_par_frames,
+         static_cast<double>(g_par_checked) / g_par_frames, ms(g_par_ticks) / days, parallel::workers(),
+         ull(g_par_passed / days), ull(g_par_used));
+    if (g_parallel == 2) {
+        logf("parallel_decisions: shadow: %llu checks compared, %llu mismatches", ull(g_shadow_compared),
+             ull(g_shadow_mismatches));
+    }
+}
+
 // AI_DecisionUpdate reads the manager through the global, so the global itself is pointed at the
 // country's copy for the duration of the call and restored afterwards, also on an unwind.
 using AiDecisionsFn = int(__fastcall*)(void* ai, void* edx);
@@ -323,7 +535,19 @@ AiDecisionsFn g_original_ai_decisions = nullptr;
 int __fastcall ai_decisions_hook(void* ai, void* edx) {
     uintptr_t* global = reinterpret_cast<uintptr_t*>(hooks::exe_addr(kDecisionManagerPtrRva));
     uintptr_t real = *global;
-    uintptr_t replacement = manager_for_country(read32(reinterpret_cast<uintptr_t>(ai) + kAiObjectCountryIndex));
+    uint32_t country = read32(reinterpret_cast<uintptr_t>(ai) + kAiObjectCountryIndex);
+    uintptr_t replacement = manager_for_country(country);
+    if (replacement != real && g_parallel) {
+        if (const Precomputed* p = precomputed_for(country, reinterpret_cast<uintptr_t>(ai))) {
+            if (g_parallel == 1) {
+                set_fake_list(kListA, p->a);
+                set_fake_list(kListB, p->b);
+            } else {
+                shadow_compare(country, reinterpret_cast<uintptr_t>(ai), *p);
+            }
+            g_par_used++;
+        }
+    }
     if (replacement == real) {
         return g_original_ai_decisions(ai, edx);
     }
@@ -531,6 +755,7 @@ void refresh_decisions() {
         }
         if (g_cull) {
             log_cull_summary(g_last_day);
+            log_parallel_summary(g_last_day);
         }
     }
     g_decisions.clear();
@@ -538,6 +763,9 @@ void refresh_decisions() {
     g_total_calls = 0;
     g_list_builds = g_list_build_ticks = g_removed_tag = g_removed_ai = g_removed_dead = 0;
     g_ai_requests = g_ai_decisions_seen = 0;
+    g_par_frames = g_par_countries = g_par_ticks = g_par_checked = g_par_passed = g_par_used = 0;
+    g_shadow_compared = g_shadow_mismatches = 0;
+    g_pre.clear();
     g_first_day = -1;
     g_period_start_day = -1;
     for (uint32_t list : {kListA, kListB}) {
@@ -596,6 +824,7 @@ void hourly_tick() {
             }
             if (g_cull) {
                 log_cull_summary(g_last_day);
+                log_parallel_summary(g_last_day);
             }
             g_period_start_day = day;
         }
@@ -618,6 +847,24 @@ bool hook_slot(uint32_t slot_rva, uint32_t expected_rva, uintptr_t replacement, 
 void install_decision_cull(const Config& config) {
     g_cull = config.cull_decision_checks;
     g_profiling = config.decision_profiling;
+    g_parallel = config.parallel_decisions;
+    if (g_parallel && !g_cull) {
+        logf("parallel_decisions: needs cull_decision_checks = 1 (it extends the cull's per-country lists), off");
+        g_parallel = 0;
+    }
+    if (g_parallel && g_profiling) {
+        logf("parallel_decisions: off while decision_profiling is on (the timing hook is not thread-safe)");
+        g_parallel = 0;
+    }
+    if (g_parallel && !config.fast_ai_queue) {
+        logf("parallel_decisions: needs fast_ai_queue = 1 (the batch runs in the frame that drains the AI queue), off");
+        g_parallel = 0;
+    }
+    g_decision_check_trivial = hooks::exe_addr(kDecisionCheckTrivialRva);
+    if (g_parallel && !hooks::expect_bytes(g_decision_check_trivial, "\xB0\x01\xC3", 3)) {
+        logf("parallel_decisions: CDecision slot 6 not recognised, off");
+        g_parallel = 0;
+    }
     if (!g_cull && !g_profiling) {
         logf("decision_cull: disabled");
         return;
@@ -687,6 +934,13 @@ void install_decision_cull(const Config& config) {
     }
     logf("decision_cull: active (cull %s: per-country AI lists, rebuilt on flag clears and every %d days; profiling %s)",
          g_cull ? "on" : "off", kRefreshDays, g_profiling ? "on" : "off");
+    if (g_parallel) {
+        logf("parallel_decisions: active (%s): decision checks of the AI queue evaluated on worker threads at max speed",
+             g_parallel == 2 ? "shadow mode, the game still uses its own evaluation" : "results used");
+    }
 }
+
+void decisions_frame_begin(void* queue_ref) { frame_begin(queue_ref); }
+void decisions_frame_end() { frame_end(); }
 
 }  // namespace cp::features

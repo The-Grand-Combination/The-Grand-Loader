@@ -40,6 +40,11 @@ excluded), so runs can be timed without a stopwatch. `v2cp_decisions.log` appear
 | `sample_profiler`       | `0`     | Every N ms, records where the game thread is (and the calls on its stack) while the date advances; rewrites `v2cp_samples.tsv` every 30 game days. Sees virtual calls and rendering, which `tick_profiler` cannot. Use `1`, with `tick_profiler = 0`. See [docs/sample-profiler.md](docs/sample-profiler.md). |
 | `skip_network_wait`     | `1`     | Polls the network every frame without blocking. Vanilla blocks 15–35 ms per frame waiting for packets, also in single player (a local loopback). First year 155 instead of ~199 ms/day (−22 %); with both culls, 144 ms/day (−26 %). CPU use still drops when paused. Not yet checked in multiplayer. See [re/systems/network.md](re/systems/network.md). |
 | `prefetch_relations`    | `1`     | Prefetches the country-to-country relation objects before the three daily scans that read them (country recalculation, market capacity, relation purge) and skips purges with nothing to purge. Same results; first year 144 -> 137 ms/day. |
+| `prefetch_pops`         | `0`     | Before two daily per-pop loops (each country's market update; DayTick's province pass, 8 provinces at a time), walks the pop lists side by side and prefetches every pop, so the cache misses overlap. Read-only, same results. Experimental, not measured yet. See [re/systems/performance.md](re/systems/performance.md). |
+| `prefetch_ai_relations` | `0`     | Prefetches the relation data the AI's daily target scan reads (one scan per AI country over every country) before it runs. Read-only, same results. Experimental, not measured yet. See [re/systems/performance.md](re/systems/performance.md). |
+| `fast_ai_queue`         | `0`     | At max speed, lets the daily AI job queue finish in the frame it started in instead of 20 ms per frame (cap 250 ms), so a day needs fewer frames. Same jobs, same order; other speeds unchanged. First year 137 -> 133 ms/day (one run, within noise). See [re/systems/tick.md](re/systems/tick.md). |
+| `parallel_decisions`    | `0`     | With `cull_decision_checks` and `fast_ai_queue`: at max speed, evaluates the AI's daily decision checks (`potential`, `allow`) for all waiting countries on worker threads, and the game's loop only sees the decisions that passed, in order. `2` = shadow mode: the game is unchanged and the parallel results are compared and logged. Experimental. See [re/systems/parallel-triggers.md](re/systems/parallel-triggers.md). |
+| `compress_flag_cache`   | `0`     | Creates, saves and loads the per-government flag atlases as DXT1 DDS instead of uncompressed TGA: 4 MB instead of 32 MB per atlas in TGC. Delete the old `flagfiles*` caches once so they are rebuilt. See [re/systems/flags.md](re/systems/flags.md). |
 
 ## How it works
 
@@ -56,6 +61,7 @@ with content mods. Any project can ship a plugin this way; `community_patch` is 
 launcher/   dinput8.dll — proxy, plugin discovery and loading, log. Owns the plugin ABI.
 patch/      community_patch.dll — the Community Patches plugin.
   src/features/   one file per patch
+    profilers/    diagnostic profilers (tick_profiler, sample_profiler)
   src/hooks/      hooking primitives
   mod/            the .ini shipped with the patch
 docs/       one page per shipped feature, timings.md (first-year table)

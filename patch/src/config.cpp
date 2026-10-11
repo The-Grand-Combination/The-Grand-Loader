@@ -58,8 +58,16 @@ Config load_config(const std::wstring& config_file) {
             config.tick_profiler = parse_int(value, 0);
         } else if (key == "cull_decision_checks") {
             config.cull_decision_checks = parse_int(value, 0) != 0;
+        } else if (key == "parallel_decisions") {
+            config.parallel_decisions = parse_int(value, 0);
+        } else if (key == "fast_ai_queue") {
+            config.fast_ai_queue = parse_int(value, 0) != 0;
         } else if (key == "compress_flag_cache") {
             config.compress_flag_cache = parse_int(value, 0) != 0;
+        } else if (key == "prefetch_ai_relations") {
+            config.prefetch_ai_relations = parse_int(value, 0) != 0;
+        } else if (key == "prefetch_pops") {
+            config.prefetch_pops = parse_int(value, 0) != 0;
         } else if (key == "prefetch_relations") {
             config.prefetch_relations = parse_int(value, 0) != 0;
         } else if (key == "skip_network_wait") {
@@ -71,11 +79,11 @@ Config load_config(const std::wstring& config_file) {
         }
     });
     logf("config: engine_worker_threads=%d cull_cb_checks=%d cull_cb_profiling=%d tick_profiler=%d "
-         "cull_decision_checks=%d decision_profiling=%d sample_profiler=%d skip_network_wait=%d prefetch_relations=%d compress_flag_cache=%d",
+         "cull_decision_checks=%d decision_profiling=%d sample_profiler=%d skip_network_wait=%d prefetch_relations=%d prefetch_pops=%d prefetch_ai_relations=%d compress_flag_cache=%d fast_ai_queue=%d parallel_decisions=%d",
          config.engine_worker_threads, config.cull_cb_checks ? 1 : 0, config.cull_cb_profiling ? 1 : 0,
          config.tick_profiler, config.cull_decision_checks ? 1 : 0, config.decision_profiling ? 1 : 0,
          config.sample_profiler, config.skip_network_wait ? 1 : 0, config.prefetch_relations ? 1 : 0,
-         config.compress_flag_cache ? 1 : 0);
+         config.prefetch_pops ? 1 : 0, config.prefetch_ai_relations ? 1 : 0, config.compress_flag_cache ? 1 : 0, config.fast_ai_queue ? 1 : 0, config.parallel_decisions);
     return config;
 }
 

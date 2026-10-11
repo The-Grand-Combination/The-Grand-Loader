@@ -1,4 +1,4 @@
-#include "features/tick_profiler.h"
+#include "features/profilers/tick_profiler.h"
 
 #include <windows.h>
 
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "features/tick_profiler_sites.h"
+#include "features/profilers/tick_profiler_sites.h"
 #include "hooks/memory.h"
 #include "log.h"
 

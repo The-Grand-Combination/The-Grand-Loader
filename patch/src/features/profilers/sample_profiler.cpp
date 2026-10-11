@@ -1,4 +1,4 @@
-#include "features/sample_profiler.h"
+#include "features/profilers/sample_profiler.h"
 
 #include <windows.h>
 #include <timeapi.h>

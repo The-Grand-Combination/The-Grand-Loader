@@ -36,7 +36,7 @@ Sources: `tick_profiler` logs in [raw/profiler/](../raw/profiler/), `year_timer`
 | ↳ `AI_FrameUpdate` `0x006874C0` | ~24–26 | 12 % | the daily AI decision loop (`AI_DecisionUpdate`); `cull_decision_checks` targets it |
 | ↳ `Render_MapFrame` `0x006592F0` | ~14.5 | 7 % | 3–4 calls/day |
 | ↳ other frame calls | ~5 | 2 % | `FUN_00654530`, `FUN_00657B60`, ... |
-| `WorldMarketUpdate` `0x00484060` (exclusive) | 21.6 | 11 % | level 5 exists, no log |
+| `WorldMarketUpdate` `0x00484060` | ~23 incl. | 11 % | own 0.2; `Market_UpdateCountryPops` 14.8, pop cache misses: `prefetch_pops` (candidate 3) |
 | `Country_DailyUpdate` own | ~20 | 10 % | decisions are **not** here (they run in `AI_FrameUpdate`) |
 | `Country_PrePass` `0x00508590` | 27 | 13 % | split: `FUN_00515490` 8.7, own 6.5, `FUN_0050EA30` 3.3, `FUN_0051FD10` 3.0, `FUN_0050B9B0` 2.4 |
 | `ProcessMarketAndGoodsDistribution` `0x004808D0` | 8.7 | 4 % | |
@@ -77,24 +77,39 @@ Per frame, it drives `AI_CountryFrameJob` and so `AI_DecisionUpdate`, the daily 
 (~23 ms), so decisions are essentially all of it. **[M]** `cull_decision_checks` v2 already cuts ~7 ms
 here; the remaining ~16 ms is the evaluation of decisions that can still pass.
 
+**Sampled (v3, 1837, all fixes):** the job is 21.9 ms/day: `AI_DecisionUpdate` 10.7 and
+`AI_CountryDailyJob_Update` (`0x0084B690`) 9.7. In the latter, `AI_TargetScan` (`0x0084B0F0`, 3.9 ms
+own) stalls on relation `+0x34` for every country (90 % of its samples at `0x0084B29D`). **[M]**
+Patch: `prefetch_ai_relations` (shipped 0, not measured). `FUN_00826480` (4.1) has no hot spot.
+
 ### `UpdateTimeThrottle` inside the tick: ruled out
 
 `WorldMarketUpdate` calls it every 20 countries and the tick ~1400 times a day, and it can render a frame
 in the middle of the market. Measured at level 4: **1.0 frame/day rendered from inside the tick, ~5
 ms/day** (2.5 %). **[M]** Removing it is not worth the loss of responsiveness at slow speeds.
 
-### 3. `WorldMarketUpdate` per-factory work (21.6 ms exclusive)
+### 3. `WorldMarketUpdate`: the per-pop market loop (`prefetch_pops`)
 
-For every open factory below level 11 in every state of every country, every day: `Goods_MultiplyClamp99999`
-into a static goods pool, `memcpy` of `g_goodsCount` bytes, `vector_resize`, an element-by-element copy
-into the factory's vector, then `Factory_MarketUpdate`. Per state (when `param_2 >= 3`):
-`FUN_004A4F30` + `FUN_00483730` unless state `+0x244 == 4`, then `FUN_004A46E0`. Per country:
-`Market_AddRealDemand`, `Market_UpdateCountryPops`, stockpile accumulation. **[C]**
+**Sampled (v3, 1837, all fixes on, 154 ms/day):** `WorldMarketUpdate` is ~23 ms/day inclusive but only
+0.2 ms of its own; the "21.6 ms exclusive" of the tick profiler was unhooked callees. **[M]** Most of it
+is `Market_UpdateCountryPops` (`0x00485E40`, 14.8 ms): `FUN_004DD3C0` 5.9 (artisan/needs, through
+`FUN_00485390` and `FUN_00483AA0`), `FUN_00485960` 2.4, own 2.0, `FUN_00484F90` 1.9, `FUN_00485390` 1.7.
+The rest of the economy is a flat spread of small goods-vector primitives (`ScaledDotProduct`,
+`Stockpile_SubtractArtisanFactory`, `FUN_0047E220`, 64-bit `__alldiv`/`__allmul` ~5 ms together, called
+from everywhere).
 
-- Next: level 5 log to split the 21.6 ms between factories, states and countries.
-- Ideas: reuse the factory's vector instead of resize + copy; skip the temporary when the inputs did
-  not change. Same results by construction.
+Per instruction, the hottest samples sit right after the first read of a pop: `0x004853D7` (after
+`[pop+0x1B4]`, 34 % of `FUN_00485390`), `0x004869F6` (after `[pop+0x68]`, 32 % of the loop's own time),
+`0x00486A1C` (after `[pop+0x1D4]`, then `[that+0xB0]`). **[M]** The loop walks, for each province of the
+country and each pop type of the market (`market+0x804`), a linked list (`province+0x194 + type*16`,
+next = `pop+0x27C`) **[C]**: every pop is a dependent cache miss.
 
+- **Built:** `prefetch_pops` (shipped 0): a register-preserving thunk on the call at `0x0048468F`
+  collects every list head of the country, advances all lists together and prefetches each pop's
+  `0x280` bytes and the `+0xB0`/`+0xE8` lines of `[pop+0x1D4]`. Read-only.
+- **Next:** `year_timer` against 137 ms/day; a sampling run to see the stalls move. If it works, the
+  same walk applies to the other daily per-pop loops (`Country_DailyUpdate`'s pop pass,
+  `Economy_AccumulateElement` at `0x00969889`, a stall on the pop's `+0xA4` vector).
 ### 4. `Country_Recalculate` (`0x00515490`) (8.7 ms, 322 calls/day)
 
 It resets dozens of `CCountry` fields (`+0x94`, `+0x1434`, `+0x1414`, vectors at `+0xD38..+0xD98`,
@@ -140,10 +155,28 @@ High effort; only after 1–4.
   everything (virtual calls, render, driver and CRT time by module), adds no cost to hot loops and needs
   no site tables. Use one profiler at a time.
 
-## Next measurements, in order
+## Next steps
 
-1. Sampling profile of a year at max speed: who the 51 ms in `CommandQueue_Process` are.
-2. Level 5: split `WorldMarketUpdate` and `Country_DailyUpdate`.
-3. Allocation count per day.
-4. Late game (1880+): the budget above is 1836. Pop count, factories and wars grow, so the ranking
-   may change.
+Moved to [../next-steps.md](../next-steps.md) (2026-10-11). The old list: the `CommandQueue_Process`
+sampling (done, network wait), level 5 (superseded by sampling), allocation count (ntdll is ~5 ms/day
+since `skip_network_wait`, not pursued), late game (still open, option 1 there).
+
+## Hot-spot scan (2026-10-11, samples with culls and prefetches off)
+
+Share of each function's samples on its hottest instruction. High share right after a load = cache
+miss; the fix pattern is a read-only prefetch before the loop.
+
+| function | ms/day excl. | top instr. | what stalls | status |
+|---|---|---|---|---|
+| `FUN_00522CF0` | 5.6 | 90 % `0x00522E27` | relation `+0x34` | `prefetch_relations` |
+| `AI_TargetScan` `0x0084B0F0` | 3.9 | 90 % `0x0084B29D` | relation `+0x34` | `prefetch_ai_relations` |
+| `CountryRelation_DailyPurge` | 5.6 | 71 % | relation `+0x50` | `prefetch_relations` |
+| `Country_PrePass` | 3.6 | 70 % `0x00508DEE` | relation `+0x2C` | `prefetch_relations` (offset added) |
+| `Country_Recalculate` | 7.8 | 46 % | relation `+0x20` | `prefetch_relations` |
+| `FUN_004B9C60` | 1.3 | 89 % `0x004B9C9B` | pop `+0x27C` (DayTick pop pass) | `prefetch_pops` (2nd site) |
+| `FUN_00485390`, `Market_UpdateCountryPops` | 4.5 | 32–34 % | first pop read | `prefetch_pops` |
+| `FUN_0095EB00` | 1.4 | 90 % `0x0095EB63` | pop `+0x11C` (market distribution) | open |
+| `FUN_0095A5F0` | 2.1 | 46 % `0x0095A66D` | pop `+0x180..+0x21C` | open |
+| `FUN_0052FCD0` | 1.9 | 48 % `0x00530388` | `other+0x1580[self]` | open |
+| `FUN_009E6C10` | 2.2 | 67 % `0x009E6C2F` | flag trie node (`has_country_flag`) | open; mostly decision triggers, already culled |
+| `Economy_AccumulateElement` | 2.4 | 55 % `0x00969889` | pop `+0xA4` vector | open |

@@ -8,12 +8,15 @@ add_library(community_patch SHARED
     src/features/year_timer.cpp
     src/features/worker_threads.cpp
     src/features/cb_cull.cpp
-    src/features/tick_profiler.cpp
+    src/features/profilers/tick_profiler.cpp
     src/features/decision_cull.cpp
-    src/features/sample_profiler.cpp
+    src/features/profilers/sample_profiler.cpp
     src/features/network_wait.cpp
     src/features/relations_prefetch.cpp
+    src/features/pops_prefetch.cpp
     src/features/flag_cache.cpp
+    src/features/ai_queue.cpp
+    src/parallel/worker_pool.cpp
 )
 
 target_include_directories(community_patch PRIVATE src)

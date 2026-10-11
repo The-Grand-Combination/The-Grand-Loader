@@ -1,6 +1,6 @@
 # `sample_profiler`: where the game thread is
 
-Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/sample_profiler.cpp`.
+Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/profilers/sample_profiler.cpp`.
 
 ## Why
 

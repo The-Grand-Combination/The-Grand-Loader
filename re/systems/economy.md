@@ -22,9 +22,10 @@ The price constants were re-read from the exe here, which corrected their meanin
 ```text
 DayTick
   Economy_Update (0x00489990)                         1 call/day, ~37 ms
-    WorldMarketUpdate (0x00484060)                    ~21.6 ms
+    WorldMarketUpdate (0x00484060)                    ~23 ms sampled, 0.2 own
       for country: for state: for factory: Factory_MarketUpdate (0x00482FF0)
-      per country: Market_UpdateCountryPops (0x00485E40)      pop money, needs, savings [I]
+      per country: Market_UpdateCountryPops (0x00485E40)      pop money, needs, savings [I]; ~14.8 ms sampled
+        for province: for pop type: linked list province+0x194[type*16], next = pop+0x27C [C]
       0x00484309: CALL UpdateTimeThrottle             (removed by the external world_market_throttle patch)
     ProcessMarketAndGoodsDistribution (0x004808D0)    ~8.7 ms
     Market_PostProcess (0x00488080)                   ~3.3 ms

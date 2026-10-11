@@ -12,4 +12,8 @@ namespace cp::features {
 // exactly what it would have found. See re/systems/performance.md.
 void install_relations_prefetch(const Config& config);
 
+// `prefetch_ai_relations`: the same for the AI's daily target scan (FUN_0084B0F0, one per AI country),
+// which reads relation +0x34 for every country. Read-only.
+void install_ai_relations_prefetch(const Config& config);
+
 }  // namespace cp::features

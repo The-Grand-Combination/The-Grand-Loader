@@ -14,7 +14,11 @@ struct Config {
     int sample_profiler = 0;            // 0 off, N = sample the game thread every N ms into v2cp_samples.tsv
     bool skip_network_wait = false;     // poll the network every frame without blocking (vanilla blocks 15-35 ms)
     bool prefetch_relations = false;    // prefetch relation objects before the three daily country x country scans
-    bool compress_flag_cache = false;   // create, cache and load the flag atlases as DXT5 instead of uncompressed
+    bool prefetch_pops = false;         // prefetch each country's pops before its daily market update
+    bool prefetch_ai_relations = false; // prefetch relations before the AI's daily target scan
+    bool compress_flag_cache = false;   // create, cache and load the flag atlases as DXT1 instead of uncompressed
+    bool fast_ai_queue = false;         // at max speed, finish the AI job queue in the frame it started in
+    int parallel_decisions = 0;         // 0 off, 1 AI decision checks on worker threads, 2 shadow mode (compare only)
 };
 
 // Reads mod\community_patch.ini.

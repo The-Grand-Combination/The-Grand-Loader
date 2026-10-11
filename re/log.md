@@ -195,3 +195,59 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 
 - **First run (user, TGC):** the patch rebuilt all 11 atlases as DDS/DXT5, 8 388 736 bytes each (was 33 554 463), and the game loaded them. RAM measurement still to report.
 - **Alpha check:** every 4×4 block of the DXT5 atlases has alpha 255/255; flags have no alpha (user). Switched to DXT1 (same colour encoding, 4 MB per atlas). The load wrapper skips conversion when the file is already DXT1; DXT5 or uncompressed caches are converted on every start until deleted and rebuilt.
+
+## 2026-10-11 — Why a day takes several frames: the AI job queue; `fast_ai_queue`
+
+- **Read:** `ProcessGameTimeAdvance` issues the next tick only when the AI job queue at `world+0xB84` is empty; `DayTick` fills it (one job per AI country, bucket `country % N`, N = 1 in single player); `AI_FrameUpdate` (`0x006874C0`) drains it at most 20 ms per frame (double 0.02 at `0x00E456C8`). A day = tick frame + AI frames + issue frame, each with its own render/UI. → [systems/tick.md](systems/tick.md)
+- **Built:** `fast_ai_queue` (shipped 0): the call at `0x006557C4` goes to a register-preserving thunk that, at max speed only, calls `AI_FrameUpdate` again until the queue is empty (cap 250 ms per frame). Same jobs, same order; integer-only timing (the caller may keep XMM values across the call).
+- **Open:** measure frames/day and ms/day with `tick_profiler = 1`, `fast_ai_queue` 0 vs 1.
+- **Measured later (2026-10-11):** 133 vs 137 ms/day (one run, see below). If it helps, next step: issue the next tick in the same frame once the queue empties (today the issue waits for the following frame's `ProcessGameTimeAdvance`).
+
+## 2026-10-11 — The market's per-pop loop is pop cache misses; `prefetch_pops`
+
+- **Sampled (v3, 1837, all fixes):** `WorldMarketUpdate` own time is 0.2 ms/day; the 21.6 "exclusive" of the tick profiler was unhooked callees. `Market_UpdateCountryPops` (`0x00485E40`) is 14.8 ms/day inclusive. Hottest instructions are right after the first read of each pop (`0x004853D7`, `0x004869F6`, `0x00486A1C`). The loop walks per-province, per-pop-type linked lists (`province+0x194 + type*16`, next `pop+0x27C`), so each pop is a dependent miss. → [systems/performance.md](systems/performance.md), [systems/economy.md](systems/economy.md)
+- **Built:** `prefetch_pops` (shipped 0): thunk on the call at `0x0048468F` walks all the country's lists side by side and prefetches every pop (0x280 bytes) and the `+0xB0`/`+0xE8` lines of `[pop+0x1D4]`. Read-only. **Open:** `year_timer` vs 137 ms/day; sampling run.
+- **Not pursued:** the 64-bit helpers `__alldiv`/`__allmul` (~5 ms/day) are spread over dozens of callers, ≤0.5 ms each.
+
+## 2026-10-11 — `fast_ai_queue = 1`: 133 ms/day
+
+- **Measured (user):** all fixes + `prefetch_relations` + `fast_ai_queue = 1`, `engine_worker_threads = 4`, no profiler: first year 0.48 min, **133 ms/day**, against 137 without it. One run; −4 ms is within the ~5 ms noise but in the expected direction (fewer frames per day). Overall 196 -> 133 (−32 %). → [../docs/timings.md](../docs/timings.md)
+- **Not in this run:** `prefetch_pops`. The game still loaded the DLL built before it (the `config:` line has no `prefetch_pops` field, no install line). Still to measure.
+- **Open:** a second `fast_ai_queue` run (or `tick_profiler = 1` for frames/day) before shipping it on.
+
+## 2026-10-11 — `cull_cb_checks` v3 never installed: wrong prologue check
+
+- **Found in v2cp.log:** `cb_cull: IsAnyCBUsable / CEventScope ctor not recognised, feature off` with `cull_cb_checks = 1`. The install check expected `55 8B EC 6A FF` at `CBManager_IsAnyCBUsable` (`0x0092EDE0`); 3.04 has `55 8B EC 83 E4 F8 64 A1` (aligned-stack SEH frame). The check has been this way since the v3 commit (`ea40f3d`), so the configurations "all" (144), "+ prefetch_relations" (137) and "+ fast_ai_queue" (133/134) ran **without** the CB cull, unless an older DLL was installed at the time.
+- **Fixed:** the check now expects `55 8B EC 83 E4 F8` (the function is only called, never patched, so it is a sanity check). The 133 run was also measured a second time: 134 ms/day.
+- **Open:** re-measure with the cull really active, and confirm `cb_cull: active` in the log.
+
+## 2026-10-11 — Everything active: 132 ms/day
+
+- **Measured (user):** all patches, now with `cb_cull: active` and `prefetch_pops: active` in the log, `fast_ai_queue = 1`, `engine_worker_threads = 4`, no profiler: first year **132 ms/day** against 133/134 without those two. One run.
+- **Reading:** together, the fixed CB cull and `prefetch_pops` gain 1–2 ms/day, below the ~5 ms noise. The CB cull's earlier −11 ms (185 against 196, on an otherwise vanilla game) does not show up here; either that number was noise, or the other patches already removed part of the same time. `prefetch_pops` is unproven: the year timer cannot resolve a few ms.
+- **Next:** a `sample_profiler = 1` run with these settings, to compare `Market_UpdateCountryPops` (14.8 ms/day before) and the hot instructions after the first pop reads (`0x004869F6`, `0x004853D7`). That decides `prefetch_pops`, not the year timer.
+
+## 2026-10-11 — The other half of the AI frame job: another relation miss; `prefetch_ai_relations`
+
+- **Sampled (same v3 file):** `AI_CountryFrameJob` 21.9 ms/day = `AI_DecisionUpdate` 10.7 + `FUN_0084B690` 9.7 (named `AI_CountryDailyJob_Update`, vtable slot `0x00E27738`). Inside it, `FUN_0084B0F0` (named `AI_TargetScan`, slot `0x00E2773C`, 5.5 inclusive, 3.9 own, 5th by exclusive time) has **90 % of its samples at one instruction**, `0x0084B29D`, right after `CMP [self+0xBE8[other]+0x34], 0`: the same relation field `FUN_00522CF0` stalls on, read for every country (1..count, with or without provinces) once per AI country per day. `FUN_00826480` (4.1) is spread over its callees, no hot spot.
+- **Built:** `prefetch_ai_relations` (shipped 0): the vtable slot points to a thunk that prefetches `rel+0x34` for every country before the scan. Read-only. Separate key so it can be measured; can be folded into `prefetch_relations` once proven. **Open:** measure (a sampling run shows it directly: `AI_TargetScan` own time should drop from ~3.9 ms/day).
+
+## 2026-10-11 — Scan for one-instruction hot spots; two more prefetch sites
+
+- **Method:** for every function with ≥0.8 ms/day exclusive in the v3 file, the share of its samples on its single hottest instruction. A high share right after a load = a cache miss that prefetching can hide. **Caveat:** that file is the 154 ms/day run with both culls and every prefetch off, so trigger and relation costs are overstated against today's settings.
+- **Found:** `Country_PrePass` 3.6 ms, 70 % at `0x00508DEE` (after `MOV ECX,[rel+0x2C]`, self's relation with every country); `FUN_004B9C60` 1.3 ms, 89 % after `[pop+0x27C]` (DayTick's per-province pop pass); `FUN_0095EB00` 1.4 ms, 90 % after `[pop+0x11C]` (from ProcessMarketAndGoodsDistribution); `FUN_0095A5F0` 2.1 ms, 46 % on pop `+0x180..+0x21C` writes; `FUN_0052FCD0` 1.9 ms, 48 % after `[other+0x1580][self*8]` (from Country_DailyUpdate); `FUN_009E6C10` 2.2 ms, 67 %: the case-insensitive ternary-trie lookup behind `has_country_flag` (`FUN_008CCB90`, trie at `country+0x1B0`, one node per character; the stall is the node load, not `tolower`), mostly from AI decisions, so largely already cut by `cull_decision_checks`.
+- **Built:** `prefetch_relations` now also prefetches `rel+0x2C` (Country_PrePass loop). `prefetch_pops` gets a second site: `CALL FUN_004B9C60` at `0x00685B09` in DayTick (EBX = world, EDI = province index); every 8th province, the pop lists of the next 8 are walked together and prefetched. Conflicts with `tick_profiler` level 2+ on that site (first installer wins, the other logs "skipped").
+- **Left for after the next profile:** `FUN_0095EB00`/`FUN_0095A5F0` (market pop loops), `FUN_0052FCD0`, the flag trie. Re-rank with a sampling run at current settings first.
+
+## 2026-10-11 — Feasibility of evaluating decision triggers on worker threads
+
+- **Read:** `AI_DecisionUpdate` sends a chosen decision as a session command (executed later by `CommandQueue_Process`), so the loop does not change the game while it runs. Its roll is CRT `rand()` (`0x00AB047B`, per-thread state), not the MT. → [systems/parallel-triggers.md](systems/parallel-triggers.md)
+- **Scanned:** new `tools/ghidra/V2WriteScan.java`, from the 235 `Evaluate` functions + `CDecision` slot 6 (`0x00A31490`), direct calls to depth 8 (688 functions): all 63 global addresses written are lazy singletons, same-value stores, CRT internals or crash paths; the only MT draw is in the pop constructor behind the lazy `CNullPop`. Virtual calls and writes through pointers not covered. → [raw/trigger-writescan-2026-10-11.txt](raw/trigger-writescan-2026-10-11.txt)
+- **Prize:** ~5–6 ms/day of `potential`/`allow` left after `cull_decision_checks` in 1836 (~4 ms on 4 threads); late game unknown.
+- **Plan:** shadow mode first (parallel precompute + serial compare, mismatches logged), real mode only after zero mismatches. Not built.
+
+## 2026-10-11 — `parallel_decisions`: first multi-threaded feature (untested)
+
+- **Read for the design:** `CDecision` slot 6 is `MOV AL,1 / RET`; the loop's scope is `CEventScope::ctor(scope, 0x2D)` + `{tag, index}` from AI object `+0x30`; the AI job queue (`world+0xB84`) holds nodes `{tag, country, prev, next}` in buckets `{head, tail, count, flag}`, only for countries with provinces; `AI_FrameUpdate` runs a job when `country+0x208` (AI object) is set.
+- **Built:** worker pool (`patch/src/parallel/`), batch at the start of the max-speed AI frame (driven by `fast_ai_queue`), filtered lists handed to `AI_DecisionUpdate` through the cull's fake manager; shadow mode (`= 2`) compares instead. `fast_ai_queue`'s thunk now saves FPU/SSE state with `fxsave`. → [systems/parallel-triggers.md](systems/parallel-triggers.md)
+- **Open:** shadow run (mismatches, batch ms/day), then `= 1` against 132 ms/day.

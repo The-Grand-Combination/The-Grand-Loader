@@ -99,3 +99,23 @@ which draws random numbers changes the sequence, so all players of a multiplayer
 1. What `FUN_00515490` (8.7 ms/day, 322 calls) does.
 2. The ~90 ms/day outside the simulation at max speed: how much is render, how much AI frame jobs.
 3. Semantics of the `Country_DailyUpdate` military blocks.
+
+## Frames per day: the AI job queue
+
+At max speed a day takes several frames, not one. **[C]**
+
+- At the end of `DayTick`, every AI object (`world+0xA4`, `+0x30` tag, `+0x34` country index) is appended
+  to bucket `country % N` of the job queue at `world+0xB84` (16-byte list headers, `+8` = job count;
+  N = 1 in single player, presumably one bucket per player in multiplayer).
+- Every frame `CInGameIdler_Update` calls `AI_FrameUpdate` (`0x006874C0`, stdcall, at `0x006557C4`)
+  when the first bucket is not empty. It pops jobs and runs `AI_CountryFrameJob` (decisions and the rest
+  of the per-country AI) until the bucket is empty **or 0.02 s have passed** (double at `0x00E456C8`).
+- `ProcessGameTimeAdvance` (`0x00682BD0`) issues the next `CHourlyTickCommand` only when every bucket is
+  empty (and the speed accumulator passed its threshold, and this client is the host). The command goes
+  through the session and is executed by `CommandQueue_Process` in a later frame.
+
+So a day is: a frame that executes the tick (and starts the AI), more frames while the AI runs 20 ms at a
+time, a frame in which the next tick is issued. Every one of them renders. The 20 ms budget is wall
+time, so vanilla's frame boundaries (and which commands run between AI jobs) already depend on machine
+speed. Patch: `fast_ai_queue` (finish the queue in one frame at max speed): first year 133 vs 137 ms/day,
+one run, within noise (2026-10-11).

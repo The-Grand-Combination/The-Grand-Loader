@@ -33,6 +33,7 @@ re/
 │   ├── structs.csv       struct, offset, field, type, conf, src, note
 │   └── patch_sites.csv   every known byte patch / hook site with its original bytes
 ├── systems/         one page per subsystem (below)
+├── next-steps.md    where the performance work goes next, in recommended order
 ├── log.md           dated research log: questions, measurements, dead ends, corrections
 ├── ghidra.md        headless Ghidra setup and the query/sync scripts
 ├── raw/             unedited material: decompilations, call lists, keyword maps, profiler logs
@@ -59,6 +60,7 @@ re/
 | [checksum.md](systems/checksum.md) | file and runtime checksums, the resign/menu bug |
 | [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label |
 | [performance.md](systems/performance.md) | measured budget, lessons, ranked performance candidates |
+| [parallel-triggers.md](systems/parallel-triggers.md) | feasibility of evaluating triggers on worker threads |
 | [network.md](systems/network.md) | ENet session, the 35 ms per-frame network wait |
 | [flags.md](systems/flags.md) | flag atlases, the uncompressed managed textures, `compress_flag_cache` |
 
