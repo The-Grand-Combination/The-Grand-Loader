@@ -1,0 +1,24 @@
+# political_decisions keywords -> token id -> CDecision field (v2game.exe 3.04).
+# CDecision::vftable = 0x00E29B54 (7 slots; slot 4 OnKeyword 0x00874CE0, slot 6 = 0x00A31490 returns 1). ctor 0x008743C0.
+# Decision manager singleton DAT_01319730 (getter 0x00875040, ctor 0x008750A0): two vector<CDecision*> lists at +0x0C/+0x10 and +0x28/+0x2C.
+
+id      keyword              offset   type
+0x7DF   (name/title string)  -        std::string
+0x729   potential            +0x24    CAndTrigger (embedded)
+0x72A   allow                +0x40    CAndTrigger
+0x058   effect               +0x5C    CEffect
+0x6A6   (bool, `= yes`)      +0x7C    bool   (compared with the player's own-decision list in FUN_005399C0; probably `alert`)
+0xA21   (bool)               +0x9C    bool
+0x9F0   (string)             +0xA0    std::string (picture?)
+0x9EF   (string)             +0xBC    std::string
+0x9EE   (string)             +0xD8    std::string
+0xA25   (string)             +0xF4    std::string
+0x496   ai_will_do           +0x110   CMeanTimeToHappen (base +0x118 = 1000, modifiers vector +0x11C/+0x120)
+
+# Where potential/allow are evaluated (all per country, scope country = that country):
+#   AI_DecisionUpdate 0x00821190 (frame-driven, once per AI country per day; ECX = AI object, +0x34 index): both lists, vt[6]() && potential && allow && ai_will_do (FUN_00874EA0) -> execute. THIS is the 529 k/day.
+#   AI_DiplomacyUpdate 0x0085D270  : both decision lists via DecisionManager_Get 0x00875040, vt[6]() && potential && ai_will_do -> execute (a few countries a day only)
+#   FUN_005399C0 (from Country_DailyUpdate 0x0050B792, player only; also per frame from CInGameIdler::Update 0x00654E48) : potential && allow -> sets country+0x28 "decision available" flag
+#   FUN_0046B3A0 / FUN_0047D0F0 (CPoliticsView), FUN_006DB2E0, FUN_006D2DD0 : UI lists, every refresh for the player
+#   FUN_0053A6D0 (from FUN_00713A90) : tooltip text
+# Measured: 527838 potential evaluations/day = 1651 decisions x ~320 countries -> already once per country per day.

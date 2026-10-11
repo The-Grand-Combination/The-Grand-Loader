@@ -3,7 +3,12 @@
 #include "v2cp/plugin_api.h"
 
 #include "config.h"
+#include "crash_log.h"
+#include "features/cb_cull.h"
+#include "features/decision_cull.h"
+#include "features/tick_profiler.h"
 #include "features/worker_threads.h"
+#include "features/year_timer.h"
 #include "log.h"
 
 namespace {
@@ -21,8 +26,13 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     g_host = host;
     cp::logf("Community Patches %s", V2CP_PATCH_VERSION);
 
+    cp::install_crash_log(&cp::features::tick_profiler_crash_context);
     cp::Config config = cp::load_config(host->config_file);
     cp::features::install_worker_threads(config);
+    cp::features::install_cb_cull(config);
+    cp::features::install_tick_profiler(config);
+    cp::features::install_decision_cull(config);
+    cp::features::install_year_timer();
     return 0;
 }
 

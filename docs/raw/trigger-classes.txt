@@ -1,0 +1,240 @@
+# Trigger classes of v2game.exe 3.04, classified from their Evaluate (vtable slot 6) decompilation.
+# Columns: verdict  evaluate_fn  value_parser(slot9)  class  [pair-dependence markers]
+# COUNTRYREF = parser 0x008D3F50 (= TAG|THIS|FROM, flags at +0x18/+0x19); SCALAR = reads only scope country + literals;
+# PAIR = dereferences THIS scope (+0x24), FROM (+0x30/+0x34), evaluates children or opens a scope; HELPER = passes scope to a helper (reviewed: scalar).
+COUNTRYREF  008c9740 008d3f50 COwnedByTrigger                                
+COUNTRYREF  008d28c0 008d3f50 CCasusBelliTrigger                             
+COUNTRYREF  008d2e80 008d3f50 CConstructingCasusBelliTrigger                 
+COUNTRYREF  008d4000 008d3f50 CTagTrigger                                    
+COUNTRYREF  008d4620 008d3f50 CNeighbourTrigger                              
+COUNTRYREF  008d57e0 008d3f50 CWarWithTrigger                                
+COUNTRYREF  008d5e60 008d3f50 CTruceWithTrigger                              
+COUNTRYREF  008d8030 008d3f50 CIsPossibleVassalTrigger                       
+COUNTRYREF  008d8b50 008d3f50 CSubstateOfTrigger                             
+COUNTRYREF  008d90b0 008d3f50 CVassalOfTrigger                               
+COUNTRYREF  008d9800 008d3f50 CIsOurVassalTrigger                            
+COUNTRYREF  008d9f20 008d3f50 CAllianceWithTrigger                           
+COUNTRYREF  008ddda0 008d3f50 CGrantsMilitaryAccessTrigger                   
+COUNTRYREF  008de770 008d3f50 CGuaranteeTrigger                              
+COUNTRYREF  008decb0 008d3f50 CCountryUnitsInProvinceTrigger                 
+COUNTRYREF  008df220 008d3f50 CCountryUnitsInStateTrigger                    
+COUNTRYREF  008ed0f0 008d3f50 CHasStrongerArmyTrigger                        
+COUNTRYREF  008f7230 008d3f50 CSomeoneCanFormUnionTagTrigger                 
+COUNTRYREF  008f9c70 008d3f50 CInSphereTrigger                               
+COUNTRYREF  008fa2f0 008d3f50 CIsSphereLeaderOfTrigger                       
+HELPER      00903610 004490f0 CNewsValuesEqTrigger                           CONCAT44(param_2,,
+HELPER      009037f0 004490f0 CNewsValuesGreaterTrigger                      CONCAT44(param_2,,
+PAIR        008b8260 004490f0 CAndTrigger                                    + 0x18))(,
+PAIR        008b88a0 004490f0 COrTrigger                                     + 0x18))(,
+PAIR        008b9240 004490f0 CNotTrigger                                    + 0x18))(,
+PAIR        008b94b0 004490f0 CContextTrigger                                + 0x18))(,FUN_00876240,FUN_008a8650,
+PAIR        008bde30 008bdd40 CIsCoreTrigger                                 param_2 + 0x30,param_2 + 0x38,param_2 + 0x3c,
+PAIR        008bf580 008b9360 CNumOfCitiesTrigger                            param_2 + 0x30,
+PAIR        008c40b0 008b9360 CSubUnitTrigger                                param_2 + 0x30,
+PAIR        008c5da0 004490f0 CRegionScopeTrigger                            + 0x18))(,
+PAIR        008c6150 004490f0 CAnyNeighborProvinceTrigger                    + 0x18))(,
+PAIR        008c66f0 004490f0 CAnySubstateTrigger                            + 0x18))(,
+PAIR        008c6c20 004490f0 CAnyOwnedProvinceTrigger                       + 0x18))(,
+PAIR        008c7310 004490f0 CRelationTrigger                               param_2 + 0x24,
+PAIR        008c8440 004490f0 CDiplomaticInfluenceTrigger                    param_2 + 0x24,
+PAIR        008ca2e0 008ca270 CControlledByTrigger                           param_2 + 0x30,param_2 + 0x38,param_2 + 0x3c,
+PAIR        008cf460 008cf240 CContinentTrigger                              param_2 + 0x24,param_2 + 0x30,
+PAIR        008d0760 004490f0 CAnyNeighborCountryTrigger                     + 0x18))(,
+PAIR        008d0d10 004490f0 CWarCountriesTrigger                           + 0x18))(,
+PAIR        008d12c0 004490f0 CAnySphereMemberTrigger                        + 0x18))(,
+PAIR        008d1750 004490f0 CAnyCoreTrigger                                + 0x18))(,
+PAIR        008d1cb0 004490f0 CAllCoreTrigger                                + 0x18))(,
+PAIR        008d4b40 008b9360 CUnitsInProvinceTrigger                        param_2 + 0x30,
+PAIR        008daec0 008b93b0 CIsMissionCountryTrigger                       param_2 + 0x24,
+PAIR        008db440 008b93b0 CIsMissionProvinceTrigger                      param_2 + 0x24,
+PAIR        008e21c0 008e1f50 CCultureTrigger                                param_2 + 0x24,param_2 + 0x38,
+PAIR        008e2c90 008e2b60 CCultureGroupTrigger                           param_2 + 0x24,param_2 + 0x38,
+PAIR        008e3a30 008e38c0 CReligionTrigger                               param_2 + 0x24,param_2 + 0x38,
+PAIR        008e4840 008e4700 CIsPopTypeTrigger                              param_2 + 0x24,
+PAIR        008e7890 008e5ae0 CPopUnemploymentTrigger                        param_2 + 0x24,
+PAIR        008eaa60 008b9300 CIndustrialScoreTrigger                        param_2 + 0x30,
+PAIR        008eb020 008b9300 CMilitaryScoreTrigger                          param_2 + 0x30,
+PAIR        008eb5e0 008b9300 CPrestigeTrigger                               param_2 + 0x30,
+PAIR        008ec480 004490f0 CAnyStateTrigger                               + 0x18))(,
+PAIR        008f4580 008f4520 CCultureUnionTrigger                           param_2 + 0x30,
+PAIR        008f84d0 008b93b0 CIsPrimaryCultureTrigger                       param_2 + 0x24,
+PAIR        008fb010 004490f0 CAnyGreaterPowerTrigger                        + 0x18))(,
+PAIR        009025f0 008e5ae0 CPartyLoyaltyTrigger                           param_2 + 0x34,
+PAIR        00902790 004490f0 CCanBuildInProvinceTrigger                     param_2 + 0x24,param_2 + 0x30,
+PAIR        00904680 004490f0 CNewsStringsMatchTrigger                       param_2 + 0x24,
+PAIR        00904930 004490f0 CNewsTagsMatchTrigger                          param_2 + 0x24,
+PAIR        00aaea2f 004490f0 CTrigger                                       __purecall,
+SCALAR      008ba3f0 008b9360 CYearTrigger                                   
+SCALAR      008ba970 008b9360 CMonthTrigger                                  
+SCALAR      008baeb0 008b93b0 CAtWarTrigger                                  
+SCALAR      008bb1e0 008b93b0 CElectionTrigger                               
+SCALAR      008bb4f0 008b93b0 CAlwaysTrigger                                 
+SCALAR      008bb7b0 008b9300 CWarexhaustionTrigger                          
+SCALAR      008bbcc0 008b9300 CRebelPowerFractionTrigger                     
+SCALAR      008bbf00 008b9300 CRecruitedPercentageTrigger                    
+SCALAR      008bc300 008bc1a0 CInventionTrigger                              
+SCALAR      008bc7e0 008b9300 CBlockadeTrigger                               
+SCALAR      008bcd50 008b9360 COwnsTrigger                                   
+SCALAR      008bd2b0 008b9360 CNumberOfStatesTrigger                         
+SCALAR      008bd830 008b9360 CControlsTrigger                               
+SCALAR      008bea00 008b9360 CNumOfRevoltsTrigger                           
+SCALAR      008bef70 008b9300 CNumOfRevoltsFractionTrigger                   
+SCALAR      008bfb50 008b9360 CNumOfPortsTrigger                             
+SCALAR      008c00c0 008b9360 CTotalNumOfPortsTrigger                        
+SCALAR      008c0630 008b9360 CRankTrigger                                   
+SCALAR      008c0ba0 008b9360 CNumOfAlliesTrigger                            
+SCALAR      008c1110 008b9360 CNumOfVassalsNoSubstatesTrigger                
+SCALAR      008c1150 008b9360 CNumOfSubstatesTrigger                         
+SCALAR      008c16c0 008b9360 CNumOfVassalsTrigger                           
+SCALAR      008c1c30 008b93b0 CHasCulturalSphereTrigger                      
+SCALAR      008c20b0 008c1e90 CGovernmentTrigger                             
+SCALAR      008c25d0 008c25a0 CRulingPartyTrigger                            
+SCALAR      008c2d20 008c2b40 CRulingPartyIdeologyTrigger                    
+SCALAR      008c3240 008c3200 CStrataTrigger                                 
+SCALAR      008c3a80 008c3a10 CExistsTrigger                                 
+SCALAR      008c4da0 008c4a70 CIssueGroupTrigger                             
+SCALAR      008c5650 008e5ae0 CIdeologyTrigger                               
+SCALAR      008c5c30 008b9360 CTechnologyTrigger                             
+SCALAR      008c9d80 008b93b0 CControlledByRebelsTrigger                     
+SCALAR      008ca9e0 008b93b0 CIsBlockadedTrigger                            
+SCALAR      008cafa0 008b93b0 CHasRecentlyLostWarTrigger                     
+SCALAR      008cb2b0 008b93b0 CPortTrigger                                   
+SCALAR      008cb7e0 008b93b0 CCanNationalizeTrigger                         
+SCALAR      008cbae0 008b93b0 CIsOverseasTrigger                             
+SCALAR      008cc100 008b93b0 CEmptyTrigger                                  
+SCALAR      008cc6c0 008c25a0 CLastMissionTrigger                            
+SCALAR      008ccb90 008c25a0 CHasCountryFlagTrigger                         
+SCALAR      008cd1b0 008c25a0 CHasGlobalFlagTrigger                          
+SCALAR      008cd8c0 008cd650 CHasCountryModifierTrigger                     
+SCALAR      008cdfc0 008cde00 CHasProvinceModifierTrigger                    
+SCALAR      008ce600 008ce4d0 CHasBuildingTrigger                            
+SCALAR      008cff80 008cfda0 CRegionTrigger                                 
+SCALAR      008d2340 008b9360 CNationalismTrigger                            
+SCALAR      008d3400 008b93b0 CConstructingCasusBelliDiscoveredTrigger       
+SCALAR      008d36f0 008b9300 CConstructingCasusBelliProgressTrigger         
+SCALAR      008d3960 008b9300 CCivilizationProgressTrigger                   
+SCALAR      008d3dd0 008d3bb0 CConstructingCasusBelliTypeTrigger             
+SCALAR      008d6430 004490f0 CUnitInBattleTrigger                           
+SCALAR      008d6730 004490f0 CUnitHasLeaderTrigger                          
+SCALAR      008d6a30 008b93b0 CHasEmptyAdjacentProvinceTrigger               
+SCALAR      008d6d90 008b93b0 CHasEmptyAdjacentStateTrigger                  
+SCALAR      008d6eb0 008c25a0 CHasLeaderTrigger                              
+SCALAR      008d7450 008b93b0 CIsAiTrigger                                   
+SCALAR      008d7760 008b93b0 CIsSubstateTrigger                             
+SCALAR      008d7a40 008b93b0 CIsVassalTrigger                               
+SCALAR      008d7d40 008b93b0 CCanCreateVassalsTrigger                       
+SCALAR      008d85e0 008b9360 CProvinceIdTrigger                             
+SCALAR      008d8600 008b9360 CStateWithProvinceIdTrigger                    
+SCALAR      008da5c0 004490f0 CVariableTrigger                               
+SCALAR      008dbc00 008db9e0 CActiveMissionTrigger                          
+SCALAR      008dc170 008b9360 CCapitalTrigger                                
+SCALAR      008dc680 008b93b0 CFoWRemovedTrigger                             
+SCALAR      008dc9b0 008b93b0 CIsCapitalTrigger                              
+SCALAR      008dcf90 008b93b0 CIsStateCapitalTrigger                         
+SCALAR      008dd550 008b9360 CAmountOfDivisionsTrigger                      
+SCALAR      008dda40 008e5ae0 CMoneyTrigger                                  
+SCALAR      008df810 008b9300 CTotalAmountOfShipsTrigger                     
+SCALAR      008df8c0 004490f0 CAnyPopTrigger                                 
+SCALAR      008e2960 008e1f50 CAcceptedCultureTrigger                        
+SCALAR      008e2a70 008e1f50 CPrimaryCultureTrigger                         
+SCALAR      008e41c0 008e4130 CTerrainTrigger                                
+SCALAR      008e4e00 008e4d30 CHasPopTypeTrigger                             
+SCALAR      008e5f50 008e5ae0 CLifeNeedsTrigger                              
+SCALAR      008e6590 008e5ae0 CEverydayNeedsTrigger                          
+SCALAR      008e6bd0 008e5ae0 CLuxuryNeedsTrigger                            
+SCALAR      008e7210 008e5ae0 CUnemploymentTrigger                           
+SCALAR      008e82f0 008e5ae0 CConsciousnessTrigger                          
+SCALAR      008e8690 008e5ae0 CLiteracyTrigger                               
+SCALAR      008e8ab0 008e5ae0 CMilitancyTrigger                              
+SCALAR      008e8f70 008e5ae0 CMilitarySpendingTrigger                       
+SCALAR      008e9320 008e5ae0 CEducationSpendingTrigger                      
+SCALAR      008e96d0 008e5ae0 CCrimefightingSpendingTrigger                  
+SCALAR      008e9a80 008e5ae0 CSocialSpendingTrigger                         
+SCALAR      008ea070 008e9e90 CIdeologyEnabledTrigger                        
+SCALAR      008ea7f0 008ea610 CHasNationalValueTrigger                       
+SCALAR      008ebbe0 008ebb50 CGoodsTrigger                                  
+SCALAR      008eca90 008b93b0 CIsCivilizedTrigger                            
+SCALAR      008ed620 008b9300 CNationalProvincesOccupiedTrigger              
+SCALAR      008edc30 008b9300 CWarScoreTrigger                               
+SCALAR      008ee1f0 008b93b0 CIsGreatNationTrigger                          
+SCALAR      008ee720 008b93b0 CIsInvolvedInCrisisTrigger                     
+SCALAR      008eec40 008b93b0 CIsSecondaryNationTrigger                      
+SCALAR      008ef1b0 008e5ae0 CRichTaxTrigger                                
+SCALAR      008ef710 008e5ae0 CMiddleTaxTrigger                              
+SCALAR      008efc70 008e5ae0 CPoorTaxTrigger                                
+SCALAR      008f01d0 008e5ae0 CPoliticalReformWantTrigger                    
+SCALAR      008f0740 008e5ae0 CSocialReformWantTrigger                       
+SCALAR      008f0cb0 008b93b0 CColonialNationTrigger                         
+SCALAR      008f1320 008f1260 CPopMajorityReligionTrigger                    
+SCALAR      008f1910 008f1860 CPopMajorityCultureTrigger                     
+SCALAR      008f2030 008f1e50 CPopMajorityIdeologyTrigger                    
+SCALAR      008f2320 008f2130 CPopMajorityIssueTrigger                       
+SCALAR      008f2840 008e5ae0 CPoorMilitancyTrigger                          
+SCALAR      008f2ef0 008e5ae0 CMiddleMilitancyTrigger                        
+SCALAR      008f35a0 008e5ae0 CRichMilitancyTrigger                          
+SCALAR      008f3c50 008b93b0 CRichTaxAbovePoorTrigger                       
+SCALAR      008f3f80 008b93b0 CHasCultureUnionTrigger                        
+SCALAR      008f4c50 008b93b0 CHasFlashPointTrigger                          
+SCALAR      008f4f40 008b9300 CFlashPointTensionTrigger                      
+SCALAR      008f5460 008b93b0 CCrisisExistTrigger                            
+SCALAR      008f5730 008b93b0 CIsLiberationCrisisTrigger                     
+SCALAR      008f5a70 008b93b0 CIsClaimCrisisTrigger                          
+SCALAR      008f5db0 008b93b0 CIsColonialCrisisTrigger                       
+SCALAR      008f5db0 008b93b0 CIsInfluenceCrisisTrigger                      
+SCALAR      008f6320 008b9300 CCrisisTemperatureTrigger                      
+SCALAR      008f7270 008b93b0 CHasMinoritiesTrigger                          
+SCALAR      008f7610 008e5ae0 CPopStrataNeedTrigger                          
+SCALAR      008f7c10 008b9300 CCorruptionTrigger                             
+SCALAR      008f8120 008b93b0 CIsStateReligionTrigger                        
+SCALAR      008f8db0 008b93b0 CIsAcceptedCultureTrigger                      
+SCALAR      008f9380 008b9300 CBadboyTrigger                                 
+SCALAR      008f9990 008b93b0 CIsCoastalTrigger                              
+SCALAR      008fa000 008b93b0 CIsDisarmedTrigger                             
+SCALAR      008fa670 008b93b0 CIsSlaveTrigger                                
+SCALAR      008fa9c0 008b93b0 CHasSphereLeaderTrigger                        
+SCALAR      008facb0 008b93b0 CIsColonialTrigger                             
+SCALAR      008fb3e0 008e5ae0 CAverageMilitancyTrigger                       
+SCALAR      008fb7a0 008e5ae0 CAverageConsciousnessTrigger                   
+SCALAR      008fbb80 008ebb50 CProducesTrigger                               
+SCALAR      008fbfc0 008ebb50 CBigProducerTrigger                            
+SCALAR      008fc370 008e5ae0 CGoodsCountTrigger                             
+SCALAR      008fc840 008e5ae0 CIssueTrigger                                  
+SCALAR      008fcf10 008e5ae0 CLifeRatingTrigger                             
+SCALAR      008fd2a0 008e5ae0 CUpperHouseTrigger                             
+SCALAR      008fd920 008fd890 CIsNextReformTrigger                           
+SCALAR      008fdfb0 008fddd0 CHasCrimeTrigger                               
+SCALAR      008fe0a0 008b9300 CPluralityTrigger                              
+SCALAR      008fe3c0 008b9300 CSocialMovementTrigger                         
+SCALAR      008fe6e0 008b9300 CPoliticalMovementTrigger                      
+SCALAR      008ff0f0 008e5ae0 CAgreeWithRulingPartyTrigger                   
+SCALAR      008ff670 008ff5b0 CHasFactionTrigger                             
+SCALAR      008ff830 008e5ae0 CUnemploymentByTypeTrigger                     
+SCALAR      008ffed0 008e5ae0 CMobilisationSizeTrigger                       
+SCALAR      00900020 008b93b0 CIsMobilisedTrigger                            
+SCALAR      00900200 008b93b0 CCrimeHigherThanEducationTrigger               
+SCALAR      00900870 008b9360 CIsCanalEnabledTrigger                         
+SCALAR      00900a70 008b9300 CRevanchismTrigger                             
+SCALAR      00900bc0 008b9300 CBrigadesCompareTrigger                        
+SCALAR      00900fc0 00900da0 CTechSchoolTrigger                             
+SCALAR      009013e0 008b93b0 CHasFactoriesTrigger                           
+SCALAR      009015c0 008b93b0 CSocialMovementPopTrigger                      
+SCALAR      009017a0 008b93b0 CPoliticalMovementPopTrigger                   
+SCALAR      009019b0 008e5ae0 CPopTypePercentageTrigger                      
+SCALAR      00901bd0 008b9360 CTotalPopsTrigger                              
+SCALAR      00902a40 004490f0 CCanBuildProvinceBuildingInCapitalTrigger      
+SCALAR      00902e90 004490f0 CCanBuildFactoryInCapitalTrigger               
+SCALAR      009031a0 008b93b0 CHasCultureCoreTrigger                         
+SCALAR      009033a0 008b93b0 CGreatWarsEnabledTrigger                       
+SCALAR      009034c0 008b93b0 CWorldWarsEnabledTrigger                       
+SCALAR      00903a20 004490f0 CNewsLengthEqTrigger                           
+SCALAR      00903d40 004490f0 CNewsLengthGreaterTrigger                      
+SCALAR      00904020 004490f0 CNewsTagsEqTrigger                             
+SCALAR      00904420 004490f0 CNewsStringsEqTrigger                          
+SCALAR      00904ba0 004490f0 CNewsValuesContainsTrigger                     
+SCALAR      00904d80 004490f0 CNewsTagsContainsTrigger                       
+SCALAR      00905120 004490f0 CNewsStringsContainsTrigger                    
+SCALAR      00905320 004490f0 CNewsDateEqTrigger                             
+SCALAR      00905520 004490f0 CNewsDateGreaterTrigger                        
+SCALAR      00905780 004490f0 CNewsHasEntryTrigger                           
+SCALAR      00905a10 008c25a0 CNewsHasFlagTrigger                            
+SCALAR      00905a40 008b9360 CNewsPrintingCountTrigger                      

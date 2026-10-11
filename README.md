@@ -20,7 +20,10 @@ Victoria 2/
 2. Copy `mod/community_patch.ini` and `mod/community_patch/` into the game's `mod/` folder.
 3. Launch the game as usual, with any mods you like. To disable the patch, remove or rename the `.ini`.
 
-`v2cp.log` is written next to `v2game.exe` on every launch and lists what was loaded and applied.
+`v2cp.log` is written next to `v2game.exe` on every launch and lists what was loaded and applied. It also
+gets one line per game year with how long the year took (wall time, and with pauses over two seconds
+excluded), so runs can be timed without a stopwatch. `v2cp_decisions.log` appears there too when
+`decision_profiling` is on.
 
 ## Settings
 
@@ -29,6 +32,11 @@ Victoria 2/
 | Key                     | Default | Effect                                                                  |
 | ----------------------- | ------- | ----------------------------------------------------------------------- |
 | `engine_worker_threads` | `4`     | Thread count handed to the engine's TBB scheduler (1-64). `0` = vanilla. |
+| `cull_cb_checks`        | `0`     | Skips the per-target `can_use` check of a CB type for the rest of the day once a condition that depends only on the attacker has failed. AI daily scans only. Off by default: measured gain is within noise (`can_use` is ~5 ms/day in TGC). See [docs/cb-cull.md](docs/cb-cull.md). |
+| `cull_cb_profiling`     | `0`     | With `cull_cb_checks`, counts and times the CB checks and reports every 30 game days (see the Log section of [docs/cb-cull.md](docs/cb-cull.md)). Off unless investigating. |
+| `tick_profiler`         | `0`     | Times the daily-tick blocks (world update, provinces, countries, AI, events) and logs a ms/day table every 30 game days. See [docs/tick-profiler.md](docs/tick-profiler.md). |
+| `cull_decision_checks`  | `1`     | Gives the AI loop a per-country decision list without the decisions that cannot pass for that country (a top-level `tag = X` of another country, a top-level `ai = yes/no` it fails, a `NOT has_*_flag` gate already failed); rebuilt when a flag is cleared, on load and every 90 days. Same results, nothing per decision. See [docs/decision-cull.md](docs/decision-cull.md). |
+| `decision_profiling`    | `0`     | Rewrites `v2cp_decisions.log` every 30 game days with running per-day averages for every decision (ms/day, evaluations, ns per evaluation, skipped). Constant size. Off unless investigating. |
 
 ## How it works
 
@@ -47,6 +55,9 @@ patch/      community_patch.dll — the Community Patches plugin.
   src/features/   one file per patch
   src/hooks/      hooking primitives
   mod/            the .ini shipped with the patch
+docs/       research notes: Ghidra workflow, feature write-ups, the dated research log, timings.md (first-year table)
+  raw/          unprocessed material: address book, keyword maps, trigger classification, call lists, decompilations, profiler logs
+tools/ghidra/   headless Ghidra helper script used for the research
 ```
 
 ## Build
@@ -75,4 +86,5 @@ CI builds every push and attaches `build/` as an artifact; tags matching `v*` pu
 ## Reverse-engineering notes
 
 Addresses and behaviour come from the companion `Victoria2-Reverse-Engineering` repository; every
-feature file names the function it hooks so the two can be cross-referenced.
+feature file names the function it hooks so the two can be cross-referenced. The research method
+and a dated log of what was investigated live in `docs/`.

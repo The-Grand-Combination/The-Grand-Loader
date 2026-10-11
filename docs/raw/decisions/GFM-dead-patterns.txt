@@ -1,0 +1,37 @@
+decisions=2368
+any_dead_pattern	2036
+tag_locked	1158
+once_country_flag	1049
+once_global_flag	864
+after_year	96
+not_civilized	35
+invention_or_tech_positive	10
+unreachable_global_flag	9
+unreachable_country_flag	5
+
+first condition of potential:
+tag	870
+OR	371
+has_global_flag	250
+ai	219
+owns	172
+year	133
+has_country_flag	65
+is_greater_power	45
+primary_culture	36
+capital	31
+is_culture_group	17
+NOT	10
+civilized	9
+exists	8
+has_country_modifier	6
+is_canal_enabled	5
+is_sphere_leader_of	5
+THIS	4
+AND	4
+is_core	3
+is_ideology_enabled	3
+neighbour	3
+invention	3
+capital_scope	3
+TCA	3

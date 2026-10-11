@@ -1,0 +1,43 @@
+# Direct CALL instructions inside FUN_0085db40 (AI_ScoreWarTargets): site  target  (from the Ghidra listing)
+0085db66 0x0050e450
+0085db88 0x005dcbd0
+0085dc44 0x005dcbd0
+0085dc7b 0x00ac9f20
+0085dc8f 0x00ac02a0
+0085dcda 0x0092ede0
+0085dd17 0x006875e0
+0085dd8d 0x00401000
+0085dd95 0x00b31c00
+0085ddad 0x00ac02a0
+0085ddee 0x006875e0
+0085df23 0x00ac9f20
+0085df31 0x00ac02a0
+0085df42 0x00ac02a0
+0085df7f 0x00401000
+0085df87 0x00b31c00
+0085dfa8 0x00ac02a0
+0085dfc3 0x0048e320
+0085dfd9 0x00ac02a0
+0085dffc 0x004b7f50
+0085e012 0x00ac02a0
+0085e04d 0x00ac9f20
+0085e05d 0x00ac02a0
+0085e079 0x00ac02a0
+0085e094 0x0085fe40
+0085e0ad 0x009cd680
+0085e0b8 0x0085bb60
+
+# targets by number of sites
+      9 0x00ac02a0
+      3 0x00ac9f20
+      2 0x00b31c00
+      2 0x006875e0
+      2 0x005dcbd0
+      2 0x00401000
+      1 0x009cd680
+      1 0x0092ede0
+      1 0x0085fe40
+      1 0x0085bb60
+      1 0x0050e450
+      1 0x004b7f50
+      1 0x0048e320

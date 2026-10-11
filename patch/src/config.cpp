@@ -50,9 +50,22 @@ Config load_config(const std::wstring& config_file) {
     for_each_key(config_file, [&](std::string_view key, std::string_view value) {
         if (key == "engine_worker_threads") {
             config.engine_worker_threads = parse_int(value, 0);
+        } else if (key == "cull_cb_checks") {
+            config.cull_cb_checks = parse_int(value, 0) != 0;
+        } else if (key == "cull_cb_profiling") {
+            config.cull_cb_profiling = parse_int(value, 0) != 0;
+        } else if (key == "tick_profiler") {
+            config.tick_profiler = parse_int(value, 0);
+        } else if (key == "cull_decision_checks") {
+            config.cull_decision_checks = parse_int(value, 0) != 0;
+        } else if (key == "decision_profiling") {
+            config.decision_profiling = parse_int(value, 0) != 0;
         }
     });
-    logf("config: engine_worker_threads=%d", config.engine_worker_threads);
+    logf("config: engine_worker_threads=%d cull_cb_checks=%d cull_cb_profiling=%d tick_profiler=%d "
+         "cull_decision_checks=%d decision_profiling=%d",
+         config.engine_worker_threads, config.cull_cb_checks ? 1 : 0, config.cull_cb_profiling ? 1 : 0,
+         config.tick_profiler, config.cull_decision_checks ? 1 : 0, config.decision_profiling ? 1 : 0);
     return config;
 }
 

@@ -1,0 +1,49 @@
+#include "hooks/memory.h"
+
+#include <windows.h>
+
+#include <cstring>
+
+#include "log.h"
+
+namespace cp::hooks {
+
+uintptr_t exe_base() { return reinterpret_cast<uintptr_t>(host().exe_base); }
+
+bool expect_bytes(uintptr_t at, const void* expected, size_t size) {
+    return std::memcmp(reinterpret_cast<const void*>(at), expected, size) == 0;
+}
+
+bool write_bytes(uintptr_t at, const void* src, size_t size) {
+    void* dst = reinterpret_cast<void*>(at);
+    DWORD old_protect = 0;
+    if (!VirtualProtect(dst, size, PAGE_EXECUTE_READWRITE, &old_protect)) {
+        return false;
+    }
+    std::memcpy(dst, src, size);
+    VirtualProtect(dst, size, old_protect, &old_protect);
+    FlushInstructionCache(GetCurrentProcess(), dst, size);
+    return true;
+}
+
+bool replace_pointer(uintptr_t slot, uintptr_t expected, uintptr_t replacement) {
+    if (!expect_bytes(slot, &expected, sizeof(expected))) {
+        return false;
+    }
+    return write_bytes(slot, &replacement, sizeof(replacement));
+}
+
+bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) {
+    unsigned char expected[5] = {0xE8};
+    int32_t rel = static_cast<int32_t>(expected_target - (site + 5));
+    std::memcpy(expected + 1, &rel, sizeof(rel));
+    if (!expect_bytes(site, expected, sizeof(expected))) {
+        return false;
+    }
+    unsigned char patched[5] = {0xE8};
+    rel = static_cast<int32_t>(target - (site + 5));
+    std::memcpy(patched + 1, &rel, sizeof(rel));
+    return write_bytes(site, patched, sizeof(patched));
+}
+
+}  // namespace cp::hooks

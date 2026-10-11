@@ -1,0 +1,33 @@
+# Callers of CBManager_IsAnyCBUsable (0x0092EDE0), BFS over call references, v2game.exe 3.04.
+# Format: depth address  path (callee <- caller). Only chains that reach a known periodic root are annotated.
+
+d0 0092ede0  FUN_0092ede0
+d1 0085db40  <- FUN_0085db40   AI_ScoreWarTargets        (call site 0x0085DCDA)
+d1 0085e0e0  <- FUN_0085e0e0   AI_ScoreDiplomaticTargets (call site 0x0085E5FB)
+d1 00913510  <- FUN_00913510   diplomacy UI (called from console FUN_00427fd0 and FUN_00885ca0)
+d1 00451df0  <- FUN_00451df0   (callers FUN_00450c40, FUN_00450cc0, FUN_00662010)
+d1 005183f0  <- FUN_005183f0   (callers FUN_0050c2a0 -> FUN_00687e30 -> Update_World 0x00682EC0 at 0x00683B36, month change)
+d1 00517ed0  <- FUN_00517ed0   (callers FUN_0061ca40 UI, FUN_0074e2e0)
+d1 00845ad0  <- FUN_00845ad0   AI war evaluation (callers FUN_00838eb0, FUN_0083b3d0, FUN_0083c7d0, FUN_008386e0, FUN_00844210)
+d1 0083de70  <- FUN_0083de70   AI (callers FUN_006153a0, FUN_0083db20, FUN_00820df0, FUN_0083c7d0, FUN_0090e830, FUN_00918860, FUN_00942540, FUN_00947210, FUN_00949c20)
+d1 0083ec10  <- FUN_0083ec10   AI (callers FUN_00841640, FUN_008416b0)
+d1 0093aa90  <- FUN_0093aa90   (callers FUN_0093b950, FUN_00915dd0)
+d1 0093ae10  <- FUN_0093ae10   (callers FUN_0093b950, FUN_00915cb0)
+d1 007fccd0  <- FUN_007fccd0   (caller FUN_0066c6f0 <- FUN_0064ddb0 / FUN_00676d50 / FUN_00679a70)
+d1 0082f430  <- FUN_0082f430   (caller FUN_0082e970)
+d1 008386e0  <- FUN_008386e0   (vtable, FUN_00833a40 <- FUN_00833930)
+d1 00844210  <- FUN_00844210   (caller FUN_008386e0)
+d1 008416b0  <- FUN_008416b0
+d1 008d28c0  <- FUN_008d28c0   CCasusBelliTrigger::Evaluate (script trigger `casus_belli = X`; vtable 0x00E30B30 slot 6) <- every event/decision/AI block that uses it
+d1 009164e0  <- FUN_009164e0   diplomatic action validator (vtable 0x00E343C4)
+d1 009165c0  <- FUN_009165c0   diplomatic action validator with reason text (vtable 0x00E343C8)
+d1 004aafd0  <- FUN_004aafd0   UI (vtable)
+
+# Daily root:
+d5 006859c0  FUN_0092ede0 <- FUN_0085db40 <- FUN_0085d270 <- FUN_0085ccb0 <- FUN_005091a0 <- FUN_006859c0
+#   = IsAnyCBUsable <- AI_ScoreWarTargets <- AI_DiplomacyUpdate <- AI_DailyUpdate <- Country_DailyUpdate <- DayTick
+#   AI_DailyUpdate is reached via 0x0050B0EB directly (rarely) and via FUN_0085CF10 (0x0050B0F0 -> 0x0085CFFD) in practice.
+# Monthly root:
+d4 00682ec0  FUN_0092ede0 <- FUN_005183f0 <- FUN_0050c2a0 <- FUN_00687e30 <- FUN_00682ec0 (Update_World_and_Advance_Time, month index change)
+
+# Direct callers of CBManager_IsCBUsable (0x0092EEC0): FUN_0092ede0, FUN_009164e0, FUN_009165c0 (x3), FUN_004aafd0.

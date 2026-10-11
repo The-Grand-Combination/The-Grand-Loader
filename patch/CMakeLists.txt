@@ -1,8 +1,15 @@
 add_library(community_patch SHARED
     src/main.cpp
     src/config.cpp
+    src/crash_log.cpp
     src/hooks/iat.cpp
+    src/hooks/memory.cpp
+    src/hooks/hourly_tick.cpp
+    src/features/year_timer.cpp
     src/features/worker_threads.cpp
+    src/features/cb_cull.cpp
+    src/features/tick_profiler.cpp
+    src/features/decision_cull.cpp
 )
 
 target_include_directories(community_patch PRIVATE src)

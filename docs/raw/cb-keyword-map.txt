@@ -1,0 +1,58 @@
+# cb_types.txt keywords -> token id -> CCasusBelliType field (v2game.exe 3.04).
+# Token ids from the registration pairs `MOV EDX,<string> ... MOV ECX,<id>` in FUN_00C381C0; offsets from
+# CCasusBelliType::OnKeyword (0x0090A1E0) and the constructor (0x00909D60).
+# CCasusBelliType::vftable = 0x00E33724 (slots: 4 OnKeyword 0x0090A1E0, 6 IsValid 0x0090A7E0, 7 IsRealType 0x00A31490 (returns 1),
+# 8 CanUse 0x0090A7F0 = can_use.Evaluate). CNullCasusBelliType::vftable = 0x00E3374C (slot 7 = 0x0058CFD0 returns 0).
+
+id      keyword                          offset   type/default
+0x3BF   months                           +0x0C    int
+-       (name)                           +0x14    std::string (size +0x24, cap +0x28)
+0x8D0   is_valid                         +0x30    CAndTrigger (embedded, 0x1C bytes)
+0x92A   can_use                          +0x4C    CAndTrigger
+0x2A5   prerequisites                    +0x68    CAndTrigger
+0x8C0   allowed_states_in_crisis         +0x84    CAndTrigger
+0x8BF   allowed_states                   +0xA0    CAndTrigger
+0x941   allowed_substate_regions         +0xBC    CAndTrigger
+0x8D1   allowed_countries                +0xD8    CAndTrigger
+0x89B   badboy_factor                    +0xF4    int x1000, default 1000
+0x89C   prestige_factor                  +0xF8?   int x1000, default 1000   (order of +0xF8..+0x10C not individually confirmed)
+0x89D   peace_cost_factor                +0xFC?   int x1000, default 1000
+0x8E1   penalty_factor                   ?        int x1000
+0x909   break_truce_prestige_factor      ?        int x1000
+0x90A   break_truce_infamy_factor        ?        int x1000
+0x90B   break_truce_militancy_factor     ?        int x1000
+0x910   good_relation_prestige_factor    ?        int x1000
+0x911   good_relation_infamy_factor      ?        int x1000
+0x912   good_relation_militancy_factor   ?        int x1000
+0x90C   truce_months                     +0x110   int, default 60
+0x264   po_clear_union_sphere            +0x120.. linked list of peace options (accepted only when value token is `yes` 0x29F)
+0x6C2   po_gunboat                       "
+0x8A1-0x8AA, 0x8DA, 0x942, 0x975, 0x976, 0xA2F, 0xA30, 0xA38, 0xA4C   other po_* keywords, same list
+0x713   is_triggered_only                +0x130   bool, default 0
+0x899   mutual                           +0x131   bool, default 0
+0x798   always                           +0x132   bool, default 0      <- gate: IsCBUsable skips the type unless always or already held
+0x9E4   crisis                           +0x133   bool, default 1
+0x8EC   sprite_index                     +0x134   int, default 12
+0x89E   war_name                         +0x138   std::string
+0x89F   country_desc                     +0x154   std::string
+0x8A0   prov_desc                        +0x170   std::string
+0x8CF   on_add                           +0x18C   CEffect (embedded)
+0x995   on_po_accepted                   +0x1AC   CEffect
+0x265   is_civil_war                     +0x1CC   bool, default 0
+0x92E   constructing_cb                  +0x1CD   bool, default 1
+0x936   construction_speed               +0x1D0   int x1000, default 1000
+0x9B2   great_war_obligatory             +0x1D4   bool
+0xA2C   tws_battle_factor                +0x1D8   int x1000
+0xA2E   all_allowed_states               +0x1DC   bool
+
+# Trigger block layout (CAndTrigger / COrTrigger / CNotTrigger): +0 vtable, +4 0x18D, +8 vector begin, +0xC end, +0x10 cap, +0x18 THIS flag, +0x19 FROM flag.
+# vtables: CAndTrigger 0x00DF9994 (Evaluate 0x008B8260, first false child -> false), COrTrigger 0x00E2FB70 (Evaluate 0x008B88A0, first true -> true),
+#          CNotTrigger 0x00E2FBA8 (Evaluate 0x008B9240, NOT(a OR b)). Slot 6 (+0x18) = bool Evaluate(scope); slot 11 (+0x2C) = Describe (tooltip).
+# Country-reference leaf triggers share parser 0x008D3F50: token 0x405 THIS -> +0x18 = 1; 0x3DE FROM -> +0x19 = 1; else {tag,index} at +0x1C/+0x20.
+# Generic int/float/bool parsers (0x008B9360 / 0x008B9300 / 0x008B93B0) also accept THIS/FROM and set the same flags, but their
+# Evaluate ignores them (`rank = THIS` evaluates as `rank = 0`).
+
+# Scope (CEventScope, ctor 0x008A8650, 0x48 bytes): +0x08 tag, +0x0C country index, +0x24 THIS scope pointer (self by default),
+# +0x30/+0x34 FROM reference. In can_use: scope country = attacker, scope+0x24 -> scope with country = defender, FROM unset.
+
+# Console: `debug cb_use <cb> <TAG> <TAG>` -> can_use.Describe (0x00421BBF); `debug cb_countries` -> allowed_countries (+0xD8); `debug cb_state` -> allowed_states (+0xA0).
