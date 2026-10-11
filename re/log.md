@@ -251,3 +251,39 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 - **Read for the design:** `CDecision` slot 6 is `MOV AL,1 / RET`; the loop's scope is `CEventScope::ctor(scope, 0x2D)` + `{tag, index}` from AI object `+0x30`; the AI job queue (`world+0xB84`) holds nodes `{tag, country, prev, next}` in buckets `{head, tail, count, flag}`, only for countries with provinces; `AI_FrameUpdate` runs a job when `country+0x208` (AI object) is set.
 - **Built:** worker pool (`patch/src/parallel/`), batch at the start of the max-speed AI frame (driven by `fast_ai_queue`), filtered lists handed to `AI_DecisionUpdate` through the cull's fake manager; shadow mode (`= 2`) compares instead. `fast_ai_queue`'s thunk now saves FPU/SSE state with `fxsave`. → [systems/parallel-triggers.md](systems/parallel-triggers.md)
 - **Open:** shadow run (mismatches, batch ms/day), then `= 1` against 132 ms/day.
+
+## 2026-10-11 — Parallel work: events built, Recalculate and market rejected
+
+- **`parallel_events` built (untested):** the daily event scan's triggers evaluated in chunks on the worker pool in scan order; `Event_Fire` drops the results computed before it; MTTH, the MT draw and firing stay serial. Shadow mode `= 2`. Sites `0x006861E8` (shared with `tick_profiler`), `0x008A7EF4`, `0x008A80D5`. → [systems/parallel-triggers.md](systems/parallel-triggers.md)
+- **Rejected after reading:** `Country_Recalculate` creates, unlinks and deletes objects in world lists and writes shared relation objects; the world market draws from the MT per state, shares static scratch buffers across countries and pops, can render a frame mid-loop (`UpdateTimeThrottle`) and clamps its sums. Neither can run in parallel with identical results.
+
+## 2026-10-11 — First run with the parallel features: 121 ms/day
+
+- **Measured (user):** all patches, `parallel_decisions = 1`, `parallel_events = 1`, `prefetch_ai_relations = 1`, `engine_worker_threads = 4`, pool of 7 workers (24 logical processors): first year **121 ms/day** against 132. No crash. One run, straight to `= 1` without a shadow run.
+- **Decisions:** 30 batches per 30 days (one per day, as designed with `fast_ai_queue`), ~320 countries and ~302 000 checks per batch, **1.5 ms/day on the game thread** for the whole batch; ~48 decisions pass `potential` + `allow` per day; every AI update was served from the batch.
+- **Events:** ~5 000 triggers/day listed, all served, 0 passed through (the sequence always matched); 0.45 ms/day in batches. Many chunks early (397 events fired in the first 30 days, start-of-game events), ~175 per 30 days later.
+- **Open:** a shadow run (`= 2` for both) to confirm zero mismatches; the gain (−11 ms) is more than the expected ~7 ms, so part may be noise or the other patches enabled in this run (`prefetch_ai_relations` was not in the 132 run).
+
+## 2026-10-11 — Shadow run: decisions clean, events had a scope bug
+
+- **`parallel_decisions = 2`:** 135 million checks compared over 450 days, **0 mismatches**. Validated.
+- **`parallel_events = 2`:** ~0.7 % mismatches, all `serial 1, parallel 0`, mostly the same few triggers. Cause: `CEventScope::ctor` sets `scope+0x24` (THIS scope) to the scope itself; the worker copied the scan's live scope, so `+0x24` still pointed at the scan's stack copy and triggers through THIS read the wrong country. `parallel_decisions` builds its scope with the ctor, so it was not affected.
+- **Consequence:** the 121 ms/day run (`parallel_events = 1`) skipped events that should have fired; that number is not valid.
+- **Fixed:** fields of the template pointing inside the live scope are relocated into each copy. **Open:** a new shadow run for events.
+
+## 2026-10-11 — Shadow run after the scope fix: both clean
+
+- **`parallel_events = 2`:** ~2.9 million triggers compared over 540 days, **0 mismatches** (was ~0.7 % before the relocation fix). Batches ~0.5 ms/day; 405 events fired in the first 30 days, 16–38 per 30 days later.
+- **`parallel_decisions = 2`:** 162 million checks, **0 mismatches**.
+- Both validated in 1836–1837. **Open:** `= 1` for both, `year_timer` against 132 ms/day; a late-game shadow run.
+
+## 2026-10-11 — Validated parallel features: 124 ms/day
+
+- **Measured (user):** all patches, `parallel_decisions = 1` and `parallel_events = 1` (both 0 mismatches in shadow), `prefetch_ai_relations = 1`, `engine_worker_threads = 4`, 7 pool workers: first year **124 ms/day** against 132 (−8 ms, −6 %); 196 -> 124 overall (−37 %). One run. Every event trigger was served from the batches (0 passed through); decision batch ~1.5 ms/day, event batches ~0.5 ms/day on the game thread.
+- The −8 ms includes `prefetch_ai_relations` (not in the 132 run); separating them needs a run with `parallel_* = 0`.
+
+## 2026-10-11 — Option 2 (skip dead tags) checked: mostly a dead end; allocator swap sized
+
+- **Relation readers ranked** (720 reads of `country+0xBE8` in the exe, joined with sampled exclusive time): the five known scans hold nearly all of it. `Country_Recalculate`, `FUN_00522CF0` (walks `world+0xADC`, not all tags) and the purge loop **already** test the other country's provinces before reading the relation. `Country_PrePass`'s loop (`0x00508DA7`) and `AI_TargetScan` do not, but their bodies are data-dependent and write other countries (PrePass: relation `+0x2C`/`+0x30` objects -> money into `other+0xE78`; target scan: `+0x34`/`+0x3C` -> target lists). Skipping a dead tag cannot be proven a no-op, and testing its relation costs the same miss.
+- **Built:** `prefetch_relations` also prefetches `+0x2C` for the tags without provinces that the PrePass loop visits (they were the remaining unprefetched misses there). Read-only.
+- **Allocator (option 5) sized:** VS2010 static CRT, one private heap (`__heap_init` `0x00ABABD8`); entry points `_malloc` `0x00AB049C`, `_free` `0x00AAEED7`, `_realloc` `0x00AC4320`, `__calloc_impl` `0x00ABF700`, `__msize` `0x00AB71DB`, `operator new/delete` `0x00AAE9AF`/`0x00AAE91B`. Sampled ntdll time called directly from `_malloc`/`_free`: **~1.7 ms/day** (all ntdll 5.2, part of it waits). Windows enables the Low Fragmentation Heap by default, so same-size objects are already grouped by size class. A mimalloc swap would save ≤ 2–3 ms/day of call overhead with an uncertain locality gain: not worth its risk now.

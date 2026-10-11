@@ -13,6 +13,7 @@
 #include "features/pops_prefetch.h"
 #include "features/flag_cache.h"
 #include "features/ai_queue.h"
+#include "features/events_parallel.h"
 #include "features/worker_threads.h"
 #include "features/year_timer.h"
 #include "log.h"
@@ -46,6 +47,7 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
     cp::features::install_ai_queue(config);
+    cp::features::install_events_parallel(config);
     return 0;
 }
 

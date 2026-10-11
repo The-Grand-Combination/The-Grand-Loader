@@ -79,7 +79,31 @@ constexpr uint32_t kRecalcOffsets[] = {0x00, 0x2C, 0x38, 0x70};  // +0x2C: Count
 constexpr uint32_t kMarketOffsets[] = {0x34};
 constexpr uint32_t kPurgeOffsets[] = {0x20, 0x50, 0xA8};
 
-void __stdcall before_recalc(uintptr_t country) { prefetch_relations(country, kRecalcOffsets, 4); }
+// Country_PrePass's loop at 0x00508DA7 reads relation +0x2C for every tag with an index, provinces or not
+// (its body is data-dependent, so dead tags cannot be skipped). prefetch_relations only covers countries
+// with provinces; this covers the rest for that one field.
+void prefetch_dead_relations(uintptr_t country, uint32_t offset) {
+    uintptr_t manager = read<uint32_t>(g_country_manager_slot);
+    uintptr_t relations = country ? read<uint32_t>(country + kCountryRelations) : 0;
+    if (!manager || !relations) {
+        return;
+    }
+    int countries = read<int32_t>(manager);
+    uintptr_t array = read<uint32_t>(manager + 4);
+    for (int i = 0; i < countries; i++) {
+        uintptr_t other = read<uint32_t>(array + i * 4);
+        uint32_t index = other ? read<uint32_t>(other + kCountryIndex) : 0;
+        if (!index || read<uint32_t>(other + kCountryProvincesEnd) != read<uint32_t>(other + kCountryProvincesBegin)) {
+            continue;
+        }
+        _mm_prefetch(reinterpret_cast<const char*>(read<uint32_t>(relations + index * 4) + offset), _MM_HINT_T0);
+    }
+}
+
+void __stdcall before_recalc(uintptr_t country) {
+    prefetch_relations(country, kRecalcOffsets, 4);
+    prefetch_dead_relations(country, 0x2C);
+}
 void __stdcall before_market(uintptr_t country) { prefetch_relations(country, kMarketOffsets, 1); }
 
 // Returns 1 when the purge of `rel` would do nothing.

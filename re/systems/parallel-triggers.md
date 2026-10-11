@@ -78,7 +78,7 @@ Not covered, to check before building:
 Same pattern, later, for other read-only scans: the AI target scans (`AI_TargetScan`, `0x0084B0F0`) and
 the event `trigger`/MTTH checks.
 
-## Implementation: `parallel_decisions` (2026-10-11, untested)
+## Implementation: `parallel_decisions` (2026-10-11; shadow run: 0 mismatches in 162 M checks)
 
 - **Pool** (`patch/src/parallel/worker_pool.cpp`): logical processors − 1 workers (max 7), started on
   first use; each batch copies the caller's x87 control word and MXCSR to the workers; the game thread
@@ -98,3 +98,33 @@ the event `trigger`/MTTH checks.
 - **Shadow (`= 2`):** the game keeps the full lists; before each AI update the list is evaluated again
   on the game thread and compared; mismatches are logged (first 20) and counted in the 30-day summary.
 - Requires `cull_decision_checks = 1` and `fast_ai_queue = 1`; off with `decision_profiling`.
+
+## `parallel_events` (2026-10-11; scope bug fixed; shadow run: 0 mismatches in 2.9 M triggers)
+
+`EventManager_DailyScan` (`0x008A7CD0`, stdcall 1, called at `0x006861E8`) evaluates, per country (odd
+days: `countries[idx]+0x08` list, scope `+0x08` tag / `+0x0C` index) or owned province (even days:
+`province+0x14` list, scope `+0x10` index), each candidate event's `trigger` (embedded `CAndTrigger` at
+`event+0x30`); on true: MTTH, one MT draw, maybe `Event_Fire` (`0x008A8120`, thiscall 2), which runs the
+immediate effects at once. **[C]**
+
+- Before the scan, the sequence of (trigger block, entity) is listed in scan order and those blocks are
+  pointed at a private `CAndTrigger` vtable copy.
+- At the scan's first call, chunks of 1024 entries are evaluated on the pool with copies of the scan's
+  live scope (taken at chunk time, so the scope parent drawn by `FUN_009B7950` is the real one).
+- Each hooked call is answered when it is the next entry (same block and entity); anything else runs
+  the original code. Both `Event_Fire` calls are wrapped: evaluations during the fire pass through, and
+  afterwards the remaining results are dropped and recomputed. Waste per fire: at most one chunk.
+- Shadow (`2`): the original answers every call; the chunk result is compared and mismatches logged.
+
+## Checked and rejected for parallel work
+
+| block | why not |
+|---|---|
+| `Country_Recalculate` (`0x00515490`) | creates and registers objects (`FUN_005163C0` + vt `+0x28` + `FUN_004A7BC0`), unlinks and deletes objects from world lists (`world+0xA84`, `FUN_005F2AE0`), writes shared relation objects (`+0x38`, `+0x71`). Its caller `Country_PrePass` also writes other countries' relations (`+0x40`/`+0x44`). |
+| `WorldMarketUpdate` / `Market_UpdateCountryPops` | an MT draw in the per-state work (`FUN_004A46E0` -> `FUN_004A5170` -> `FUN_009B7950` -> `Rng_Next`); shared static scratch buffers rewritten per country and per pop (`0x013F24F4`…`0x013F25A8`); `UpdateTimeThrottle` inside the loop can render a frame; accumulations clamp at 99 999 (not associative). |
+
+**Scope copies must be relocated.** `CEventScope` points into itself (`+0x24`, the THIS scope, is set
+to the object by the ctor). A byte copy of a live scope keeps pointing at the original, so triggers
+going through THIS read the original's country. The first `parallel_events` did exactly that (shadow
+run: ~0.7 % `serial 1, parallel 0`); fields pointing inside the source are now moved into the copy.
+`parallel_decisions` builds its scopes with the ctor and showed 0 mismatches in 135 M checks.

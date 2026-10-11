@@ -67,3 +67,6 @@ cp_fast_ai_queue,0x006557C4,E8 F7 1C 03 00,call redirect,experimental,cp,fast_ai
 cp_prefetch_pops,0x0048468F,E8 AC 17 00 00,call redirect,experimental,cp,prefetch_pops: CALL Market_UpdateCountryPops in WorldMarketUpdate
 cp_prefetch_ai_scan,0x00E2773C,F0 B0 84 00,vtable slot,experimental,cp,prefetch_ai_relations: AI target scan FUN_0084B0F0 (pointer is relocated at runtime)
 cp_prefetch_pops_daytick,0x00685B09,E8 52 41 E3 FF,call redirect,experimental,cp,prefetch_pops: CALL FUN_004B9C60 (province pop pass) in DayTick; shared with tick_profiler level 2+
+cp_parallel_events_scan,0x006861E8,E8 E3 1A 22 00,call redirect,experimental,cp,parallel_events: CALL EventManager_DailyScan in DayTick; shared with tick_profiler
+cp_parallel_events_fire_a,0x008A7EF4,E8 27 02 00 00,call redirect,experimental,cp,parallel_events: CALL Event_Fire in the scan (country pass)
+cp_parallel_events_fire_b,0x008A80D5,E8 46 00 00 00,call redirect,experimental,cp,parallel_events: CALL Event_Fire in the scan (province pass)

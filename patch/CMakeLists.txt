@@ -16,6 +16,7 @@ add_library(community_patch SHARED
     src/features/pops_prefetch.cpp
     src/features/flag_cache.cpp
     src/features/ai_queue.cpp
+    src/features/events_parallel.cpp
     src/parallel/worker_pool.cpp
 )
 

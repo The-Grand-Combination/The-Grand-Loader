@@ -16,6 +16,8 @@ and a comparison of medians before they mean anything.
 | all + `prefetch_relations = 1` (`engine_worker_threads = 4`, no profiler) | **0.49 min** active | **137** | **−59 ms/day (−30 %)** against 196; −7 against 144 (2026-10-11) |
 | all + `prefetch_relations` + `fast_ai_queue = 1` (`engine_worker_threads = 4`, no profiler) | **0.48 min** active | **133** | **−63 ms/day (−32 %)** against 196; −4 against 137, within noise (two runs: 133, 134; `cull_cb_checks` was silently off, see re/log.md; 2026-10-11) |
 | all, everything really active: + `cull_cb_checks` (fixed) + `prefetch_pops = 1` (`engine_worker_threads = 4`, no profiler) | **0.48 min** active | **132** | **−64 ms/day (−33 %)** against 196; −1 to −2 against 133/134: the two together are within noise (one run, 2026-10-11) |
+| ~~+ `prefetch_ai_relations` + `parallel_decisions = 1` + `parallel_events = 1`~~ | 0.44 min | ~~121~~ | **invalid**: `parallel_events` had a scope bug that skipped events (see re/log.md); remeasure |
+| + `prefetch_ai_relations` + `parallel_decisions = 1` + `parallel_events = 1`, both validated in shadow mode (`engine_worker_threads = 4`, 7 pool workers, `compress_flag_cache = 1`) | **0.45 min** active | **124** | **−72 ms/day (−37 %)** against 196; −8 against 132 (one run, 2026-10-11) |
 
 ## Where the 196 ms/day go (1836, tick profiler)
 
