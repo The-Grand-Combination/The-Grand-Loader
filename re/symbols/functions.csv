@@ -1,0 +1,175 @@
+va,name,conf,area,src,note
+0x00AB0F91,entry,C,engine,re,PE entry point
+0x009796B0,WinMain,I,engine,re,
+0x009DF550,App_MainLoop,I,engine,re,
+0x009DF2B0,App_ProcessMessagePumpAndUpdate,C,engine,cp,"PeekMessage loop, then state->vt[1](); this in ESI"
+0x00633800,App_ctor,C,engine,cp,"version string std::string(""V2 v3.04"", 8) built at 0x00633826"
+0x00654D80,CInGameIdler_Update,C,tick,cp,"per-frame in-game function; CInGameIdler vtable slot at 0x00E0A350; contains ProcessGameTimeAdvance"
+0x00662010,Game_FinalizeLoadAndEnterGameplay,I,loading,re,"one-time load finalisation; CInGameIdler vtable slot 0x00E0A358; ends with state transition to 0xB"
+0x00682BD0,ProcessGameTimeAdvance,C,speed,re,"accumulates frame time at world+0xB14 and compares it with a per-speed table (4.0/2.0/1.0/0.5/0.0004)"
+0x00682EC0,Update_World_and_Advance_Time,C,tick,cp,"one game hour per call: ADD [world+0xB0C],0x18 at 0x00682FA5; DayTick at 0x00683AB1"
+0x0072ECF0,CHourlyTickCommand_Execute,C,tick,cp,"vtable 0x00E12414 slot 6 (+0x18); calls Update_World_and_Advance_Time at 0x0072ECFA"
+0x006859C0,DayTick,C,tick,cp,"once per game day: provinces loop (0x00685B40), countries loop from index 1 (0x00685EC0), events (0x006861E8); old name Economy_ProcessMonthlyTick is wrong"
+0x00685620,UpdateTimeThrottle,C,speed,cp,"this (world) in EDI; renders a frame through 0x009DF2B0 when the per-speed time threshold is reached; 1375 calls/day"
+0x004B1A10,Province_DailyUpdate,C,tick,cp,
+0x005091A0,Country_DailyUpdate,C,tick,cp,"(country, random array), RET 8; 683 calls/day"
+0x00508590,Country_PrePass,I,tick,cp,"per-country pre-pass: units, relations, truces; ~21 ms/day"
+0x0068F390,Entity_RegisterSpatial,I,tick,cp,"entity / spatial registration with a TBB parallel_for inside; 19 047 calls/day"
+0x00957EA0,Pop_MonthlyUpdate,I,pops,re,"called from Country_DailyUpdate when pop.id % month_length == day_of_month"
+0x004B9250,Pop_MergeEmpty,I,pops,re,merges a pop that reached size 0 into another of the same type
+0x004BA430,Migration_Distribute,I,pops,re,
+0x0054B200,std_sort,I,util,re,MSVC std::sort instance used by migration
+0x0092E290,CountryRelation_DailyPurge,I,diplomacy,re,"called from Country_DailyUpdate for every pair (0x0050ABF0); purges relation lists +0x50/+0x2C/+0x30/+0x28/+0x20"
+0x00963D10,Pop_GetCountryWeight,C,pops,re,pure; result discarded in EventWindow_ctor
+0x009B7610,Rng_Next,I,rng,re,"draws the next number from the MT list (index 0x00F0F6B0); regenerates when exhausted"
+0x009B7700,Rng_RegenerateMT,I,rng,re,regenerates the 624-word Mersenne Twister state
+0x008A67B0,EventManager_LoadResources,C,events,re,"loads event files via PhysFS; old Ghidra name EventManager_CargarRecursos"
+0x008A5AC0,Event_ctor,C,events,re,"constructs the 0x1C4-byte event object; old name EventManager_Initialize"
+0x008A5C70,Event_InitSubobject4C,C,events,re,"initialises event+0x4C; old name EventManager_InitializeEventRegistry"
+0x009A1440,EventFile_ReadHeader,C,events,re,"reads the 3 header tokens; old name InitializeEventObject"
+0x008A6010,Event_GetMainName,C,events,re,
+0x008A60F0,Event_GetSecondaryName,C,events,re,
+0x008A6070,Event_GetThirdString,I,events,re,used by the event window
+0x008E7F80,EventEffect_ParseStatement,C,events,re,"keyword 0x344 = (id, days); 0xD9/0x1D4 = name lookup in DAT_0131BB34"
+0x0088D370,EventEffect_Execute,C,events,re,"country_event / province_event effect; fires now or schedules (FUN_00540A70); old name Spawn_event"
+0x0088D460,EventEffect_Describe,I,events,re,"tooltip text of the effect; old name ProcessSpawnEvent"
+0x00540A70,Country_ScheduleEvent,I,events,re,
+0x008A7CD0,EventManager_DailyScan,C,events,cp,"odd days countries, even days provinces; trigger -> MTTH -> MT roll -> Event_Fire"
+0x008AE380,Event_ComputeMTTHProbability,C,events,re,"probability per million: mode * 1e6 / days, clamped [1, 1e6]"
+0x008A8120,Event_Fire,C,events,re,"thiscall(state, ctx), RET 8; 17 callers"
+0x008AEB00,EventOption_EvaluateAIChance,C,events,re,pure
+0x00907D40,EventOptionCommand_ctor,I,events,re,0xB0-byte chosen-option command
+0x008A8F30,EventWindow_ctor,C,events,re,"RET 0x50; dead pop loop at 0x008A9434..0x008A9562"
+0x008A88D0,EventScope_Copy,C,events,re,copies the 0x48-byte scope
+0x006480E0,Window_Show,I,ui,re,
+0x0068B610,UI_GetState,I,ui,re,+0x28 byte = UI ready
+0x009C1D40,ObjectRegistry_HashLookup,C,util,re,"key ptr in EAX, table in ECX; hash (type<<16)+id"
+0x009C16D0,ObjectRegistry_FindByTypeAndId,C,util,re,"type > 0x1268 -> DAT_01258A94, else DAT_01258A98"
+0x008A8650,CEventScope_ctor,C,triggers,cp,"(this, parent); +0x08/+0x0C country ref, +0x24 THIS scope, +0x30/+0x34 FROM"
+0x008B8260,CAndTrigger_Evaluate,C,triggers,cp,vtable 0x00DF9994 slot 6; false at the first false child
+0x008B88A0,COrTrigger_Evaluate,C,triggers,cp,vtable 0x00E2FB70 slot 6; true at the first true child
+0x008B9240,CNotTrigger_Evaluate,C,triggers,cp,"vtable 0x00E2FBA8 slot 6; NOT (a OR b ...)"
+0x008B82B0,CAndTrigger_Describe,C,triggers,cp,vtable slot 11 (+0x2C); tooltip
+0x008D4000,CTagTrigger_Evaluate,C,triggers,cp,scope+0x0C == this+0x20
+0x008D7450,CIsAiTrigger_Evaluate,C,triggers,cp,value at +0x1C; AI = world+0xAEC[country] == 0
+0x008D28C0,CCasusBelliTrigger_Evaluate,C,triggers,cp,calls CBManager_IsAnyCBUsable
+0x008D3F50,Trigger_ParseCountryRef,C,triggers,cp,"THIS = 0x405, FROM = 0x3DE"
+0x008B93B0,Trigger_ParseBool,C,triggers,cp,yes = token 0x29F
+0x00882A40,CClrCountryFlagEffect_Execute,C,effects,cp,"vtable 0x00E2ACC0 slot 11; thiscall(scope, arg2), RET 8"
+0x00882BA0,CClrGlobalFlagEffect_Execute,C,effects,cp,vtable 0x00E2ADA0 slot 11; RET 8
+0x008829E0,CSetCountryFlagEffect_Execute,C,effects,cp,vtable 0x00E2AC88 slot 11
+0x00882B60,CSetGlobalFlagEffect_Execute,C,effects,cp,vtable 0x00E2AD68 slot 11
+0x00C381C0,Tokens_RegisterKeywords,C,parser,cp,"MOV EDX,<string>; ...; MOV ECX,<id> per keyword"
+0x0090CC40,CBManager_Get,C,cb,cp,lazy singleton stored at DAT_0131ACAC
+0x0090CDC0,CBManager_Load,C,cb,cp,parses common/cb_types.txt
+0x0090DA40,CBManager_FindByName,C,cb,cp,
+0x0092D400,CBManager_GetByIndex,C,cb,cp,falls back to types[0]
+0x00909D60,CCasusBelliType_ctor,C,cb,cp,
+0x0090A1E0,CCasusBelliType_OnKeyword,C,cb,cp,vtable slot 4
+0x0090A7E0,CCasusBelliType_IsValid,C,cb,cp,vtable slot 6
+0x00A31490,CCasusBelliType_IsRealType,C,cb,cp,vtable slot 7; returns 1
+0x0058CFD0,CNullCasusBelliType_IsRealType,C,cb,cp,returns 0
+0x0090A7F0,CCasusBelliType_CanUse,C,cb,cp,vtable slot 8 = can_use.Evaluate(scope); no cache
+0x0092EEC0,CBManager_IsCBUsable,C,cb,cp,"(rel, defRef, attRef), CB index in EDI"
+0x0092EDE0,CBManager_IsAnyCBUsable,C,cb,cp,"(rel, defRef, attRef), stdcall, RET 0xC"
+0x0092EFF0,CBManager_IsAlways,C,cb,cp,
+0x0085CCB0,AI_DailyUpdate,C,ai,cp,"this in EAX; called from Country_DailyUpdate at 0x0050B0EB"
+0x0085D270,AI_DiplomacyUpdate,C,ai,cp,"decision loops through DecisionManager_Get (few countries/day), then war/diplomacy target scans"
+0x0085DB40,AI_ScoreWarTargets,C,ai,cp,IsAnyCBUsable at 0x0085DCDA
+0x0085E0E0,AI_ScoreDiplomaticTargets,C,ai,cp,IsAnyCBUsable at 0x0085E5FB
+0x00821190,AI_DecisionUpdate,C,decisions,cp,"ECX = AI object; once per AI country per day; reads DAT_01319730 directly"
+0x0081E9E0,AI_CountryFrameJob,C,ai,cp,calls AI_DecisionUpdate at 0x0081EA9B
+0x00874CE0,CDecision_OnKeyword,C,decisions,cp,"potential 0x729, allow 0x72A"
+0x008743C0,CDecision_ctor,C,decisions,cp,
+0x00874EA0,CDecision_EvaluateAiWillDo,C,decisions,cp,
+0x005399C0,Player_DecisionAlert,C,decisions,cp,"player only (guard at 0x0050B780); stops at the first available decision"
+0x00505010,Decisions_Setup,I,decisions,cp,one-time decision list setup
+0x00875040,DecisionManager_Get,C,decisions,cp,"creates DAT_01319730 (0x38 bytes); callers 0x0085D34F, 0x0085D459"
+0x00564770,AI_ScoreNationalFocus,C,ai,re,"""national_focus.cpp"", ""Railroad score for"", ""Promotion score for"""
+0x0083EC10,AI_GetOpinionScore,I,ai,re,"(self, other, out_score, verbose); builds AIREASON_* tooltips"
+0x00841640,AI_GetOpinionScore_ById,I,ai,re,raw score
+0x008416B0,AI_GetPersuasionDifficulty,I,ai,re,returns 50 - score after early-outs
+0x00834150,AI_GetBaseRelation,I,ai,re,base bilateral relation term of the opinion score
+0x0083DB20,AI_EvaluateCommandChance,I,ai,re,"switch over command type; 0..100; inlined copies in 0x006153A0, 0x00820DF0, 0x00942540, 0x00947210, 0x00949C20"
+0x006153A0,AI_GetActionResultTooltip,I,ai,re,
+0x00820DF0,AI_ProcessPendingProposals,I,ai,re,rolls and resolves pending proposals
+0x00942540,Command_CanExecute_A,I,ai,re,
+0x00947210,Command_CanExecute_B,I,ai,re,
+0x00949C20,Command_CanExecute_C,I,ai,re,
+0x00859710,AI_ProcessResearch,C,tech,re,civilization gate at 0x00859755
+0x00859610,AI_UpdateResearch,I,tech,re,
+0x00569920,Tech_IsAvailable,C,tech,re,"date (+0x340), state, prerequisites; no civilization check"
+0x005699B0,Tech_BuildBlockReason,I,tech,re,
+0x007AA580,TechView_UpdateState,C,tech,re,civilization branch at 0x007AA751
+0x007AA890,TechView_OnAction,C,tech,re,"""start"" action; civilization gate at 0x007AAA83"
+0x007A9700,TechView_BuildList,I,tech,re,
+0x007A9950,TechView_UpdateEntry,I,tech,re,
+0x005467E0,Tech_BuildText,I,tech,re,
+0x0058AD00,Tech_InitSystem,I,tech,re,
+0x005379E0,Country_GetRankClass,C,country,re,"0 GP, 1 secondary, 2 civilized, 3 uncivilized"
+0x0052E960,Factory_CanBuild,C,factories,re,"build_factory_button state: civilized, colonial, < 8 factories, Factory_CheckProductionCountry"
+0x0052C9B0,Factory_CanBuildNow,C,factories,re,real construction gate
+0x0052CA30,Factory_CanBuildTypeInState,C,factories,re,
+0x0052FB40,Factory_CheckProductionCountry,C,factories,re,
+0x004D04B0,ProductionType_CanUse,I,factories,re,
+0x004DA720,Factory_CheckCost,I,factories,re,
+0x004F50C0,Factory_DecayWithoutInputs,I,factories,re,
+0x0068BF00,EconomyManager_UpdateFull,C,economy,re,"full economy rebuild; only caller Game_FinalizeLoadAndEnterGameplay (0x0066321D), i.e. once after loading"
+0x00489990,Economy_Update,C,economy,cp,"world market daily update (""worldmarket.cpp""); ~37 ms/day"
+0x00484060,WorldMarketUpdate,C,economy,cp,"countries -> states -> factories; ~21.6 ms/day"
+0x004808D0,ProcessMarketAndGoodsDistribution,C,economy,cp,~8.7 ms/day
+0x00488080,Market_PostProcess,I,economy,cp,~3.3 ms/day
+0x00482FF0,Factory_MarketUpdate,I,economy,cp,called per factory from WorldMarketUpdate
+0x00485E40,Market_UpdateCountryPops,I,economy,cp,"called per country from WorldMarketUpdate; per-pop money/needs (old name pop_daily_update_money)"
+0x00520150,Economy_CalculateDistribution,I,economy,re,"shared 64-bit accumulators; 24 callers (load, UI, diplomacy, events)"
+0x0068D250,EconomyManager_RebuildLists,I,economy,re,
+0x0068D950,EconomyManager_PrepareUpdate,I,economy,re,
+0x0068DC70,EconomyManager_ProcessEntries,I,economy,re,
+0x00482930,Market_UpdateSupply,I,economy,re,
+0x00482610,Market_CalcSupplyMultiplier,I,economy,re,
+0x00487410,Market_AddRealDemand,C,economy,re,demand side
+0x00969760,Economy_AccumulateElement,I,economy,re,shared accumulators; not thread-safe
+0x00523400,Loan_CalculateInterest,I,economy,re,
+0x0047DCA0,Stockpile_SubtractArtisanFactory,C,economy,re,
+0x0047DC20,Buffer_AccumulateIndexedValue,I,util,re,
+0x0047DE60,Buffer_ScaleValuesInRange,I,util,re,~53 callers
+0x0047D9E0,Clamp,I,util,re,
+0x0047E3E0,ScaledDotProduct,I,util,re,~58 callers
+0x0043A880,vector_resize,I,util,re,
+0x0043AB60,Memory_CopyOverlapping,I,util,re,
+0x0054C600,intro_sort,I,util,re,
+0x004DD470,Goods_MultiplyClamp99999,I,economy,re,
+0x0047DB00,CGoodsPool_copy_ctor,I,economy,re,
+0x0041A160,PopTypeDb_ctor,I,pops,re,constructor of the lazily created DAT_0131BB34
+0x00A7AED0,WorkerThread_Create,I,threads,re,CreateThread(WorkerThread_Entry)
+0x00A7B0C0,WorkerThread_Entry,I,threads,re,
+0x00A7B090,WorkerThread_Dispatch,C,threads,re,calls [this+0x18]->vt[1]
+0x00A7AE80,WorkerThread_Cleanup,I,threads,re,
+0x0072EE90,GameSpeed_Increase,I,speed,re,
+0x0072EFE0,GameSpeed_Decrease,I,speed,re,
+0x006377A0,HistoryDb_Init,C,checksum,re,
+0x009DA4B0,HistoryDb_LoadDirRecursive,C,checksum,re,
+0x009DA400,File_Checksum,C,checksum,re,
+0x009939A0,FileStream_ChecksumFletcher,C,checksum,re,
+0x0068F340,Vector_Equals,I,util,re,
+0x00676500,ResignCommand_Handle,C,ui,re,"compares the command with ""RESIGN""; calls [this+8]->vt[0x114/4]"
+0x0067D940,Engine_Shutdown,I,engine,re,
+0x00420EB0,Console_Execute,C,console,re,"central console dispatcher; debug cb_use / cb_countries / cb_state"
+0x0099DA20,Render_InitRestore,I,render,re,
+0x006592F0,Render_MapFrame,I,render,re,
+0x006DFE80,Westernize_OnClick,C,ui,re,
+0x00541B90,Westernize_CanClick,C,ui,re,
+0x00772300,Play_OnClick,I,ui,re,
+0x00AAE91B,operator_delete,C,util,cp,calls free; 33 509 call sites
+0x00408AD0,std_string_dtor,C,util,cp,"__fastcall; frees the buffer when capacity > 15, resets to the empty SSO state; 38 527 call sites"
+0x00409350,std_string_assign,I,util,cp,"(const char*, length); 14 124 call sites"
+0x00515490,Country_Recalculate,I,country,cp,"resets and recomputes dozens of CCountry fields; 43 callers; daily from Country_PrePass (0x005089DB) and Country_DailyUpdate (0x0050B6CF); ~8.7 ms/day"
+0x009AF9F0,CommandQueue_Process,I,engine,cp,"per frame from CInGameIdler_Update (5 call sites, 23 callers): runs queued commands through virtual calls (CHourlyTickCommand -> world update is one of them); ~51 ms/day exclusive at max speed in 1836"
+0x006874C0,AI_FrameUpdate,C,ai,cp,"from CInGameIdler_Update; drives AI_CountryFrameJob, i.e. the daily AI decision loop; ~24-26 ms/day with cull_decision_checks = 0"
+0x00A89D00,enet_host_service,C,network,cp,"ENet (statically linked): ""Error dispatching/sending/receiving packets"" strings; cdecl (host, event, timeout ms)"
+0x00A8B400,enet_socket_wait,C,network,cp,"select() with timeval from the timeout; the wait the sampling profiler found"
+0x00A8B360,enet_socket_receive,C,network,cp,WSARecvFrom wrapper
+0x00A61780,NetSession_Service,I,network,cp,"virtual (slot at 0x00E42744); enet_host_service(this+0x18, &event, this+0x20) at 0x00A618CC, then dispatches events"
+0x00A5FF00,NetSession_ctor,I,network,cp,base constructor (vtable 0x00E426A8)
+0x00A635C0,NetClient_ctor,I,network,cp,"gethostbyname; host at +0x18, timeout +0x20 = 35 ms"
+0x00A63830,NetServer_ctor,I,network,cp,"host at +0x18, timeout +0x20 = 35 ms; created from FUN_009B1190 (CommandQueue_Process path)"

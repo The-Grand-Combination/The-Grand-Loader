@@ -1,0 +1,37 @@
+# sample_profiler v1, TGC 1836-1837 (450 days), max speed, both culls off, engine_worker_threads = 4.
+# Runtime exe base was 0x00080000 (ASLR); addresses rebased by +0x380000 before annotating. Inclusive figures of v1
+# are inflated by stale return addresses (fixed in v2); exclusive and module figures are reliable.
+module v2game.exe        139.73 ms/day
+module ntdll.dll          50.86 ms/day
+module d3d9.dll            3.41 ms/day
+module d3dx9_41.dll        2.30 ms/day
+module AMDXN32.DLL         2.09 ms/day
+module win32u.dll          1.66 ms/day
+module tbb.dll             0.68 ms/day
+module KERNEL32.DLL        0.32 ms/day
+# exclusive, top 25 (ms/day, function)
+   8.06  FUN_00515490 0x00515490
+   5.74  CountryRelation_DailyPurge 0x0092E290
+   5.62  FUN_00522cf0 0x00522CF0
+   4.30  CAndTrigger_Evaluate 0x008B8260
+   4.10  FUN_0084b0f0 0x0084B0F0
+   3.71  Country_PrePass 0x00508590
+   3.38  __alldiv 0x00AC02A0
+   3.32  FUN_0052fcd0 0x0052FCD0
+   2.95  FUN_0051fd10 0x0051FD10
+   2.88  FUN_0050ea30 0x0050EA30
+   2.59  Economy_AccumulateElement 0x00969760
+   2.56  FUN_00485390 0x00485390
+   2.29  FUN_0095a5f0 0x0095A5F0
+   2.27  FUN_009e6c10 0x009E6C10
+   1.98  FUN_0068c040 0x0068C040
+   1.88  Stockpile_SubtractArtisanFactory 0x0047DCA0
+   1.83  ScaledDotProduct 0x0047E3E0
+   1.82  __allmul 0x00AC9F20
+   1.66  Market_UpdateCountryPops 0x00485E40
+   1.64  FUN_009692c0 0x009692C0
+   1.61  Country_DailyUpdate 0x005091A0
+   1.50  FUN_004dde00 0x004DDE00
+   1.34  FUN_0095eb00 0x0095EB00
+   1.32  FUN_0047e220 0x0047E220
+   1.28  ProcessMarketAndGoodsDistribution 0x004808D0

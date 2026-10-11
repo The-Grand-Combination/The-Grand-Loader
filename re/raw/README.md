@@ -1,11 +1,10 @@
-# docs/raw
+# re/raw
 
-Unprocessed material behind the write-ups in `docs/`. Nothing here is edited for reading; it is kept so
+Unprocessed material behind `re/systems/` and the feature write-ups in `docs/`. Nothing here is edited for reading; it is kept so
 numbers and addresses can be re-checked without redoing the Ghidra or profiling runs.
 
 | File | What it is |
 |---|---|
-| `addresses.md` | every address located so far: globals, country-object offsets, functions, vtables, patched call sites |
 | `cb-keyword-map.txt` | `cb_types.txt` keyword -> token id -> `CCasusBelliType` offset; trigger block layout; scope layout |
 | `decision-keyword-map.txt` | `political_decisions` keyword -> token id -> `CDecision` offset; where potential/allow are evaluated |
 | `cb-callchains.txt` | every caller of `IsAnyCBUsable` and the chains that reach the daily / monthly tick |

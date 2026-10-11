@@ -1,8 +1,7 @@
 # `cull_cb_checks` — casus belli check culling
 
 Feature of `community_patch.dll`. Source: `patch/src/features/cb_cull.cpp`, class table
-`patch/src/features/cb_cull_triggers.h`. Research: `Engine/Casus_Belli_Evaluation.md` in the
-Victoria2-Reverse-Engineering repo.
+`patch/src/features/cb_cull_triggers.h`. Research: [re/systems/casus-belli.md](../re/systems/casus-belli.md).
 
 ## The problem
 

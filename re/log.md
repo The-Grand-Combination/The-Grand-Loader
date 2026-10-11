@@ -1,18 +1,18 @@
 # Research log
 
-Newest first. Each entry: date, question, where the answer lives, what is still open.
+Oldest first. Each entry: date, question, where the answer lives, what is still open. Facts that outlive an entry belong in `symbols/` and `systems/`; this log keeps the history (what was tried, what was measured, what was wrong).
 
 ## 2026-10-01 — Casus belli evaluation cost ("CBs are checked N×N")
 
 - **Question:** does the engine evaluate `can_use` of every CB type for every attacker × defender pair, and does trigger ordering matter?
-- **Answer:** yes, daily, for every AI country × every other country, but only for CB types with `always = yes` or already held in that relation; `CanUse` is an uncached `CAndTrigger::Evaluate` with `THIS` = attacker, `FROM` = defender; AND/OR/NOT short-circuit in file order. → `Engine/Casus_Belli_Evaluation.md` in the Victoria2-Reverse-Engineering repo
+- **Answer:** yes, daily, for every AI country × every other country, but only for CB types with `always = yes` or already held in that relation; `CanUse` is an uncached `CAndTrigger::Evaluate` with `THIS` = attacker, `FROM` = defender; AND/OR/NOT short-circuit in file order. → [systems/casus-belli.md](systems/casus-belli.md)
 - **Side products:** full `CCasusBelliType` field map, keyword-id → offset table, trigger container semantics, console entry points (`debug cb_use`), the Ghidra headless tooling in `tools/ghidra/` (this repo).
 - **Open:** meaning of the AI gates `country+0x37C/0x37D`, `ai+0x19`, `DAT_01318E5C`, `country+0xE4C`; whether `CNullCasusBelliType` instances sit in the manager vector.
 
 ## 2026-10-01 — Version label site for the Community Patches loader
 
 - **Question:** where does the corner label "V2 v3.04 (XXXX)" come from, so a loader can append text to it?
-- **Answer:** `std::string("V2 v3.04", 8)` at `0x00633826` inside the application constructor; patch the `push imm8` length and the pointer only. Implemented in the Community Patches loader (`launcher/src/version_label.cpp`); not yet registered in `Patch/patch.md` (Victoria2-Reverse-Engineering).
+- **Answer:** `std::string("V2 v3.04", 8)` at `0x00633826` inside the application constructor; patch the `push imm8` length and the pointer only. Implemented in the Community Patches loader (`launcher/src/version_label.cpp`); patch site `cp_version_label`.
 
 ## 2026-10-01 — Engine worker threads (TBB)
 
@@ -22,14 +22,14 @@ Newest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-02 — `cull_cb_checks`: attacker-only culling of `can_use`
 
 - **Question:** can the daily N×N CB scan be short-circuited per attacker without changing results?
-- **Answer:** yes. Hooked `CCasusBelliType::CanUse` (vtable `0x00E33724+0x20`) and the two AI call sites of `IsAnyCBUsable`; attacker-only top-level conditions are evaluated once per (CB, attacker, day). Classification of all 236 trigger classes by decompiling their `Evaluate`: 174 scalar + 20 country-reference (instance flags `+0x18` THIS / `+0x19` FROM) usable, 40 pair-dependent excluded. → [cb-cull.md](cb-cull.md)
+- **Answer:** yes. Hooked `CCasusBelliType::CanUse` (vtable `0x00E33724+0x20`) and the two AI call sites of `IsAnyCBUsable`; attacker-only top-level conditions are evaluated once per (CB, attacker, day). Classification of all 236 trigger classes by decompiling their `Evaluate`: 174 scalar + 20 country-reference (instance flags `+0x18` THIS / `+0x19` FROM) usable, 40 pair-dependent excluded. → [cb-cull.md](../docs/cb-cull.md)
 - **Correction to the previous entry:** in `can_use` the scope is the attacker and `THIS` is the defender (`scope+0x24`); `FROM` is unset. The decomp document was updated.
 - **Open:** measure the real gain on a heavy mod (log line every 30 days reports calls/culled/evaluated); whether the scalar parsers' `= THIS` (ignored by their `Evaluate`) is a script-side bug worth documenting.
 
 ## 2026-10-02 — `decisions_once_per_day`: `potential` evaluated once per country per day
 
 - **Question:** where are decisions evaluated and how often; can they be gated to once per day like events?
-- **Answer:** `CDecision` (`0x00E29B54`, ctor `0x008743C0`) holds `potential` at `+0x24`, `allow` at `+0x40`, `effect` at `+0x5C`, `ai_will_do` at `+0x110`; keyword handler `0x00874CE0` (potential `0x729`, allow `0x72A`). Evaluated daily by the AI (`0x0085D270`) and the country alert (`FUN_005399C0`), and on every refresh by the politics view / decision list / tooltips. Patched by cloning `CAndTrigger::vftable` for the `potential` blocks with a cached `Evaluate`; `allow` left live. → [decision-cache.md](decision-cache.md)
+- **Answer:** `CDecision` (`0x00E29B54`, ctor `0x008743C0`) holds `potential` at `+0x24`, `allow` at `+0x40`, `effect` at `+0x5C`, `ai_will_do` at `+0x110`; keyword handler `0x00874CE0` (potential `0x729`, allow `0x72A`). Evaluated daily by the AI (`0x0085D270`) and the country alert (`FUN_005399C0`), and on every refresh by the politics view / decision list / tooltips. Patched by cloning `CAndTrigger::vftable` for the `potential` blocks with a cached `Evaluate`; `allow` left live. (feature removed 2026-10-02, see below)
 - **Also found:** the script trigger `casus_belli = X` (`CCasusBelliTrigger::Evaluate` `0x008D28C0`) calls `IsAnyCBUsable`, i.e. runs every `always = yes` CB's `can_use` against that target each time the event/decision is checked. Unmeasured by `cull_cb_checks`, which only covers the two AI scans.
 - **Open:** measure `CanUse` from all callers (sampled stack attribution) to see the split between AI scans, `casus_belli` triggers and UI; consider a per-(attacker, defender, day) cache of `IsAnyCBUsable` for the script-trigger path.
 
@@ -49,7 +49,7 @@ Newest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-02 — `tick_profiler`: per-block timing of the daily tick
 
 - **Why:** decisions (~10 %) and CB scans (≤5 %) do not explain the ~240 ms/day; the remaining ~85 % had no owner.
-- **How:** eight single-caller call sites in the tick redirected to register-preserving thunks that swap the return address (works for the game's custom conventions); inclusive/exclusive ms/day per block every 30 days. → [tick-profiler.md](tick-profiler.md)
+- **How:** eight single-caller call sites in the tick redirected to register-preserving thunks that swap the return address (works for the game's custom conventions); inclusive/exclusive ms/day per block every 30 days. → [tick-profiler.md](../docs/tick-profiler.md)
 - **Open:** first report from the user's mod; then split the largest exclusive block.
 - **First result:** ~185 ms/day: 43 % outside the simulation step (render/UI/wait), 37 % in `DayTick` outside the province/country/event loops, 10 % `Country_DailyUpdate` (which also holds the decisions' `potential`, now estimated at 10–12 ms/day: the earlier 25 ms included the per-call clock), AI ≤4 %, events 2 %, provinces 1 %. Level 2 (every call inside `DayTick`) added to split the 37 %.
 - **Level 2 result (2026-10-03):** `DayTick` exclusive dropped to 2.7 ms once its calls were split. The simulation cost sits in two functions: `Economy_Update` (`0x00489990`, world market, "worldmarket.cpp", 1 call/day) at ~37 ms/day and the per-country pre-pass `FUN_00508590` (683 calls/day) at ~21 ms/day, next to `Country_DailyUpdate` at ~20 ms. `time_throttle` is called 1375×/day and costs 0.2 ms. Level 3 (calls inside those two functions, 90 sites) added.
@@ -68,7 +68,7 @@ Newest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-03 — `decision_profiler` results; `cull_decision_checks` + `decision_profiling` built
 
 - **Measured (TGC, 1836, max speed, two 30-day windows):** 529 k `potential` evaluations/day = 23.5 ms of ~200 ms (12 %), 2500 pass/day. 213 k/day (6.5 ms) are tag-locked decisions evaluated for the wrong country; 10 k/day (0.45 ms) are pairs whose flag gate already fails. Flat distribution: heaviest decision 0.29 ms/day (`pay_owed_steamers`), top 25 = 2.5 ms. 665 tag-locked, 1291 with a top-level `NOT has_*_flag` gate. → [raw/profiler/decisions-2026-10-03.log](raw/profiler/decisions-2026-10-03.log)
-- **Built:** `decision_profiler` renamed/extended into `cull_decision_checks` (both layers: tag lock, dead-pair bitset invalidated by hooks on `CClrCountryFlagEffect::Execute` `0x00882A40` / `CClrGlobalFlagEffect::Execute` `0x00882BA0`, vtable slot 11, plus a 30-day full reset) and `decision_profiling` (rewrites `v2cp_decisions.log` with running per-day averages for every decision; constant size). → [decision-cull.md](decision-cull.md)
+- **Built:** `decision_profiler` renamed/extended into `cull_decision_checks` (both layers: tag lock, dead-pair bitset invalidated by hooks on `CClrCountryFlagEffect::Execute` `0x00882A40` / `CClrGlobalFlagEffect::Execute` `0x00882BA0`, vtable slot 11, plus a 30-day full reset) and `decision_profiling` (rewrites `v2cp_decisions.log` with running per-day averages for every decision; constant size). → [decision-cull.md](../docs/decision-cull.md)
 - **Corrections:** `CHourlyTickCommand::Execute` is vtable slot 6 (`+0x18`), not 7; the gate counts above include flags that other scripts clear, which is why the runtime count (1291) exceeds the static once-only count (767 + 404).
 - **Open:** first-year timing with `cull_decision_checks = 1 / 0`; confirm `passed/day` unchanged with cull on; late-game share of dead pairs.
 - **Crash fixed (2026-10-03):** `CEffect::Execute` is `__thiscall(scope, arg2)`, two stack arguments (`RET 0x8`); the first hook declared one, cleaned 4 bytes instead of 8 and returned into the stack (crash EIP == ESP+0x10 right after loading, when history effects run). Lesson: check the `RET imm16` of a virtual before hooking its slot; Ghidra's parameter count follows usage, not the convention.
@@ -97,6 +97,75 @@ Newest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-04 — `cull_cb_checks` v3
 
 - **Why:** the 2026-10-02 profile put AI CB scans at 11.1 ms/day with only 4.8 in `can_use`. `IsCBUsable` (`0x0092EEC0`) explains the rest: per type it walks the held-CB list `rel+0x50` and, for `always`/held types, builds two `CEventScope`s before `CanUse` (slot 8). ~100 walks per pair and ~350 k scope constructions a day.
-- **v3:** per pair, one scope pair (laid out as `IsCBUsable` does: attacker, `+0x24` -> THIS = defender), `CanUse` only for the attacker's live `always` types (v2 pre-pass) and for the held types found in one walk of the list; first true returns. Same boolean OR, no side effects. `IsCBUsable` is no longer called. → [cb-cull.md](cb-cull.md)
+- **v3:** per pair, one scope pair (laid out as `IsCBUsable` does: attacker, `+0x24` -> THIS = defender), `CanUse` only for the attacker's live `always` types (v2 pre-pass) and for the held types found in one walk of the list; first true returns. Same boolean OR, no side effects. `IsCBUsable` is no longer called. → [cb-cull.md](../docs/cb-cull.md)
 - **Open:** `year 1836` with `cull_cb_checks = 1` (v3) against 189 ms/day (decision cull on, CB cull off). Default stays `0` until measured.
 - **Result (2026-10-04, `year_timer`, TGC 1836, `cull_decision_checks = 0`):** `cull_cb_checks` v3 **185 ms/day (1.07 min)** against the 196 baseline: −11 ms/day, −5.6 %, i.e. essentially the whole 11 ms/day the profile attributed to the AI CB scans. The N×N loop was cheap per iteration but the scope construction and the held-list walks per type were not. Default should move to `1` once the combined run confirms.
+
+## 2026-10-11 — Research consolidated into `re/`
+
+- **What:** the knowledge spread over the maxioten/Victoria2-Reverse-Engineering notes, `docs/raw/addresses.md` and the per-feature constants in the code now lives in `re/symbols/*.csv` (161 functions, 82 globals/vtables/constants, struct offsets, 57 patch sites) and one page per subsystem in `re/systems/`. The other repo is not ours; its notes were rewritten, not copied, and each page credits it.
+- **Verified:** every function address in `functions.csv` is a function start in the Ghidra project (`V2Symbols.java check`); the original bytes of all patch sites, including the external V2DLL and "Master EXE Mod" ones, match the 3.04 exe (`tools/scripts/check_patch_sites.sh`). Everything in the other repo targets this same exe (the "v3.05" mod only rewrites the label).
+- **Corrections found on the way:** the price clamp constants `0x00E45C30` / `0x00E45C28` hold 6554.1 / 163840.5 (0.2 / 5.0 pre-scaled to 2^15 fixed point), so "write 0.1 / 10.0 there" would break prices; `.text` file offsets are VA − 0x400C00, not VA − 0x400000 (the checksum fix is at file offset 0x1F7668, not 0x1F8268); `EconomyManager_UpdateFull` (`0x0068BF00`) is the one-time rebuild after loading (only caller `0x0066321D`), not the daily economy; the date increment at `0x00682FA5` is unconditional, one day per `Update_World_and_Advance_Time` call.
+- **Open:** move the per-feature address constants in `patch/src/features/*.cpp` to one header generated from the CSVs.
+
+## 2026-10-11 — Full decompilation and a performance map
+
+- **What:** names from `re/symbols/` imported into the Ghidra project (backup of the unnamed project kept in `%USERPROFILE%\ghidra_projects_backup_2026-10-11`); `V2DecompAll.java` decompiled all 63 770 functions into `re/decomp/` (git-ignored, 53 MB) with `index.tsv` (size, callers, callees, call depth from `DayTick` / `CInGameIdler_Update`). 2 426 functions are reachable from `DayTick` over direct calls. 6 very large functions (18–47 KB) timed out at 60 s; 5 were redone at 120 s into `re/decomp/large/`, `Render_MapFrame` does not decompile.
+- **Read:** `WorldMarketUpdate` calls `UpdateTimeThrottle` every 20 countries and does a temporary copy + `vector_resize` per open factory per day; `FUN_00515490` (now `Country_Recalculate`) resets and rebuilds dozens of country fields, frees and reallocates its vectors on each of its 322 daily calls. The most common call targets in the tick are `std::string` / `operator delete` helpers.
+- **Result:** [systems/performance.md](systems/performance.md): budget, rules learned, seven ranked candidates. The largest untouched block is the ~90 ms/day frame side at max speed, where every day pays a full rendered frame.
+- **Open:** profiler level 4 (frame) and 5 (market / country) logs; allocation count per day; late-game budget.
+
+## 2026-10-11 — `tick_profiler` never reported since the frame hook
+
+- **Symptom (user):** level 4, a whole year 1836 (202 ms/day by `year_timer`), no profiler table in `v2cp.log`.
+- **Cause:** the day check ran only when `world_update` was entered at shadow-stack depth 0. Since `frame_update` (`CInGameIdler_Update` slot) became a level-1 hook, `world_update` always runs inside it, so no level ever reported after that change. The level 2/3 logs in `raw/profiler/` predate it.
+- **Fix:** check on the outermost `world_update` (`active == 0`). Also: a target's inclusive time is added only by its outermost instance (`frame_update` re-entered through `UpdateTimeThrottle` inside `world_update` counted twice); frames rendered from inside `world_update` are counted and timed on their own report line; the header gives the game year.
+
+## 2026-10-11 — Level 4: the frame side split
+
+- **Measured (TGC 1836, max speed, both culls off):** a game day is 3–4 frames, ~200 ms. Of the ~90 ms outside the simulation: `CommandQueue_Process` (`0x009AF9F0`) ~51 ms own time, `AI_FrameUpdate` (`0x006874C0`) ~24 ms, `Render_MapFrame` ~14.5 ms, the rest ~5 ms. The throttle renders 1 frame/day from inside the tick (~5 ms/day). → [raw/profiler/level4-2026-10-11.log](raw/profiler/level4-2026-10-11.log), [systems/performance.md](systems/performance.md)
+- **Corrections:** the daily AI decision loop runs in `AI_FrameUpdate` on the frame side, not inside `Country_DailyUpdate`; rendering is a small part of max-speed cost, so "fewer frames per day" is a weak idea; the mid-tick throttle frames are not worth removing.
+- **Profiler bug:** the first window included menu/loading frames (24 frames/day, negative "outside"). Fixed: the counters are reset when the first game day starts.
+- **Open:** `CommandQueue_Process` spends its time in virtual calls the call-redirect profiler cannot see; a sampling profiler is next.
+
+## 2026-10-11 — `sample_profiler`
+
+- **Why:** level 4 left ~51 ms/day inside `CommandQueue_Process` in virtual calls, which call redirection cannot see.
+- **Built:** a sampler thread started from the first hourly tick (so on the game thread, outside the loader lock): every N ms while the date advances, suspend the game thread, read `EIP`/`ESP`, copy 4 KB of stack, resume; count `EIP` (per module outside the exe) and stack values that follow a `CALL` (inclusive per call site, upper bound). `v2cp_samples.tsv` every 30 days; `tools/scripts/annotate_samples.sh` maps it to functions through `re/decomp/index.tsv`. → [docs/sample-profiler.md](../docs/sample-profiler.md)
+- **Open:** first run (TGC 1836, both culls off, to compare with level 4); zoom into `CommandQueue_Process`.
+
+## 2026-10-11 — First sampling profile; the exe is relocated by ASLR
+
+- **Run:** TGC 1836–1837 (450 days), max speed, both culls off: 46 088 samples, 201 ms/day sampled (`year_timer` 203). → [raw/profiler/samples-v1-2026-10-11.txt](raw/profiler/samples-v1-2026-10-11.txt)
+- **ASLR:** 37 % of the samples mapped to no function because the exe ran at base `0x00080000`, not `0x00400000`: it has a relocation table and Windows relocates it. Found by testing which base makes the sampled return addresses follow a `CALL` in the file (392/400 at `0x00080000`). Hooks were never affected (they all go through `exe_addr(rva)`), but `re/README.md` claimed a fixed base. The profiler now writes listing VAs.
+- **Findings (exclusive, reliable):** `ntdll.dll` is **25 % of the day (~51 ms)**; the v1 stacks point at `malloc`/`free`, i.e. the heap. Top exe functions: `Country_Recalculate` 8.1, `CountryRelation_DailyPurge` 5.7, `FUN_00522CF0` 5.6, `CAndTrigger_Evaluate` 4.3, `FUN_0084B0F0` 4.1, `Country_PrePass` 3.7, `__alldiv` 3.4 ms/day. Render DLLs (d3d9, d3dx9, driver) total only ~8 ms/day.
+- **Profiler v2:** inclusive figures of v1 were inflated (stale return addresses, recursion counted per call site). v2 validates `CALL rel32` frames against the younger frame, records whole stacks, and the script counts each function once per stack and attributes time in other DLLs to the exe function that called out.
+- **Open:** a v2 run to confirm who calls into ntdll and how much of it is the heap.
+
+## 2026-10-11 — Sampling v2: one caller for the ntdll time, but a false stack
+
+- **Run:** TGC 1836–1837 (390 days), max speed, culls off, `engine_worker_threads = 0`: 197 ms/day sampled, `ntdll.dll` 50 ms/day (25 %), confirmed.
+- **v2 said:** 46 ms/day of it under `FUN_0099FF90`, a generic token serializer (text/binary writer behind save files, 594 callers), itself under a chain through library code (`0x00A61780`, `0x00A8B360`, `0x00A8B400`, near `PHYSFS_write`) and `std_string_dtor` -> `FUN_0070EC60` -> `CommandQueue_Process`. A string destructor calling a serializer is not a real call chain: stale return addresses after indirect calls, left in uninitialised locals, form chains that pass the `CALL rel32` check.
+- **v3:** walks the EBP chain first and treats each `[EBP+4]` as a true frame (Windows DLLs and the game's functions with C++ exception frames keep EBP), filling FPO gaps with the validated scan; names the leaf export inside other modules (`ntdll.dll!RtlAllocateHeap` vs `NtDelayExecution` and so on) from their export tables.
+- **Open:** v3 run: which ntdll function the 50 ms are and which exe function really calls it.
+
+## 2026-10-11 — The 50 ms/day in ntdll is a 35 ms network wait (ENet `select`)
+
+- **v3 sampling (EBP-anchored, export names):** `ntdll!ZwWaitForSingleObject` 45.8 ms/day (23.6 % of the day). Instruction-level check of the return addresses: `CALL [select]` at `0x00A8B477` in `enet_socket_wait`, called by `enet_host_service` (`0x00A89D00`; ENet's own error strings), called at `0x00A618CC` by the session's service method (`0x00A61780`), reached from `CommandQueue_Process` (`CALL EAX` at `0x009AFBB1`). The serializer and string-destructor frames in v2's chain were stale.
+- **Cause:** the client/server constructors (`0x00A635C0`, `0x00A63830`) set the ENet service timeout (`this+0x20`) to 35 ms, also in single player (local loopback). → [systems/network.md](systems/network.md)
+- **Built:** `network_wait_ms` (default -1 = vanilla) caps that timeout by redirecting the one call. **Open:** `year_timer` with `0` vs `-1`; CPU use while paused; multiplayer pacing.
+
+## 2026-10-11 — `network_wait_ms = 0`: −20 to −22 %
+
+- **Measured (TGC 1836, max speed, culls off, sampler on):** first year 56 s / 155 ms/day against 1 min 11–14 s / 195–203 ms/day in the same conditions (three runs). `ntdll` time from ~50 to 5 ms/day; the exclusive times of the simulation functions unchanged. → [systems/network.md](systems/network.md), [../docs/timings.md](../docs/timings.md)
+- **Explains** the ~51 ms/day "own time" of `CommandQueue_Process` in the level-4 tick profile.
+- **Open:** CPU use while paused with `0`; multiplayer; whether a small cap (1–2 ms) keeps the idle behaviour and most of the gain.
+
+## 2026-10-11 — Everything together: 144 ms/day (−26 %)
+
+- **Measured:** `network_wait_ms = 0` + `cull_cb_checks = 1` + `cull_decision_checks = 1`, `engine_worker_threads = 8`, no profiler: first year 52 s, 144 ms/day, against 196 vanilla. One run.
+- **Correction:** the session polled with a 15 ms timeout (logged on the first poll), the base constructor's value; 35 ms is what the client/server variants set. The measured wait (~46 ms/day) is with 15 ms.
+
+## 2026-10-11 — `network_wait_ms = 0` becomes the shipped default
+
+- **Checked (user):** with `0`, CPU use still drops sharply when the game is paused (not to zero): the network wait is not the paused-game idle mechanism. The shipped ini now sets `0`; a missing key still means vanilla (`-1`). Multiplayer remains untested.

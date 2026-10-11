@@ -1,0 +1,59 @@
+id,va,original,patched,status,src,note
+cp_cb_scan_war,0x0085DCDA,E8 01 11 0D 00,call redirect,shipped,cp,cull_cb_checks: CALL CBManager_IsAnyCBUsable in AI_ScoreWarTargets
+cp_cb_scan_diplo,0x0085E5FB,E8 E0 07 0D 00,call redirect,shipped,cp,cull_cb_checks: CALL CBManager_IsAnyCBUsable in AI_ScoreDiplomaticTargets
+cp_decisions_get_a,0x0085D34F,E8 EC 7C 01 00,call redirect,shipped,cp,cull_decision_checks: CALL DecisionManager_Get in AI_DiplomacyUpdate
+cp_decisions_get_b,0x0085D459,E8 E2 7B 01 00,call redirect,shipped,cp,cull_decision_checks: CALL DecisionManager_Get in AI_DiplomacyUpdate
+cp_ai_decisions,0x0081EA9B,E8 F0 26 00 00,call redirect,shipped,cp,cull_decision_checks: CALL AI_DecisionUpdate in AI_CountryFrameJob
+cp_hourly_tick_slot,0x00E1242C,F0 EC 72 00,vtable slot,shipped,cp,hooks/hourly_tick: CHourlyTickCommand vtable slot 6 = 0x0072ECF0
+cp_frame_update_slot,0x00E0A350,80 4D 65 00,vtable slot,shipped,cp,tick_profiler: CInGameIdler vtable slot = CInGameIdler_Update
+cp_clr_country_flag_slot,0x00E2ACEC,40 2A 88 00,vtable slot,shipped,cp,cull_decision_checks: CClrCountryFlagEffect slot 11
+cp_clr_global_flag_slot,0x00E2ADCC,A0 2B 88 00,vtable slot,shipped,cp,cull_decision_checks: CClrGlobalFlagEffect slot 11
+cp_tick_world_update,0x0072ECFA,E8 C1 41 F5 FF,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_day,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_province,0x00685B49,E8 C2 BE E2 FF,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_country,0x00685ED1,E8 CA 32 E8 FF,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_ai,0x0050B0EB,E8 C0 1B 35 00,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_ai2,0x0050B0F0,E8 1B 1E 35 00,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_519f80,0x0050B0F6,E8 85 EE 00 00,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_events,0x006861E8,E8 E3 1A 22 00,call redirect,shipped,cp,tick_profiler level 1
+cp_version_label,0x00633826,6A 08 BF 0F 00 00 00 68 4C 76 E0 00,push length + pointer,shipped,cp,launcher: corner version label
+event_dead_pop_loop,0x008A9428,0F 84 3A 01 00 00,E9 3B 01 00 00 90,experimental,re,removes the dead pop loop in EventWindow_ctor (player window only)
+event_skip_fired_once_countries,0x008A7DDF,8B 53 30 8B 52 18,E9 3C 13 3E 00 90,experimental,re,"jump to cave 0x00C89120 (66 bytes, see re/systems/events.md); no measurable gain reported"
+event_skip_fired_once_provinces,0x008A7FC0,8B 53 30 8B 52 18,E9 AB 11 3E 00 90,experimental,re,jump to cave 0x00C89170
+event_scan_every_4_days,0x008A7D33,25 01 00 00 80 79 05 48 83 C8 FE 40 83 F8 01 0F 85 FA 01 00 00,83 E0 03 83 F8 02 0F 84 03 02 00 00 83 F8 01 0F 85 C0 03 00 00,proposal,re,with event_scan_mode_countries and event_scan_mode_provinces
+event_scan_mode_countries,0x008A7DF7,6A 01,6A 02,proposal,re,doubles the country probability
+event_scan_mode_provinces,0x008A7FD8,6A 02,6A 04,proposal,re,doubles the province probability
+country_update_every_other_day,0x00685EB2,EB 0C,E9 09 33 60 00,proposal,re,"jump to cave 0x00C891C0; halves pop updates, delays and on_actions: see re/systems/tick.md"
+diag_skip_relation_loop,0x0050ABFA,0F 8E 4E 00 00 00,E9 4F 00 00 00 90,diagnostic,re,skips the O(n^2) relation loop in Country_DailyUpdate
+diag_skip_pop_traversal,0x00509351,8B 83 D8 09 00 00,E9 3F 01 00 00 90,diagnostic,re,pops stop updating
+checksum_backend_counter,0x005F8268,40,90,proposal,re,"INC EAX -> NOP in the CBackEndIdler/CReloadDispatcher ctor; file offset 0x1F7668 (the source said 0x1F8268, wrong)"
+checksum_file_zero,0x00993A64,0B C3,33 C0,unsafe,re,file checksum forced to 0; did not explain the observed change
+checksum_mismatch_branch,0x006831A0,74 05,EB 05,unsafe,re,not the root cause
+tech_player_civ_gate,0x007AA757,75 5A,EB 5A,confirmed,re,uncivilized player can research (date/state/prerequisites kept)
+tech_player_civ_gate_inverted,0x007AA757,75 5A,74 5A,unsafe,re,"inverts: uncivilized can, civilized cannot"
+tech_ai_civ_gate,0x00859755,0F 84 B5 05 00 00,90 90 90 90 90 90,confirmed,re,AI research ignores civilization
+time_barrier,0x00682D0C,0F 84 4B 01 00 00,90 90 90 90 90 90,experimental,re,removes a temporal-processing barrier (world+0xBB8)
+v2dll_always_add_wargoals,0x00538AFF,00,02,confirmed,re,V2DLL (file offset 0x137EFF)
+v2dll_land_reinforce,0x005C8C9B,89 4C 24 20,90 90 90 90,confirmed,re,V2DLL / Master EXE (file offset 0x1C809B)
+v2dll_naval_reinforce,0x005C8B1C,89,8B,confirmed,re,V2DLL / Master EXE (file offset 0x1C7F1C)
+v2dll_consciousness_plurality_growth,0x0050C5DE,03,8B,confirmed,re,V2DLL (RVA 0x10C5DE)
+v2dll_allied_reinforce_150,0x005D74BE,B8 E8 03 00 00,B8 DC 05 00 00,confirmed,re,V2DLL (RVA 0x1D74BE)
+v2dll_build_factory_ignore_colonial_1,0x004D0C57,0F 94 C1,B1 01 90,confirmed,re,V2DLL (RVA 0xD0C57)
+v2dll_build_factory_ignore_colonial_2,0x0052FA4E,0F 94 C0,B0 01 90,confirmed,re,V2DLL (RVA 0x12FA4E)
+v2dll_build_factory_button_ignore_colonial,0x0052E977,7F 5F,90 90,confirmed,re,V2DLL; needs CivilizeNullCheck
+v2dll_local_supply_factory_ignore_colonial,0x004D0E9D,7E 35,EB 35,confirmed,re,V2DLL (RVA 0xD0E9D)
+v2dll_build_factory_ignore_uncivilized_button,0x0052E96E,74 68,90 90,confirmed,re,V2DLL; needs CivilizeNullCheck
+v2dll_build_factory_checklist_uncivilized_own,0x0052EA67,8A 86 D0 12 00 00,B0 01 90 90 90 90,confirmed,re,V2DLL; needs CivilizeNullCheck
+v2dll_build_factory_checklist_uncivilized_other,0x0052F0D4,74 0C,90 90,confirmed,re,V2DLL; needs CivilizeNullCheck
+v2dll_build_factory_ignore_uncivilized_can_build,0x0052CA3E,75 08,EB 08,confirmed,re,V2DLL; needs CivilizeNullCheck
+v2dll_max_relative_price,0x00E45C28,00 00 00 00 04 00 04 41,,documented,re,"V2DLL; value is fixed point (5.0 * 32768 + 0.5), the source gives no bytes"
+v2dll_price_delta_hook,0x00482BA9,C1 FA 0F 8B F8,cave,documented,re,V2DLL PriceDelta / Master EXE exponential price change (cave at 0x00429257 in the latter)
+v2dll_civilize_null_check,0x0054248B,,cave,documented,re,"V2DLL CivilizeNullCheck, 7 bytes; required by the uncivilized factory patches"
+v2dll_occupied_reinforce_split,0x005D751B,,cave,documented,re,V2DLL
+v2dll_graph_point_clamp,0x009E0FD6,83 3E 01 89 74 24 20 0F 8C 76 01 00 00,cave,documented,re,V2DLL
+master_no_min_interest_a,0x005237D2,E8 29 D8 ED FF,90 90 90 90 90,documented,re,Master EXE Mod (file offset 0x122BD2)
+master_no_min_interest_b,0x005237DA,E8 21 E4 60 00 39 45 08 7D 03 89 45 08,90 90 90 90 90 90 90 90 90 90 90 90 90,documented,re,Master EXE Mod (file offset 0x122BDA)
+master_aristocrat_income_share,0x004EEA2B,1F,11,documented,re,"Master EXE Mod; plus 0x004EEA2E = 11 and NOPs up to 0x004EEA41"
+master_version_label,0x00E07653,34,35,documented,re,"Master EXE Mod: ""V2 v3.04"" -> ""V2 v3.05"" (same exe)"
+world_market_throttle,0x00484309,E8 12 13 20 00,90 90 90 90 90,confirmed,re,removes a call in WorldMarketUpdate (target 0x00685620 UpdateTimeThrottle)
+cp_network_wait,0x00A618CC,E8 2F 84 02 00,call redirect,experimental,cp,network_wait_ms: CALL enet_host_service in NetSession_Service

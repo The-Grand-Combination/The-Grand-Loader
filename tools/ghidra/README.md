@@ -26,3 +26,20 @@ Requirements: Ghidra 12.x, JDK 21 (`JAVA_HOME` set). Project creation:
 ```
 analyzeHeadless <projectDir> v2game -import "<game dir>\v2game.exe" -loader PeLoader
 ```
+
+## V2Symbols.java
+
+Syncs the project with `re/symbols/functions.csv` and `globals.csv`:
+
+```
+analyzeHeadless <projectDir> v2game -process v2game.exe -noanalysis [-readOnly] ^
+    -scriptPath <this folder> -postScript V2Symbols.java <repo>\re\symbols <outDir> check|import|export
+```
+
+`check` and `export` work read-only; `import` needs the project writable. Details: [re/ghidra.md](../../re/ghidra.md).
+
+## V2DecompAll.java
+
+Decompiles every function into `<outDir>` (one `.c` per 64 KB block + `index.tsv` with size, callers,
+callees and call depth from the daily tick and from the frame). ~64 k functions; run `-readOnly`.
+Details: [re/ghidra.md](../../re/ghidra.md).

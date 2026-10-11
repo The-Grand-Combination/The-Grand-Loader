@@ -7,6 +7,8 @@
 #include "features/cb_cull.h"
 #include "features/decision_cull.h"
 #include "features/tick_profiler.h"
+#include "features/sample_profiler.h"
+#include "features/network_wait.h"
 #include "features/worker_threads.h"
 #include "features/year_timer.h"
 #include "log.h"
@@ -33,6 +35,8 @@ extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
     cp::features::install_tick_profiler(config);
     cp::features::install_decision_cull(config);
     cp::features::install_year_timer();
+    cp::features::install_sample_profiler(config);
+    cp::features::install_network_wait(config);
     return 0;
 }
 

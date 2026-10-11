@@ -58,14 +58,19 @@ Config load_config(const std::wstring& config_file) {
             config.tick_profiler = parse_int(value, 0);
         } else if (key == "cull_decision_checks") {
             config.cull_decision_checks = parse_int(value, 0) != 0;
+        } else if (key == "skip_network_wait") {
+            config.skip_network_wait = parse_int(value, 0) != 0;
+        } else if (key == "sample_profiler") {
+            config.sample_profiler = parse_int(value, 0);
         } else if (key == "decision_profiling") {
             config.decision_profiling = parse_int(value, 0) != 0;
         }
     });
     logf("config: engine_worker_threads=%d cull_cb_checks=%d cull_cb_profiling=%d tick_profiler=%d "
-         "cull_decision_checks=%d decision_profiling=%d",
+         "cull_decision_checks=%d decision_profiling=%d sample_profiler=%d skip_network_wait=%d",
          config.engine_worker_threads, config.cull_cb_checks ? 1 : 0, config.cull_cb_profiling ? 1 : 0,
-         config.tick_profiler, config.cull_decision_checks ? 1 : 0, config.decision_profiling ? 1 : 0);
+         config.tick_profiler, config.cull_decision_checks ? 1 : 0, config.decision_profiling ? 1 : 0,
+         config.sample_profiler, config.skip_network_wait ? 1 : 0);
     return config;
 }
 

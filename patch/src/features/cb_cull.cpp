@@ -13,7 +13,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// Background (Victoria2-Reverse-Engineering, Engine/Casus_Belli_Evaluation.md; docs/cb-cull.md):
+// Background (re/systems/casus-belli.md, docs/cb-cull.md):
 //
 //   AI_DailyUpdate -> AI_ScoreWarTargets (0x0085DB40) / AI_ScoreDiplomaticTargets (0x0085E0E0)
 //     for every other country D:  CBManager_IsAnyCBUsable(D->rel[self], &D, &self)      0x0092EDE0

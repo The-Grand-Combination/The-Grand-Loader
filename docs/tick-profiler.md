@@ -4,7 +4,7 @@ Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/tick_pr
 
 ## What it measures
 
-The daily tick of 3.04 as mapped in `Engine/Country_Daily_Update.md` (Victoria2-Reverse-Engineering):
+The daily tick of 3.04 as mapped in [re/systems/tick.md](../re/systems/tick.md):
 
 | Block | Function | Redirected call site | Runs |
 |---|---|---|---|

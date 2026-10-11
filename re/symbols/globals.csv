@@ -1,0 +1,83 @@
+va,name,kind,conf,src,note
+0x012588E8,g_world,ptr,C,cp,world / game state; layout in structs.csv (World)
+0x012587E4,g_countryManager,ptr,C,cp,"+0 count of all defined tags, +4 CCountry* array"
+0x0131ACAC,g_cbManager,ptr,C,cp,"+0xC/+0x10 vector<CCasusBelliType*>; getter 0x0090CC40"
+0x01319730,g_decisionManager,ptr,C,cp,"lists +0xC/+0x10 and +0x28/+0x2C; getter 0x00875040"
+0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 has-focus byte; +0x6BC44 mirrors the fog-of-war flag"
+0x01258A48,g_unitManager,ptr,?,cp,iterated in the per-country pre-pass
+0x012586DC,g_economyDefines,ptr,?,cp,+0x50 market totals; +0x08 date-like value
+0x0125870C,g_provinceSource,ptr,I,re,vt[0x24] returns the province count
+0x01258A98,g_registryLow,ptr,C,re,object registry for type <= 0x1268; events are type 0x27
+0x01258A94,g_registryHigh,ptr,C,re,object registry for type > 0x1268
+0x01268FEC,g_parsingKeyType,u32,I,re,copied into event+0x08 while parsing
+0x01268FF0,g_parsingKeyId,u32,I,re,copied into event+0x0C while parsing
+0x012586E0,g_searchPaths,ptr,I,re,"+0x48 skip-mod-root flag"
+0x0131BB34,g_popTypeDb,ptr,I,re,lazily created 0x188-byte database (ctor 0x0041A160)
+0x012587F4,g_goodsCount,u32,C,re,number of goods
+0x012588E6,g_timeState0,?,I,re,written by ProcessGameTimeAdvance
+0x012588EC,g_timeState1,?,I,re,written by ProcessGameTimeAdvance
+0x012588F0,g_timeFactor,f32,I,re,"x0.95 / x0.9 / +0.5 in ProcessGameTimeAdvance; UpdateTimeThrottle uses (g_timeFactor + 1.0)"
+0x013F2AE8,g_throttleScale,f32,I,re,multiplies the throttle table entry
+0x013F080C,g_fogOfWar,u8,C,re,toggled by the console command fow
+0x012586D7,g_aiLogging,u8,I,re,gates AI debug log lines
+0x01318E5C,g_aiWarStrengthRatio,?,?,cp,strength-ratio gate in AI_ScoreWarTargets (an AI define)
+0x00F0ECF0,g_mtState,u32[624],C,re,Mersenne Twister state
+0x00F0F6B0,g_mtIndex,u32,C,re,"(index + 1) % 0x270"
+0x00F20C18,g_rngEngine,ptr,C,re,lazily created RNG engine (vtable 0x00E38B28)
+0x00F20C14,g_rngCalls,u32,C,re,call counter
+0x00F20BFC,g_econReportSlot,u32,I,re,active slot of the 0x70-byte economic report history
+0x012624E8,g_econReportHistory,?,I,re,two 0x70-byte records
+0x00F1027C,kMonthLengths,u32[12],C,re,"31, 28, ..."
+0x00E45C30,kPriceMinFactor,f64,C,cp,"6554.1 = 0.2 * 32768 + 0.5 (fixed point 2^15); FLD at 0x00482C46. Not 0.2: a patch must write the scaled value"
+0x00E45C28,kPriceMaxFactor,f64,C,cp,"163840.5 = 5.0 * 32768 + 0.5 (fixed point 2^15)"
+0x00E45580,kOne_f64,f64,C,cp,1.0
+0x00F0956C,kSpeedThrottle,f32[5],C,cp,"0.03 0.03 0.03 0.04 0.06, indexed by world+0xB28 in UpdateTimeThrottle"
+0x00F17B58,kSpeedAdvance0,f32,C,cp,4.0 (speed 0 in ProcessGameTimeAdvance)
+0x00F17B54,kSpeedAdvance1,f32,C,cp,2.0 (speed 1)
+0x00F092FC,kOne_f32,f32,C,cp,"1.0; speed 2 in ProcessGameTimeAdvance, also read by FUN_00475150"
+0x00F17898,kHalf_f32,f32,C,cp,0.5 (speed 3)
+0x00E45BB8,kSpeedAdvance4,f32,C,cp,"0.0004 (speed 4); several other xrefs"
+0x00E0764C,str_VersionLabel,char[],C,cp,"""V2 v3.04"""
+0x00E07D2C,str_ChecksumIs,char[],C,re,"""Checksum is """
+0x00E0AA1C,str_Checksum,char[],C,re,"""Checksum: """
+0x00E0A0AC,str_RESIGN,char[],C,re,"""RESIGN"""
+0x00E13C5C,str_exit_button,char[],C,re,"""exit_button"""
+0x00E11040,str_SLOWEST_SPEED,char[],C,re,"followed by SLOW_SPEED 0x00E11050, NORMAL_SPEED 0x00E1105C, FAST_SPEED 0x00E1106C, FASTEST_SPEED 0x00E11078"
+0x00E22D44,str_this,char[],C,re,"start of the effect keyword table: relation, any_neighbor_*, province_event 0x00E22D88, country_event 0x00E22D98 ..."
+0x00C8A1A8,iat_CreateThread,ptr,C,re,
+0x00E33724,CCasusBelliType_vftable,vtable,C,cp,
+0x00E3374C,CNullCasusBelliType_vftable,vtable,C,cp,
+0x00E34C08,CCasusBelli_vftable,vtable,C,cp,
+0x00DF9994,CAndTrigger_vftable,vtable,C,cp,
+0x00E2FB70,COrTrigger_vftable,vtable,C,cp,
+0x00E2FBA8,CNotTrigger_vftable,vtable,C,cp,
+0x00DFA6B4,CTrigger_vftable,vtable,C,cp,base
+0x00E2FBE0,CContextTrigger_vftable,vtable,C,cp,scope change
+0x00E30B30,CCasusBelliTrigger_vftable,vtable,C,cp,
+0x00E30C80,CTagTrigger_vftable,vtable,C,cp,
+0x00E307E8,CHasCountryFlagTrigger_vftable,vtable,C,cp,
+0x00E30820,CHasGlobalFlagTrigger_vftable,vtable,C,cp,
+0x00E30EE8,CIsAiTrigger_vftable,vtable,C,cp,
+0x00E2ACC0,CClrCountryFlagEffect_vftable,vtable,C,cp,
+0x00E2ADA0,CClrGlobalFlagEffect_vftable,vtable,C,cp,
+0x00E2AC88,CSetCountryFlagEffect_vftable,vtable,C,cp,
+0x00E2AD68,CSetGlobalFlagEffect_vftable,vtable,C,cp,
+0x00E29B54,CDecision_vftable,vtable,C,cp,
+0x00E12414,CHourlyTickCommand_vftable,vtable,C,cp,
+0x00E0A34C,CInGameIdler_vftable,vtable,C,cp,
+0x00E0AE60,CGameState_vftable,vtable,C,cp,
+0x00E0E458,CPoliticsView_vftable,vtable,C,cp,
+0x00E17FA4,CTechnologyView_vftable,vtable,I,re,slot 11 Update (hooked by V2DLL)
+0x00E059F0,CBudgetView_vftable,vtable,I,re,slot 10 tooltip
+0x00E0FECC,CProductionView_vftable,vtable,I,re,slot 10 tooltip
+0x00E2C834,CEvent_vftable,vtable,C,re,slot 3 = body parser
+0x00E2CEB0,CMtthBlock_vftable,vtable,C,re,
+0x00E2C818,CEventSub4C_vftable,vtable,C,re,
+0x00E2CECC,CEventSub54_vftable,vtable,C,re,
+0x00DFA6EC,CEffectBlock_vftable,vtable,C,re,slot 0x2C = Execute
+0x00E2CDB8,CEventWindow_vftable,vtable,C,re,
+0x00E38524,CFileWrapper_vftable,vtable,C,re,0x360-byte parser file wrapper
+0x00E37C3C,CTokenReader_vftable,vtable,C,re,slot 1 = read next token
+0x00E439F8,CWorkerThread_vftable,vtable,C,re,
+0x00E38B28,CRngEngine_vftable,vtable,C,re,
+0x00E0A7E4,CResignTarget_vftable,vtable,?,re,"set by FUN_00676240; slot 0x114/4 = 0x009C4300 (not proven to be the resign action)"

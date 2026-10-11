@@ -23,7 +23,7 @@ Victoria 2/
 `v2cp.log` is written next to `v2game.exe` on every launch and lists what was loaded and applied. It also
 gets one line per game year with how long the year took (wall time, and with pauses over two seconds
 excluded), so runs can be timed without a stopwatch. `v2cp_decisions.log` appears there too when
-`decision_profiling` is on.
+`decision_profiling` is on, and `v2cp_samples.tsv` when `sample_profiler` is on.
 
 ## Settings
 
@@ -37,6 +37,8 @@ excluded), so runs can be timed without a stopwatch. `v2cp_decisions.log` appear
 | `tick_profiler`         | `0`     | Times the daily-tick blocks (world update, provinces, countries, AI, events) and logs a ms/day table every 30 game days. See [docs/tick-profiler.md](docs/tick-profiler.md). |
 | `cull_decision_checks`  | `1`     | Gives the AI loop a per-country decision list without the decisions that cannot pass for that country (a top-level `tag = X` of another country, a top-level `ai = yes/no` it fails, a `NOT has_*_flag` gate already failed); rebuilt when a flag is cleared, on load and every 90 days. Same results, nothing per decision. See [docs/decision-cull.md](docs/decision-cull.md). |
 | `decision_profiling`    | `0`     | Rewrites `v2cp_decisions.log` every 30 game days with running per-day averages for every decision (ms/day, evaluations, ns per evaluation, skipped). Constant size. Off unless investigating. |
+| `sample_profiler`       | `0`     | Every N ms, records where the game thread is (and the calls on its stack) while the date advances; rewrites `v2cp_samples.tsv` every 30 game days. Sees virtual calls and rendering, which `tick_profiler` cannot. Use `1`, with `tick_profiler = 0`. See [docs/sample-profiler.md](docs/sample-profiler.md). |
+| `network_wait_ms`       | `0`     | Caps how long the game blocks every frame waiting for network packets (vanilla: 15–35 ms, 15 ms in single player). `0` = never wait: first year 155 instead of ~199 ms/day (−22 %); with both culls, 144 ms/day (−26 %). `-1` = vanilla. CPU use still drops when paused. Not yet checked in multiplayer. See [re/systems/network.md](re/systems/network.md). |
 
 ## How it works
 
@@ -55,9 +57,14 @@ patch/      community_patch.dll — the Community Patches plugin.
   src/features/   one file per patch
   src/hooks/      hooking primitives
   mod/            the .ini shipped with the patch
-docs/       research notes: Ghidra workflow, feature write-ups, the dated research log, timings.md (first-year table)
-  raw/          unprocessed material: address book, keyword maps, trigger classification, call lists, decompilations, profiler logs
-tools/ghidra/   headless Ghidra helper script used for the research
+docs/       one page per shipped feature, timings.md (first-year table)
+re/         reverse engineering of v2game.exe 3.04 — start at re/README.md
+  symbols/      functions, globals, struct offsets and patch sites as CSV: the source of truth for addresses
+  systems/      one page per game subsystem (tick, economy, events, CBs, decisions, ...)
+  log.md        dated research log
+  raw/          unprocessed material: keyword maps, trigger classification, call lists, decompilations, profiler logs
+tools/ghidra/   headless Ghidra scripts: V2Dump (queries), V2Symbols (sync names with re/symbols)
+tools/scripts/  check_patch_sites.sh (original bytes vs the exe), decision script analysis
 ```
 
 ## Build
@@ -85,6 +92,8 @@ CI builds every push and attaches `build/` as an artifact; tags matching `v*` pu
 
 ## Reverse-engineering notes
 
-Addresses and behaviour come from the companion `Victoria2-Reverse-Engineering` repository; every
-feature file names the function it hooks so the two can be cross-referenced. The research method
-and a dated log of what was investigated live in `docs/`.
+Everything about the game binary lives in [re/](re/README.md): addresses as CSV, one page per subsystem,
+the research log and the Ghidra workflow. Every feature file names the functions it hooks by the names
+used there. Part of it was rebuilt from the notes in
+[maxioten/Victoria2-Reverse-Engineering](https://github.com/maxioten/Victoria2-Reverse-Engineering),
+credited on each page that uses them.

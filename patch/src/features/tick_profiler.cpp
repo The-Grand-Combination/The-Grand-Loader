@@ -12,7 +12,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// Daily tick of v2game.exe 3.04 (Victoria2-Reverse-Engineering, Engine/Country_Daily_Update.md):
+// Daily tick of v2game.exe 3.04 (re/systems/tick.md):
 //
 //   Update_World_and_Advance_Time (0x00682EC0)            <- 0x0072ECFA
 //     DayTick (0x006859C0)                                 <- 0x00683AB1
@@ -64,6 +64,7 @@ struct Frame {
     uintptr_t ret_slot;  // ESP at callee entry (address of the return-address slot); younger frames are lower
     int64_t start;
     int64_t child_ticks;
+    bool nested_frame;   // a frame_update entered while world_update is running (rendered by the throttle)
 };
 Frame g_shadow[kMaxDepth];
 int g_depth = 0;
@@ -75,6 +76,7 @@ struct Target {
     uint64_t calls = 0;
     uint64_t inclusive = 0;
     uint64_t exclusive = 0;
+    int active = 0;  // instances on the shadow stack; inclusive time is only added by the outermost one
 };
 std::vector<Target> g_targets;
 uintptr_t g_site_target_addr[kMaxSites];  // per site id: absolute address to jump to
@@ -87,6 +89,9 @@ struct Added {
 };
 std::vector<Added> g_sites_added;  // in id order
 int g_world_target = -1;
+int g_frame_target = -1;
+uint64_t g_nested_frames = 0;  // frames rendered from inside world_update (UpdateTimeThrottle)
+uint64_t g_nested_frame_ticks = 0;
 int64_t g_qpc_freq = 0;
 int32_t g_window_start_day = -1;
 int32_t g_last_day = -1;
@@ -115,17 +120,19 @@ void report() {
     double wall = ms(static_cast<uint64_t>(qpc() - g_window_start_qpc)) / days;
     double inside = g_world_target >= 0 ? ms(g_targets[g_world_target].inclusive) / days : 0.0;
     double frame = 0.0;
-    uint64_t frames = 0;
-    for (const Target& t : g_targets) {
-        if (t.rva == 0x254D80) {
-            frame = ms(t.inclusive) / days;
-            frames = t.calls / days;
-        }
+    double frames = 0.0;
+    if (g_frame_target >= 0) {
+        frame = ms(g_targets[g_frame_target].inclusive) / days;
+        frames = static_cast<double>(g_targets[g_frame_target].calls) / days;
     }
-    cp::logf("tick_profiler: days %d-%d, %d days, wall %.1f ms/day; frame_update %.1f ms/day over %llu frames/day "
+    // Year as the game shows it: 365-day years counted from -5000.
+    int year = g_window_start_day / 365 - 5000;
+    cp::logf("tick_profiler: year %d, days %d-%d, %d days, wall %.1f ms/day; frame_update %.1f ms/day over %.1f frames/day "
              "(%.1f ms/day of it is world_update); outside frame_update %.1f ms/day (message pump, present, idle)",
-             g_window_start_day, g_last_day, days, wall, frame, static_cast<unsigned long long>(frames), inside,
+             year, g_window_start_day, g_last_day, days, wall, frame, frames, inside,
              wall - frame);
+    cp::logf("tick_profiler: %.1f frames/day rendered from inside world_update (UpdateTimeThrottle), %.2f ms/day",
+             static_cast<double>(g_nested_frames) / days, ms(g_nested_frame_ticks) / days);
     cp::logf("tick_profiler:   %-22s %9s %9s %10s", "block", "incl ms", "excl ms", "calls/day");
     std::vector<size_t> order(g_targets.size());
     for (size_t i = 0; i < order.size(); i++) {
@@ -151,15 +158,17 @@ void on_day(int32_t day) {
     if (day == g_last_day) {
         return;
     }
-    if (g_window_start_day < 0) {
-        g_window_start_day = day;
-        g_window_start_qpc = qpc();
-        g_days_in_window = 0;
-    } else if (day - g_window_start_day >= kReportEveryDays) {
-        report();
-        for (Target& t : g_targets) {
-            t.calls = t.inclusive = t.exclusive = 0;
+    // The first window also starts with a reset: until the first game day the counters hold menu and
+    // loading frames, which made the first report claim 24 frames/day and a negative "outside" time.
+    bool first = g_window_start_day < 0;
+    if (first || day - g_window_start_day >= kReportEveryDays) {
+        if (!first) {
+            report();
         }
+        for (Target& t : g_targets) {
+            t.calls = t.inclusive = t.exclusive = 0;  // `active` describes the live stack: kept
+        }
+        g_nested_frames = g_nested_frame_ticks = 0;
         g_window_start_day = day;
         g_window_start_qpc = qpc();
         g_days_in_window = 0;
@@ -171,9 +180,20 @@ void on_day(int32_t day) {
 }  // namespace
 
 // Called from the thunks; plain integer code only (the thunks save XMM/flags/registers around it).
+// Pops the shadow stack down to `depth` without attributing the dropped frames.
+void drop_frames(int depth) {
+    while (g_depth > depth) {
+        g_depth--;
+        g_targets[g_shadow[g_depth].target].active--;
+        g_lost_frames = true;
+    }
+}
+
 extern "C" uintptr_t __cdecl v2cp_profiler_enter(int site, uintptr_t ret, uintptr_t ret_slot) {
     int target = g_site_target_index[site];
-    if (target == g_world_target && g_depth == 0) {
+    // world_update runs inside frame_update (and frame_update can run again inside it), so the day is
+    // checked on every outermost world_update rather than at depth 0.
+    if (target == g_world_target && g_targets[target].active == 0) {
         int32_t day = current_day();
         if (day >= 0) {
             on_day(day);
@@ -181,19 +201,21 @@ extern "C" uintptr_t __cdecl v2cp_profiler_enter(int site, uintptr_t ret, uintpt
     }
     // Frames above us on the shadow stack whose return slot is below ours were abandoned (exception
     // unwind or longjmp past our return stub). Drop them; their time is not attributed.
-    while (g_depth > 0 && g_shadow[g_depth - 1].ret_slot <= ret_slot) {
-        g_depth--;
-        g_lost_frames = true;
+    int keep = g_depth;
+    while (keep > 0 && g_shadow[keep - 1].ret_slot <= ret_slot) {
+        keep--;
     }
+    drop_frames(keep);
     if (g_depth >= kMaxDepth) {
-        g_lost_frames = true;
-        g_depth = kMaxDepth - 1;
+        drop_frames(kMaxDepth - 1);
     }
     Frame& f = g_shadow[g_depth++];
     f.target = target;
     f.ret = ret;
     f.ret_slot = ret_slot;
     f.child_ticks = 0;
+    f.nested_frame = target == g_frame_target && g_world_target >= 0 && g_targets[g_world_target].active > 0;
+    g_targets[target].active++;
     f.start = qpc();
     return g_site_target_addr[site];
 }
@@ -214,16 +236,22 @@ extern "C" uintptr_t __cdecl v2cp_profiler_leave(uintptr_t esp_now) {
         }
         k = g_depth - 1;
     }
-    if (k + 1 != g_depth) {
-        g_lost_frames = true;
-    }
+    drop_frames(k + 1);
     g_depth = k;
     Frame& f = g_shadow[g_depth];
     uint64_t elapsed = static_cast<uint64_t>(now - f.start);
     Target& t = g_targets[f.target];
     t.calls++;
-    t.inclusive += elapsed;
+    // A re-entered target (frame_update inside world_update inside frame_update) would otherwise count
+    // the inner time twice in its inclusive total.
+    if (--t.active == 0) {
+        t.inclusive += elapsed;
+    }
     t.exclusive += elapsed - static_cast<uint64_t>(f.child_ticks);
+    if (f.nested_frame) {
+        g_nested_frames++;
+        g_nested_frame_ticks += elapsed;
+    }
     if (g_depth > 0) {
         g_shadow[g_depth - 1].child_ticks += static_cast<int64_t>(elapsed);
     }
@@ -477,6 +505,7 @@ void install_tick_profiler(const Config& config) {
         }
     }
     g_world_target = target_index(0x282EC0);
+    g_frame_target = target_index(0x254D80);
 
     // Each redirect is independent; ids follow the order the sites were added.
     for (int site = 0; site < g_site_count; site++) {

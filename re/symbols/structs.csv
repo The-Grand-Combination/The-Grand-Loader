@@ -1,0 +1,130 @@
+struct,offset,name,type,conf,src,note
+World,0xACC,provinces,CMapProvince**,C,cp,province pointer array
+World,0xADC,dayTickCountries,vector,C,cp,"+0xADC/+0xAE0 country vector of the day tick"
+World,0xAEC,humanPlayers,vector<u32>,C,cp,"+0xAEC begin, +0xAF0 end; entry 0 = AI-controlled"
+World,0xB0C,dateHours,u32,C,cp,"date in hours, base 0x029C55C0 = year -5000; +0x18 per day; 365-day years, no leap years"
+World,0xB14,timeAccumulator,f32,C,re,accumulated frame time in ProcessGameTimeAdvance
+World,0xB20,timeStopped,u32,C,re,non-zero -> ProcessGameTimeAdvance returns
+World,0xB24,uiManager,ptr,I,re,
+World,0xB28,speed,u32,C,cp,"game speed index 0..4"
+World,0xB3C,specialModifiers,list,I,re,walked by AI_GetOpinionScore
+World,0xB5C,playerTag,char[4],C,cp,
+World,0xB60,playerIndex,u32,C,cp,player country index
+World,0xB64,firedOnceEvents,HashTable,C,re,fire_only_once table; insert has no duplicate check and no rehash
+World,0xB94,flagB94,u8,?,re,changes the GP vassal branch of AI_GetOpinionScore
+World,0xBB8,timeBarrier,u8,C,re,"CMP at 0x00682D05; JZ 0x00682D0C skips temporal processing"
+World,0xBD0,marketCountries,vector,C,cp,"+0xBD0/+0xBD4 country list used by the world market"
+World,0xD11,headless,u8,I,re,"non-zero: no spatial registration, no event scan"
+CountryManager,0x0,count,u32,C,cp,all defined tags
+CountryManager,0x4,countries,CCountry**,C,cp,
+CCountry,0x08,eventCandidates,vector<CEvent*>,C,re,"+0x08/+0x0C; read by the daily event scan"
+CCountry,0x1C,tag,char[4],C,cp,
+CCountry,0x20,index,u32,C,cp,
+CCountry,0x31,isGreatPower,u8,I,re,
+CCountry,0x68,delayedEvents,vector,C,re,"+0x68/+0x6C; item+0x54 counts days down"
+CCountry,0x208,flag208,u32,?,re,AI branch of Event_Fire requires != 0
+CCountry,0x37C,aiGate0,u8,?,cp,AI_DailyUpdate requires 0 (human?)
+CCountry,0x37D,aiGate1,u8,?,cp,AI_DailyUpdate requires 0 (disabled?)
+CCountry,0x7B4,armies,list,I,re,military strength source
+CCountry,0x9D8,ownedProvinces,vector,C,cp,"+0x9D8/+0x9DC; empty = country does not exist"
+CCountry,0xBCC,technology,ptr,C,re,"+0x2B8 tech state array indexed by tech+0x2E4"
+CCountry,0xBD4,leaders,list,I,re,daily roll for leader deaths
+CCountry,0xBE4,capitalProvinceId,u32,C,re,
+CCountry,0xBE8,relations,Relation**,C,cp,indexed by the other country
+CCountry,0xCF4,hasOverlord,u8,I,cp,
+CCountry,0xCF5,isOverlord,u8,I,cp,
+CCountry,0xCFC,overlordIndex,u32,I,re,
+CCountry,0xD08,neighbours,u8[],C,cp,byte per country
+CCountry,0xDA8,vassals,vector,I,re,"+0xDA8/+0xDAC"
+CCountry,0xE44,states,list,I,cp,world market iterates states then +0x18 factories
+CCountry,0xE4C,aiScore,u32,?,cp,AI war-target gate (self <= other * 5)
+CCountry,0xE64,primaryCulture,u32,I,re,
+CCountry,0x12D0,civilized,u8,C,cp,
+CCountry,0x142C,overlord,ptr,I,re,
+CCountry,0x1404,rank,u32,I,cp,
+CCountry,0x1430,infamyX1000,u32,C,cp,
+CCountry,0x156C,sphere,ptr,I,re,
+Relation,0x20,list20,list,I,re,purged daily
+Relation,0x28,list28,list,I,re,purged daily
+Relation,0x2C,list2C,list,I,re,purged daily
+Relation,0x30,list30,list,I,re,purged daily
+Relation,0x50,heldCBs,list,C,cp,"node +0 CCasusBelli*, +8 next"
+CCasusBelli,0x24,typeIndex,u32,C,cp,
+CMapProvince,0x14,eventCandidates,vector<CEvent*>,C,re,"+0x14/+0x18"
+CMapProvince,0x58,id,u32,C,re,
+CMapProvince,0x12C,ownerIndex,u32,C,re,0 = unowned (skipped by the event scan)
+CMapProvince,0x188,state,CState*,C,re,
+CMapProvince,0x194,popLists,ptr,C,re,per-pop-type lists
+CMapProvince,0x1A8,totalPops,u32,C,re,
+CMapProvince,0x1BC,clergy,u32,I,re,
+CMapProvince,0x384,delayedEvents,vector,C,re,"+0x384/+0x388"
+CState,0x48,provinceIds,vector,I,re,
+CState,0x60,buildings,ptr,I,re,
+CState,0x68,factoryCount,u32,C,re,< 8 to build
+CState,0x84,colonyStatus,u32,C,re,> 0 = colonial
+CStateBuilding,0x20,level,u32,I,re,
+CStateBuilding,0x188,closed,u8,I,re,
+CStateBuilding,0x224,nextInState,ptr,I,re,
+Pop,0x58,size,u32,C,re,
+Pop,0x6C,culture,u32,C,re,
+Pop,0x27C,next,Pop*,C,re,
+StockpileHolder,0x08,goodPresent,u8[],C,re,index by good
+StockpileHolder,0x48,stockpile,vector<i64>,C,re,"+0x48/+0x4C; 8-byte entries"
+Technology,0x2E4,index,u32,C,re,
+Technology,0x2EC,prerequisites,?,I,re,
+Technology,0x340,year,u32,C,re,date requirement
+CNationalFocus,0x54,railroad,u32,I,re,
+CNationalFocus,0x7C,promotions,vector,I,re,"+0x7C/+0x80"
+CEventScope,0x08,countryTag,u32,C,cp,
+CEventScope,0x0C,countryIndex,u32,C,cp,
+CEventScope,0x24,thisScope,CEventScope*,C,cp,initialised to self
+CEventScope,0x30,fromRef,u64,C,cp,"+0x30/+0x34"
+TriggerBlock,0x00,vftable,ptr,C,cp,"CAndTrigger / COrTrigger / CNotTrigger; size 0x1C"
+TriggerBlock,0x04,typeTag,u32,C,cp,0x18D
+TriggerBlock,0x08,children,vector<CTrigger*>,C,cp,"+0x08 begin, +0x0C end, +0x10 capacity"
+CTrigger,0x18,valueIsThis,u8,C,cp,
+CTrigger,0x19,valueIsFrom,u8,C,cp,
+CTrigger,0x1C,value,?,C,cp,"CTagTrigger: tag chars; CIsAiTrigger: bool"
+CTrigger,0x20,valueIndex,u32,C,cp,CTagTrigger: country index of the literal tag
+CCasusBelliType,0x08,index,u32,C,cp,index in the manager vector
+CCasusBelliType,0x0C,months,u32,C,cp,keyword 0x3BF
+CCasusBelliType,0x14,name,std::string,C,cp,"SSO buffer +0x14, size +0x24, capacity +0x28"
+CCasusBelliType,0x30,is_valid,TriggerBlock,C,cp,keyword 0x8D0
+CCasusBelliType,0x4C,can_use,TriggerBlock,C,cp,keyword 0x92A; evaluated by the daily scan
+CCasusBelliType,0x68,prerequisites,TriggerBlock,C,cp,keyword 0x2A5
+CCasusBelliType,0x84,allowed_states_in_crisis,TriggerBlock,C,cp,keyword 0x8C0
+CCasusBelliType,0xA0,allowed_states,TriggerBlock,C,cp,keyword 0x8BF
+CCasusBelliType,0xBC,allowed_substate_regions,TriggerBlock,C,cp,keyword 0x941
+CCasusBelliType,0xD8,allowed_countries,TriggerBlock,C,cp,keyword 0x8D1
+CCasusBelliType,0xF4,badboy_factor,u32,C,cp,"x1000; +0xF8..+0x10C six more x1000 factors, order unconfirmed"
+CCasusBelliType,0x110,truce_months,u32,C,cp,default 60
+CCasusBelliType,0x130,is_triggered_only,u8,C,cp,
+CCasusBelliType,0x131,mutual,u8,C,cp,
+CCasusBelliType,0x132,always,u8,C,cp,gate for the daily scan
+CCasusBelliType,0x133,crisis,u8,C,cp,default 1
+CCasusBelliType,0x134,sprite_index,u32,C,cp,default 12
+CCasusBelliType,0x18C,on_add,CEffect,C,cp,
+CCasusBelliType,0x1AC,on_po_accepted,CEffect,C,cp,
+CCasusBelliType,0x1CC,is_civil_war,u8,C,cp,
+CCasusBelliType,0x1CD,constructing_cb,u8,C,cp,default 1
+CCasusBelliType,0x1D0,construction_speed,u32,C,cp,x1000
+CDecision,0x08,name,std::string,C,cp,"SSO buffer +0x08, size +0x18, capacity +0x1C"
+CDecision,0x24,potential,TriggerBlock,C,cp,keyword 0x729
+CDecision,0x40,allow,TriggerBlock,C,cp,keyword 0x72A
+CDecision,0x5C,effect,CEffect,C,cp,
+CDecision,0x110,ai_will_do,?,C,cp,
+DecisionManager,0x0C,listA,vector<CDecision*>,C,cp,size of the manager 0x38
+DecisionManager,0x28,listB,vector<CDecision*>,C,cp,
+AiObject,0x30,tag,u32,C,cp,as seen by AI_DecisionUpdate (ECX)
+AiObject,0x34,countryIndex,u32,C,cp,as seen by AI_DecisionUpdate
+AiObject,0x19,skipDiplomacy,u8,?,cp,AI_DiplomacyUpdate runs only when 0
+CEvent,0x00,vftable,ptr,C,re,"0x00E2C834; size 0x1C4"
+CEvent,0x08,key,u64,I,re,"(type, id) at +0x08/+0x0C"
+CEvent,0x30,trigger,TriggerBlock,C,re,
+CEvent,0x74,immediate,CEffect,C,re,slot 0x2C executed on every fire
+CEvent,0xB0,options,vector,C,re,option +0x08 = AI-chance block
+CEvent,0xC0,mtth,MtthBlock,C,re,"+0x08 base, +0x0C/+0x10 modifiers, scale 1000"
+CEvent,0x1A1,flag1A1,u8,C,re,0 -> window may be suppressed by the UI manager
+CEvent,0x1A2,flag1A2,u8,C,re,window variant
+CEvent,0x1A3,fireOnlyOnce,u8,I,re,behaviour confirmed; name inferred
+CEvent,0x1A4,flag1A4,u8,C,re,full-window variant

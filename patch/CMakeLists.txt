@@ -10,10 +10,12 @@ add_library(community_patch SHARED
     src/features/cb_cull.cpp
     src/features/tick_profiler.cpp
     src/features/decision_cull.cpp
+    src/features/sample_profiler.cpp
+    src/features/network_wait.cpp
 )
 
 target_include_directories(community_patch PRIVATE src)
-target_link_libraries(community_patch PRIVATE v2cp::plugin_api)
+target_link_libraries(community_patch PRIVATE v2cp::plugin_api winmm)
 target_compile_definitions(community_patch PRIVATE V2CP_PATCH_VERSION="${PROJECT_VERSION}")
 set_target_properties(community_patch PROPERTIES PREFIX "" OUTPUT_NAME "community_patch")
 
