@@ -59,7 +59,8 @@ with content mods. Any project can ship a plugin this way; `community_patch` is 
 ## Repository layout
 
 ```
-launcher/   dinput8.dll — proxy, plugin discovery and loading, log. Owns the plugin ABI.
+launcher/   dinput8.dll — the loader: proxy, plugin discovery and loading, log. Owns the plugin ABI
+            (include/v2cp/plugin_api.h); README.md for players, PLUGINS.md for plugin authors.
 patch/      community_patch.dll — the Community Patches plugin.
   src/features/   one file per patch, by kind:
     performance/  speed patches (culls, prefetches, network wait, AI queue, parallel decisions/events, engine threads)
@@ -89,6 +90,7 @@ with the "Desktop development with C++" workload).
 ```
 build.cmd                 # enters the x86 environment, configures and builds
 deploy.cmd                # build.cmd + copies build/ into the game folder (V2_GAME_DIR)
+package.cmd               # release build + one zip per release unit in out/release/
 ```
 
 `deploy.cmd` reads the game folder from `V2_GAME_DIR`; put `set "V2_GAME_DIR=<path>"` in a git-ignored
@@ -99,10 +101,28 @@ or, from an "x86 Native Tools Command Prompt":
 ```
 cmake --preset x86-release
 cmake --build --preset x86-release    # compiles and lays out build/ exactly as it goes into the game folder
+cpack --preset x86-release            # release zips in out/release/
 ```
 
 Intermediates go to `out/`; `build/` only ever contains the drop-in layout (`dinput8.dll` + `mod/`).
-CI builds every push and attaches `build/` as an artifact; tags matching `v*` publish a release zip.
+
+### Release units
+
+The loader and each plugin are released and versioned separately, so other plugins can ship for the same
+loader:
+
+| zip | contents | version in |
+|---|---|---|
+| `v2cp-loader-<v>.zip` | `dinput8.dll`, `v2cp-loader-README.md` ([launcher/README.md](launcher/README.md)) | `launcher/CMakeLists.txt` |
+| `community-patch-<v>.zip` | `mod/community_patch.ini`, `mod/community_patch/community_patch.dll` (needs the loader) | `patch/CMakeLists.txt` |
+| `v2cp-plugin-sdk-<v>.zip` | `include/v2cp/plugin_api.h`, `PLUGINS.md` ([launcher/PLUGINS.md](launcher/PLUGINS.md)) | `launcher/CMakeLists.txt` |
+
+`-DV2CP_BUILD_LOADER=OFF` or `-DV2CP_BUILD_COMMUNITY_PATCH=OFF` builds only one of the two. A new plugin
+goes in its own folder with its own `project(... VERSION ...)`, links `v2cp::plugin_api`, installs into
+`mod/` under its own CPack component, and gets an `option()` and a zip name in the root `CMakeLists.txt`.
+
+CI builds every push and uploads the zips; a tag `loader-v<v>` releases the loader and SDK, `patch-v<v>`
+the community patch, `v<v>` all three.
 
 ## Reverse-engineering notes
 
