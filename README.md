@@ -7,8 +7,8 @@ Runtime patches for Victoria II 3.04. The game files are not modified.
 
 ## Install
 
-1. Download the release zips (The Grand Loader, then the Performance Patch).
-2. Extract them into the game folder, next to `v2game.exe`. The zips already have the right layout
+1. Download the release zip.
+2. Extract them into the game folder, next to `v2game.exe`. The zip already have the right layout
    (`dinput8.dll` and `mod/`).
 3. Play as usual, with any mods.
 
