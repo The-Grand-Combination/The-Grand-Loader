@@ -69,7 +69,7 @@ Not covered, to check before building:
 ## Plan
 
 1. **Shadow mode** (`parallel_decisions = 2`, diagnostic): workers precompute the bits; the original loop
-   still evaluates every `potential`/`allow` and compares; mismatches go to `v2cp.log` with country,
+   still evaluates every `potential`/`allow` and compares; mismatches go to `the_grand_loader.log` with country,
    decision and day. Measures the parallel time too.
 2. Run several game years (early and late saves). Any mismatch: find the input that changed or the
    hidden write.

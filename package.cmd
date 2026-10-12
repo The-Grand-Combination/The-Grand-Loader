@@ -1,7 +1,7 @@
 @echo off
 setlocal
 rem Builds the release configuration and writes one zip per release unit into out\release\:
-rem   v2cp-loader-<version>.zip, community-patch-<version>.zip, v2cp-plugin-sdk-<version>.zip
+rem   the-grand-loader-<version>.zip, performance-patch-<version>.zip, the-grand-loader-sdk-<version>.zip
 call "%~dp0build.cmd" x86-release || exit /b 1
 cd /d "%~dp0"
 for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do set VSDIR=%%i

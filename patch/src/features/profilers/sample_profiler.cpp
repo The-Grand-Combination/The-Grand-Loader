@@ -32,7 +32,7 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;  // this DLL's own base (MSVC linker sy
 // Addresses are written as static VAs of the 3.04 listing (image base 0x00400000): the exe is relocated
 // by ASLR at runtime, so runtime addresses would not match docs/re/decomp. Each sample is weighted by the real
 // time since the previous one. Totals are cumulative from the first game day (reset when the date jumps,
-// i.e. a load) and rewritten to v2cp_samples.tsv every 30 days.
+// i.e. a load) and rewritten to performance_patch_samples.tsv every 30 days.
 
 namespace cp::features {
 
@@ -54,7 +54,7 @@ constexpr size_t kPoolWords = 12u << 20;  // 48 MB of frames (~300 k stacks of ~
 constexpr int kMaxModules = 64;
 constexpr uint32_t kModuleTag = 0xF0000000u;  // leaf in another module: kModuleTag | module index
 constexpr uint32_t kUnknownLeaf = 0xFFFFFFFFu;
-constexpr uint32_t kOwnTag = 0xE0000000u;      // leaf in community_patch.dll: kOwnTag | RVA (resolve with its .map)
+constexpr uint32_t kOwnTag = 0xE0000000u;      // leaf in performance_patch.dll: kOwnTag | RVA (resolve with its .map)
 
 struct StackEntry {
     uint64_t hash;
@@ -316,10 +316,10 @@ void report(int32_t day) {
     }
     FILE* out = nullptr;
     if (_wfopen_s(&out, g_report_path.c_str(), L"w") != 0 || !out) {
-        logf("sample_profiler: cannot write v2cp_samples.tsv");
+        logf("sample_profiler: cannot write performance_patch_samples.tsv");
         return;
     }
-    fprintf(out, "# v2cp sample profile v3, v2game.exe 3.04 (runtime base %08X, written as listing VAs), interval %d ms, "
+    fprintf(out, "# performance_patch sample profile v3, v2game.exe 3.04 (runtime base %08X, written as listing VAs), interval %d ms, "
                  "%d days (day %d to %d, year %d), %llu samples, %.1f ms/day sampled, %u stacks, %llu dropped\n",
             static_cast<unsigned>(g_exe_base), g_interval_ms, days, g_first_day, day, day / 365 - 5000,
             static_cast<unsigned long long>(g_samples), ms(g_sampled_ticks) / days, g_stack_count,
@@ -363,7 +363,7 @@ void report(int32_t day) {
         fputc('\n', out);
     }
     fclose(out);
-    logf("sample_profiler: %d days (year %d), %llu samples, %.1f ms/day sampled, %u stacks -> v2cp_samples.tsv", days,
+    logf("sample_profiler: %d days (year %d), %llu samples, %.1f ms/day sampled, %u stacks -> performance_patch_samples.tsv", days,
          day / 365 - 5000, static_cast<unsigned long long>(g_samples), ms(g_sampled_ticks) / days, g_stack_count);
 }
 
@@ -473,12 +473,12 @@ void install_sample_profiler(const Config& config) {
     g_exe_base = hooks::exe_base();
     g_text_begin = hooks::exe_addr(kTextBeginRva);
     g_text_end = hooks::exe_addr(kTextEndRva);
-    g_report_path = std::wstring(host().game_dir) + L"\\v2cp_samples.tsv";
+    g_report_path = std::wstring(host().game_dir) + L"\\performance_patch_samples.tsv";
     if (!hooks::on_hourly_tick(&start_on_game_thread)) {
         logf("sample_profiler: hourly tick hook unavailable, feature off");
         return;
     }
-    logf("sample_profiler: will start on the first game tick, every %d ms -> v2cp_samples.tsv every %d game days",
+    logf("sample_profiler: will start on the first game tick, every %d ms -> performance_patch_samples.tsv every %d game days",
          g_interval_ms, kReportEveryDays);
 }
 

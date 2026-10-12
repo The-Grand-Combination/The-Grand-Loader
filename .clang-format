@@ -15,7 +15,7 @@ IncludeCategories:
     Priority: 2
   - Regex: '^<.*>'
     Priority: 3
-  - Regex: '^"v2cp/'
+  - Regex: '^"tgl/'
     Priority: 4
   - Regex: '.*'
     Priority: 5

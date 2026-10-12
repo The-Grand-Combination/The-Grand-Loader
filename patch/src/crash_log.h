@@ -6,7 +6,7 @@ namespace cp {
 // dump their own state (e.g. which hooked functions were active).
 using CrashContextFn = void (*)();
 
-// Logs a fatal exception (address, registers, exe return addresses on the stack) to v2cp.log and
+// Logs a fatal exception (address, registers, exe return addresses on the stack) to the_grand_loader.log and
 // lets the game's own handling continue.
 void install_crash_log(CrashContextFn context);
 

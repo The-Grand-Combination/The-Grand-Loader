@@ -88,7 +88,7 @@ until the next rebuild (at most 90 days), which is the unoptimised behaviour.
 
 `decision_profiling = 1` swaps the vtable pointer of every decision's `potential` for a private copy of
 `CAndTrigger::vftable` whose `Evaluate` slot times the call (1 in 16 sampled, `QueryPerformanceCounter`).
-Every 30 game days it rewrites `v2cp_decisions.log` next to `v2game.exe` from scratch with running
+Every 30 game days it rewrites `performance_patch_decisions.log` next to `v2game.exe` from scratch with running
 per-day averages since the decisions were loaded, so the file has one line per decision whatever the
 length of the run:
 
@@ -99,7 +99,7 @@ length of the run:
 
 `T` = tag-locked, `F` = has a flag gate, `A` = has a top-level `ai` check. With culling on, the header
 also says how many decisions the AI loop saw per country and how many each build left out by tag, ai
-and dead gate; `v2cp.log` gets one summary line per period for each of the two features.
+and dead gate; `the_grand_loader.log` gets one summary line per period for each of the two features.
 
 ## Limits
 

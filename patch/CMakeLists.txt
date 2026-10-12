@@ -1,8 +1,8 @@
-# community_patch: the Community Patches plugin for the V2CP loader. Released on its own (it needs the
-# loader installed); bump this version for patch releases.
-project(community_patch VERSION 0.1.0 LANGUAGES CXX)
+# performance_patch: the Victoria II Performance Patch, a plugin for The Grand Loader. Released on its own
+# (it needs the loader installed); bump this version for patch releases.
+project(performance_patch VERSION 0.1.0 LANGUAGES CXX)
 
-add_library(community_patch SHARED
+add_library(performance_patch SHARED
     src/main.cpp
     src/config.cpp
     src/crash_log.cpp
@@ -24,15 +24,15 @@ add_library(community_patch SHARED
     src/parallel/worker_pool.cpp
 )
 
-target_include_directories(community_patch PRIVATE src)
-target_link_libraries(community_patch PRIVATE v2cp::plugin_api winmm)
+target_include_directories(performance_patch PRIVATE src)
+target_link_libraries(performance_patch PRIVATE tgl::plugin_api winmm)
 # Link map next to the DLL: sample_profiler writes our own leaves as offsets (cp+0x...), and
 # docs/tools/scripts/annotate_samples.sh names them from this file.
-target_link_options(community_patch PRIVATE "/MAP:$<TARGET_FILE_DIR:community_patch>/community_patch.map")
-target_compile_definitions(community_patch PRIVATE V2CP_PATCH_VERSION="${PROJECT_VERSION}")
-set_target_properties(community_patch PROPERTIES PREFIX "" OUTPUT_NAME "community_patch")
+target_link_options(performance_patch PRIVATE "/MAP:$<TARGET_FILE_DIR:performance_patch>/performance_patch.map")
+target_compile_definitions(performance_patch PRIVATE PERFORMANCE_PATCH_VERSION="${PROJECT_VERSION}")
+set_target_properties(performance_patch PROPERTIES PREFIX "" OUTPUT_NAME "performance_patch")
 
-install(TARGETS community_patch RUNTIME DESTINATION mod/community_patch COMPONENT community_patch)
-install(FILES mod/community_patch.ini DESTINATION mod COMPONENT community_patch)
+install(TARGETS performance_patch RUNTIME DESTINATION mod/performance_patch COMPONENT performance_patch)
+install(FILES mod/performance_patch.ini DESTINATION mod COMPONENT performance_patch)
 
-set(COMMUNITY_PATCH_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
+set(PERFORMANCE_PATCH_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

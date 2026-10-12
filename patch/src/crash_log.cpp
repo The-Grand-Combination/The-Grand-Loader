@@ -6,7 +6,7 @@
 
 #include "log.h"
 
-// Writes one block to v2cp.log when the process is about to die from an unhandled fault, so a crash
+// Writes one block to the_grand_loader.log when the process is about to die from an unhandled fault, so a crash
 // introduced by a patch can be attributed without a debugger. Continues the search afterwards: the
 // game's own handling (and the Windows error dialog) is unchanged.
 
@@ -45,7 +45,7 @@ LONG CALLBACK handler(EXCEPTION_POINTERS* info) {
     auto base = reinterpret_cast<uintptr_t>(host().exe_base);
     uintptr_t eip = c->Eip;
     // Which module the fault is in, and where: exe addresses also as listing VAs (base 0x00400000, as in
-    // docs/re/decomp/), other modules as module+offset (community_patch.dll offsets match its link map).
+    // docs/re/decomp/), other modules as module+offset (performance_patch.dll offsets match its link map).
     HMODULE module = nullptr;
     char module_path[MAX_PATH] = "?";
     if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,

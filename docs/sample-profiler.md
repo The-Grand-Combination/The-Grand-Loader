@@ -1,6 +1,6 @@
 # `sample_profiler`: where the game thread is
 
-Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/profilers/sample_profiler.cpp`.
+Diagnostic feature of `performance_patch.dll`. Source: `patch/src/features/profilers/sample_profiler.cpp`.
 
 ## Why
 
@@ -26,7 +26,7 @@ On the first game tick it starts a thread that, every `sample_profiler` ms while
 Addresses are written as listing VAs (base `0x00400000`). The exe is relocated by ASLR at runtime (the
 first run had it at `0x00080000`), and raw runtime addresses would not match `docs/re/decomp/`. Each sample is
 weighted by the real time since the previous one. Totals are cumulative from the first game day (reset on
-a load) and rewritten to `v2cp_samples.tsv` next to `v2game.exe` every 30 game days.
+a load) and rewritten to `performance_patch_samples.tsv` next to `v2game.exe` every 30 game days.
 
 Format: `mod <id> <dll>` lines, then `stack <samples> <ms/day> <leaf;caller;caller;...>`.
 
@@ -35,13 +35,13 @@ Cost: one suspend/resume per ms, a few µs each, about 1 % of the game thread. R
 
 ## Reading it
 
-Leaves inside `community_patch.dll` are written as `cp+0x<RVA>` and named from the link map
-(`out/x86-release/bin/community_patch.map`, or `CP_MAP=<map>` for the map of the DLL that took the
+Leaves inside `performance_patch.dll` are written as `cp+0x<RVA>` and named from the link map
+(`out/x86-release/bin/performance_patch.map`, or `CP_MAP=<map>` for the map of the DLL that took the
 samples). Every other DLL is named by its nearest export.
 
 ```sh
-docs/tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv"                        # modules, top exclusive / inclusive
-docs/tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv" CommandQueue_Process   # its call sites by time
+docs/tools/scripts/annotate_samples.sh "<game dir>/performance_patch_samples.tsv"                        # modules, top exclusive / inclusive
+docs/tools/scripts/annotate_samples.sh "<game dir>/performance_patch_samples.tsv" CommandQueue_Process   # its call sites by time
 ```
 
 The script needs `docs/re/decomp/index.tsv` (see [docs/re/ghidra.md](re/ghidra.md)). It prints time by

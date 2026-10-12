@@ -677,12 +677,12 @@ void write_report(int32_t last_day) {
     auto ull = [](uint64_t v) { return static_cast<unsigned long long>(v); };
 
     logf("decision_profiling: days %d-%d (%d days, %.1f ms/day wall): %llu potential evaluations/day, %.2f ms/day, "
-         "%llu passed/day -> v2cp_decisions.log",
+         "%llu passed/day -> performance_patch_decisions.log",
          g_first_day, last_day, days, wall_ms_day, ull(g_total_calls / days), eval_ms_day, ull(passed * kSample / days));
 
     FILE* out = nullptr;
     if (_wfopen_s(&out, g_report_path.c_str(), L"w") != 0 || !out) {
-        logf("decision_profiling: cannot write v2cp_decisions.log");
+        logf("decision_profiling: cannot write performance_patch_decisions.log");
         return;
     }
     fprintf(out,
@@ -872,7 +872,7 @@ void install_decision_cull(const Config& config) {
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
     g_qpc_freq = freq.QuadPart;
-    g_report_path = std::wstring(host().game_dir) + L"\\v2cp_decisions.log";
+    g_report_path = std::wstring(host().game_dir) + L"\\performance_patch_decisions.log";
 
     g_and_vtable = hooks::exe_addr(kAndVtableRva);
     g_not_vtable = hooks::exe_addr(kNotVtableRva);

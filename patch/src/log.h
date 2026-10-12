@@ -3,11 +3,11 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include "v2cp/plugin_api.h"
+#include "tgl/plugin_api.h"
 
 namespace cp {
 
-const V2CP_HostApi& host();
+const TGL_HostApi& host();
 
 inline void logf(const char* fmt, ...) {
     char buf[1024];

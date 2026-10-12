@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <string>
 
-namespace v2cp::log {
+namespace tgl::log {
 
 namespace {
 FILE* g_file = nullptr;
@@ -43,4 +43,4 @@ void linef(std::string_view prefix, const char* fmt, ...) {
     line(prefix, std::string_view(buf, static_cast<size_t>(n) < sizeof(buf) ? n : sizeof(buf) - 1));
 }
 
-}  // namespace v2cp::log
+}  // namespace tgl::log

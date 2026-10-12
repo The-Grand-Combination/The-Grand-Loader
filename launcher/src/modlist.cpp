@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-namespace v2cp {
+namespace tgl {
 
 std::vector<PluginEntry> discover_plugins(const std::wstring& game_dir) {
     std::vector<PluginEntry> plugins;
@@ -29,4 +29,4 @@ std::vector<PluginEntry> discover_plugins(const std::wstring& game_dir) {
     return plugins;
 }
 
-}  // namespace v2cp
+}  // namespace tgl

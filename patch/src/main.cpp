@@ -1,6 +1,6 @@
 #include <windows.h>
 
-#include "v2cp/plugin_api.h"
+#include "tgl/plugin_api.h"
 
 #include "config.h"
 #include "crash_log.h"
@@ -19,19 +19,19 @@
 #include "log.h"
 
 namespace {
-const V2CP_HostApi* g_host = nullptr;
+const TGL_HostApi* g_host = nullptr;
 }
 
 namespace cp {
-const V2CP_HostApi& host() { return *g_host; }
+const TGL_HostApi& host() { return *g_host; }
 }  // namespace cp
 
-extern "C" __declspec(dllexport) int V2CP_PluginInit(const V2CP_HostApi* host) {
-    if (!host || host->api_version != V2CP_PLUGIN_API_VERSION || host->struct_size < sizeof(V2CP_HostApi)) {
+extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
+    if (!host || host->api_version != TGL_PLUGIN_API_VERSION || host->struct_size < sizeof(TGL_HostApi)) {
         return 1;
     }
     g_host = host;
-    cp::logf("Community Patches %s", V2CP_PATCH_VERSION);
+    cp::logf("Victoria II Performance Patch %s", PERFORMANCE_PATCH_VERSION);
 
     cp::install_crash_log(&cp::features::tick_profiler_crash_context);
     cp::Config config = cp::load_config(host->config_file);

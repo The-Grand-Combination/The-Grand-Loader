@@ -1,6 +1,6 @@
 # `tick_profiler` — where the game day goes
 
-Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/profilers/tick_profiler.cpp`.
+Diagnostic feature of `performance_patch.dll`. Source: `patch/src/features/profilers/tick_profiler.cpp`.
 
 ## What it measures
 

@@ -5,7 +5,7 @@
 #include <cstring>
 #include <string>
 
-namespace v2cp {
+namespace tgl {
 
 namespace {
 
@@ -51,4 +51,4 @@ bool patch_version_label(void* exe_base, const char* suffix) {
            write_bytes(site + kPointerOffset, &pointer, sizeof(pointer));
 }
 
-}  // namespace v2cp
+}  // namespace tgl

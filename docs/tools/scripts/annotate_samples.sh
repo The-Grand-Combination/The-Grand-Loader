@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Turns v2cp_samples.tsv (sample_profiler, collapsed stacks) into per-function tables.
-#   docs/tools/scripts/annotate_samples.sh <v2cp_samples.tsv> [zoom: function name or VA] [top N, default 40]
+# Turns performance_patch_samples.tsv (sample_profiler, collapsed stacks) into per-function tables.
+#   docs/tools/scripts/annotate_samples.sh <performance_patch_samples.tsv> [zoom: function name or VA] [top N, default 40]
 # Needs docs/re/decomp/index.tsv (docs/tools/ghidra/V2DecompAll.java, see docs/re/ghidra.md) to map addresses to
 # functions; names from docs/re/symbols/functions.csv take precedence. Runs under Git Bash (gawk).
 #
@@ -12,13 +12,13 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/../../.." && pwd)"  # repo root (this file is docs/tools/scripts/)
-samples="${1:?usage: annotate_samples.sh <v2cp_samples.tsv> [zoom] [top]}"
+samples="${1:?usage: annotate_samples.sh <performance_patch_samples.tsv> [zoom] [top]}"
 zoom="${2:-}"
 top="${3:-40}"
 index="$here/docs/re/decomp/index.tsv"
 csv="$here/docs/re/symbols/functions.csv"
 # Our own DLL's leaves are written as cp+0x<RVA>; with its link map they get function names.
-cpmap="${CP_MAP:-$here/out/x86-release/bin/community_patch.map}"
+cpmap="${CP_MAP:-$here/out/x86-release/bin/performance_patch.map}"
 [ -f "$index" ] || { echo "docs/re/decomp/index.tsv not found: run V2DecompAll.java first (docs/re/ghidra.md)" >&2; exit 2; }
 
 gawk -F'\t' -v zoom="$zoom" -v top="$top" -v csv="$csv" -v cpmap="$cpmap" '
@@ -52,7 +52,7 @@ function find(a,    lo, hi, mid) {
     return lo
 }
 function cp_name(r,    lo, hi, mid) {
-    if (cpn == 0 || r < cpa[1]) return sprintf("[community_patch.dll+0x%X]", r)
+    if (cpn == 0 || r < cpa[1]) return sprintf("[performance_patch.dll+0x%X]", r)
     lo = 1; hi = cpn
     while (lo < hi) { mid = int((lo + hi + 1) / 2); if (cpa[mid] <= r) lo = mid; else hi = mid - 1 }
     return sprintf("[cp!%s]", cps[lo])
@@ -80,7 +80,7 @@ $1 == "stack" {
     leaf = name[1]
     excl[leaf] += w
     if (fr[1] ~ /^cp[+]0x/) {
-        module["[community_patch.dll]"] += w
+        module["[performance_patch.dll]"] += w
         if (cnt > 1) external[leaf " <- " name[2]] += w
     } else if (fr[1] ~ /^m[0-9]+/ || fr[1] == "?") {
         split(fr[1], mp, ":"); modkey = fr[1] == "?" ? "[unknown]" : "[" modname[mp[1]] "]"

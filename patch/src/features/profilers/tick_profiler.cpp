@@ -189,7 +189,7 @@ void drop_frames(int depth) {
     }
 }
 
-extern "C" uintptr_t __cdecl v2cp_profiler_enter(int site, uintptr_t ret, uintptr_t ret_slot) {
+extern "C" uintptr_t __cdecl pp_profiler_enter(int site, uintptr_t ret, uintptr_t ret_slot) {
     int target = g_site_target_index[site];
     // world_update runs inside frame_update (and frame_update can run again inside it), so the day is
     // checked on every outermost world_update rather than at depth 0.
@@ -221,7 +221,7 @@ extern "C" uintptr_t __cdecl v2cp_profiler_enter(int site, uintptr_t ret, uintpt
 }
 
 // `esp_now` is the stack pointer at return-stub entry: ret_slot + 4 + bytes the callee cleaned.
-extern "C" uintptr_t __cdecl v2cp_profiler_leave(uintptr_t esp_now) {
+extern "C" uintptr_t __cdecl pp_profiler_leave(uintptr_t esp_now) {
     int64_t now = qpc();
     // Our frame is the deepest one whose return slot lies below esp_now; anything above it on the
     // shadow stack with a lower slot was abandoned.
@@ -262,7 +262,7 @@ extern "C" uintptr_t __cdecl v2cp_profiler_leave(uintptr_t esp_now) {
 // Entry: stack = [site][ret][args...], registers untouched. Exit: stack = [return_stub][args...],
 // registers untouched, EIP = original target. The stub later restores the original return address.
 
-extern "C" void __declspec(naked) v2cp_profiler_return_stub() {
+extern "C" void __declspec(naked) pp_profiler_return_stub() {
     __asm {
         sub esp, 4                  ; slot for the original return address
         push eax
@@ -282,7 +282,7 @@ extern "C" void __declspec(naked) v2cp_profiler_return_stub() {
         movdqu [esp + 112], xmm7
         lea eax, [esp + 256]        ; ESP at stub entry
         push eax
-        call v2cp_profiler_leave
+        call pp_profiler_leave
         add esp, 4
         mov [esp + 128 + 108 + 16], eax   ; slot := original return address
         movdqu xmm0, [esp]
@@ -304,7 +304,7 @@ extern "C" void __declspec(naked) v2cp_profiler_return_stub() {
     }
 }
 
-extern "C" void __declspec(naked) v2cp_profiler_thunk_common() {
+extern "C" void __declspec(naked) pp_profiler_thunk_common() {
     __asm {
         pushad                      ; +32: [regs][site][ret]
         pushfd                      ; +4
@@ -324,10 +324,10 @@ extern "C" void __declspec(naked) v2cp_profiler_thunk_common() {
         push eax
         push dword ptr [esp + 280]  ; ret (shifted by the push above)
         push dword ptr [esp + 280]  ; site (shifted by two pushes)
-        call v2cp_profiler_enter    ; eax = original target
+        call pp_profiler_enter    ; eax = original target
         add esp, 12
         mov [esp + 272], eax        ; site slot := target
-        mov dword ptr [esp + 276], offset v2cp_profiler_return_stub
+        mov dword ptr [esp + 276], offset pp_profiler_return_stub
         movdqu xmm0, [esp]
         movdqu xmm1, [esp + 16]
         movdqu xmm2, [esp + 32]
@@ -345,34 +345,34 @@ extern "C" void __declspec(naked) v2cp_profiler_thunk_common() {
     }
 }
 
-#define V2CP_THUNK(N)                                             \
-    extern "C" void __declspec(naked) v2cp_profiler_thunk_##N() { \
+#define PP_THUNK(N)                                             \
+    extern "C" void __declspec(naked) pp_profiler_thunk_##N() { \
         __asm { push N }                                          \
-        __asm { jmp v2cp_profiler_thunk_common }                  \
+        __asm { jmp pp_profiler_thunk_common }                  \
     }
 // Thunk N must push N and sit at kThunks[N]: ids are decimal, generated ten at a time.
-#define V2CP_THUNK10(B) \
-    V2CP_THUNK(B##0) V2CP_THUNK(B##1) V2CP_THUNK(B##2) V2CP_THUNK(B##3) V2CP_THUNK(B##4) \
-    V2CP_THUNK(B##5) V2CP_THUNK(B##6) V2CP_THUNK(B##7) V2CP_THUNK(B##8) V2CP_THUNK(B##9)
-V2CP_THUNK(0) V2CP_THUNK(1) V2CP_THUNK(2) V2CP_THUNK(3) V2CP_THUNK(4)
-V2CP_THUNK(5) V2CP_THUNK(6) V2CP_THUNK(7) V2CP_THUNK(8) V2CP_THUNK(9)
-V2CP_THUNK10(1) V2CP_THUNK10(2) V2CP_THUNK10(3) V2CP_THUNK10(4) V2CP_THUNK10(5)
-V2CP_THUNK10(6) V2CP_THUNK10(7) V2CP_THUNK10(8) V2CP_THUNK10(9)
-V2CP_THUNK10(10) V2CP_THUNK10(11) V2CP_THUNK10(12) V2CP_THUNK10(13) V2CP_THUNK10(14)
-V2CP_THUNK10(15) V2CP_THUNK10(16) V2CP_THUNK10(17) V2CP_THUNK10(18) V2CP_THUNK10(19)
-V2CP_THUNK10(20) V2CP_THUNK10(21) V2CP_THUNK10(22) V2CP_THUNK10(23) V2CP_THUNK10(24)
-V2CP_THUNK10(25) V2CP_THUNK10(26) V2CP_THUNK10(27) V2CP_THUNK10(28) V2CP_THUNK10(29)
-V2CP_THUNK10(30) V2CP_THUNK10(31) V2CP_THUNK10(32) V2CP_THUNK10(33) V2CP_THUNK10(34)
-V2CP_THUNK10(35) V2CP_THUNK10(36) V2CP_THUNK10(37) V2CP_THUNK10(38) V2CP_THUNK10(39)
-V2CP_THUNK10(40) V2CP_THUNK10(41) V2CP_THUNK10(42) V2CP_THUNK10(43) V2CP_THUNK10(44)
-V2CP_THUNK10(45) V2CP_THUNK10(46) V2CP_THUNK10(47) V2CP_THUNK10(48) V2CP_THUNK10(49)
-V2CP_THUNK10(50) V2CP_THUNK10(51) V2CP_THUNK10(52) V2CP_THUNK10(53) V2CP_THUNK10(54)
-V2CP_THUNK10(55) V2CP_THUNK10(56) V2CP_THUNK10(57) V2CP_THUNK10(58) V2CP_THUNK10(59)
-#undef V2CP_THUNK10
-#undef V2CP_THUNK
+#define PP_THUNK10(B) \
+    PP_THUNK(B##0) PP_THUNK(B##1) PP_THUNK(B##2) PP_THUNK(B##3) PP_THUNK(B##4) \
+    PP_THUNK(B##5) PP_THUNK(B##6) PP_THUNK(B##7) PP_THUNK(B##8) PP_THUNK(B##9)
+PP_THUNK(0) PP_THUNK(1) PP_THUNK(2) PP_THUNK(3) PP_THUNK(4)
+PP_THUNK(5) PP_THUNK(6) PP_THUNK(7) PP_THUNK(8) PP_THUNK(9)
+PP_THUNK10(1) PP_THUNK10(2) PP_THUNK10(3) PP_THUNK10(4) PP_THUNK10(5)
+PP_THUNK10(6) PP_THUNK10(7) PP_THUNK10(8) PP_THUNK10(9)
+PP_THUNK10(10) PP_THUNK10(11) PP_THUNK10(12) PP_THUNK10(13) PP_THUNK10(14)
+PP_THUNK10(15) PP_THUNK10(16) PP_THUNK10(17) PP_THUNK10(18) PP_THUNK10(19)
+PP_THUNK10(20) PP_THUNK10(21) PP_THUNK10(22) PP_THUNK10(23) PP_THUNK10(24)
+PP_THUNK10(25) PP_THUNK10(26) PP_THUNK10(27) PP_THUNK10(28) PP_THUNK10(29)
+PP_THUNK10(30) PP_THUNK10(31) PP_THUNK10(32) PP_THUNK10(33) PP_THUNK10(34)
+PP_THUNK10(35) PP_THUNK10(36) PP_THUNK10(37) PP_THUNK10(38) PP_THUNK10(39)
+PP_THUNK10(40) PP_THUNK10(41) PP_THUNK10(42) PP_THUNK10(43) PP_THUNK10(44)
+PP_THUNK10(45) PP_THUNK10(46) PP_THUNK10(47) PP_THUNK10(48) PP_THUNK10(49)
+PP_THUNK10(50) PP_THUNK10(51) PP_THUNK10(52) PP_THUNK10(53) PP_THUNK10(54)
+PP_THUNK10(55) PP_THUNK10(56) PP_THUNK10(57) PP_THUNK10(58) PP_THUNK10(59)
+#undef PP_THUNK10
+#undef PP_THUNK
 
 namespace {
-#define T(N) v2cp_profiler_thunk_##N
+#define T(N) pp_profiler_thunk_##N
 #define T10(B) T(B##0), T(B##1), T(B##2), T(B##3), T(B##4), T(B##5), T(B##6), T(B##7), T(B##8), T(B##9)
 void (*const kThunks[kMaxSites])() = {
     T(0), T(1), T(2), T(3), T(4), T(5), T(6), T(7), T(8), T(9),

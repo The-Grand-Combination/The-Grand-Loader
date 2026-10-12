@@ -10,7 +10,7 @@ namespace cp::features {
 //   cull_decision_checks: returns false without evaluating when the block cannot pass: a top-level
 //                         `tag = X` for a country other than X, or a (country, decision) pair whose
 //                         top-level `NOT { has_*_flag }` gate already failed and no flag was cleared since.
-//   decision_profiling:   times every decision (1 in 16 sampled) and rewrites v2cp_decisions.log every
+//   decision_profiling:   times every decision (1 in 16 sampled) and rewrites performance_patch_decisions.log every
 //                         30 game days with running per-day averages for all decisions.
 void install_decision_cull(const Config& config);
 

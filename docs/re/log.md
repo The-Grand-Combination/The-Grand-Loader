@@ -336,3 +336,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 
 - **Measured (user):** `year_timer` 129–154 ms/day for 1879–1892, faster than 1855–1878 (146–169): ~158 AI countries left in the queue instead of ~320 (decision batch 140 k checks instead of 300 k). Complete profile this time (171 k stacks, 0 dropped).
 - **Against 1848–1855:** `DayTick` flat (~78 ms/day). Grew: `AI_CountryDailyJob_Update` 8.3 -> 12.3 (military AI: `FUN_00826480` -> `FUN_00828030` -> `FUN_00828060` -> `FUN_00828550` -> `FUN_0082C1D0` -> `FUN_0082AEA0` -> ..., spread over a deep tree with no function above ~1 ms own; the apparent second call of `FUN_00828060` from `FUN_0082D0F0` is a stale frame) and `Render_MapFrame` 8 -> 12.3. No low-hanging fruit: the growth is game logic scaling with armies and map content.
+
+## 2026-10-11 — Names: The Grand Loader and the Victoria II Performance Patch
+
+- The loader is now **The Grand Loader** (API prefix `TGL_`: `TGL_PluginInit`, `TGL_HostApi`, `include/tgl/plugin_api.h`, CMake `tgl::plugin_api`; log `the_grand_loader.log`; version label suffix " - The Grand Loader"). The plugin is the **Victoria II Performance Patch**: `mod/performance_patch.ini`, `mod/performance_patch/performance_patch.dll`, outputs `performance_patch_samples.tsv` / `performance_patch_decisions.log`, link map `performance_patch.map`. Release zips: `the-grand-loader-<v>.zip`, `the-grand-loader-sdk-<v>.zip`, `performance-patch-<v>.zip`. Entries above keep the old names (`v2cp.log`, `community_patch`) as the history.
