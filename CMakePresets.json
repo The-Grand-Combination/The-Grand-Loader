@@ -29,5 +29,8 @@
   "buildPresets": [
     { "name": "x86-debug", "configurePreset": "x86-debug", "targets": ["install"] },
     { "name": "x86-release", "configurePreset": "x86-release", "targets": ["install"] }
+  ],
+  "packagePresets": [
+    { "name": "x86-release", "configurePreset": "x86-release", "generators": ["ZIP"] }
   ]
 }
