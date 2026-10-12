@@ -1,9 +1,11 @@
 # The Grand Loader & Victoria II Performance Patch
 
-Runtime patches for Victoria II 3.04. The game files are not modified.
+Runtime patches for Victoria II 3.04.
 
 - **The Grand Loader**: a plugin loader (`dinput8.dll`).
 - **Victoria II Performance Patch**: a plugin that makes the game faster without changing its results.
+
+Don't forget to join our [discord server](https://discord.gg/xuDjNrmpFR).
 
 ## Install
 
