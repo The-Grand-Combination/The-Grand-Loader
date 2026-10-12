@@ -22,6 +22,9 @@ add_library(community_patch SHARED
 
 target_include_directories(community_patch PRIVATE src)
 target_link_libraries(community_patch PRIVATE v2cp::plugin_api winmm)
+# Link map next to the DLL: sample_profiler writes our own leaves as offsets (cp+0x...), and
+# docs/tools/scripts/annotate_samples.sh names them from this file.
+target_link_options(community_patch PRIVATE "/MAP:$<TARGET_FILE_DIR:community_patch>/community_patch.map")
 target_compile_definitions(community_patch PRIVATE V2CP_PATCH_VERSION="${PROJECT_VERSION}")
 set_target_properties(community_patch PROPERTIES PREFIX "" OUTPUT_NAME "community_patch")
 

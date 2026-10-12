@@ -1,6 +1,6 @@
-# re/raw
+# docs/re/raw
 
-Unprocessed material behind `re/systems/` and the feature write-ups in `docs/`. Nothing here is edited for reading; it is kept so
+Unprocessed material behind `docs/re/systems/` and the feature write-ups in `docs/`. Nothing here is edited for reading; it is kept so
 numbers and addresses can be re-checked without redoing the Ghidra or profiling runs.
 
 | File | What it is |

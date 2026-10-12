@@ -14,6 +14,8 @@
 #include "hooks/memory.h"
 #include "log.h"
 
+extern "C" IMAGE_DOS_HEADER __ImageBase;  // this DLL's own base (MSVC linker symbol)
+
 // How it works. The sampler thread is started from the first hourly tick (on the game thread, outside
 // the loader lock, which also tells us which thread to sample). Every `interval` ms, while the game date
 // has changed in the last two seconds (not paused, not in a menu), it:
@@ -28,7 +30,7 @@
 //   3. counts the whole stack (leaf + return addresses) as one entry of a collapsed-stack table.
 //
 // Addresses are written as static VAs of the 3.04 listing (image base 0x00400000): the exe is relocated
-// by ASLR at runtime, so runtime addresses would not match re/decomp. Each sample is weighted by the real
+// by ASLR at runtime, so runtime addresses would not match docs/re/decomp. Each sample is weighted by the real
 // time since the previous one. Totals are cumulative from the first game day (reset when the date jumps,
 // i.e. a load) and rewritten to v2cp_samples.tsv every 30 days.
 
@@ -46,12 +48,13 @@ constexpr int32_t kReportEveryDays = 30;
 constexpr double kPauseGapMs = 2000.0;
 constexpr size_t kStackCopyBytes = 16 * 1024;
 constexpr int kMaxFrames = 96;
-constexpr uint32_t kStackBits = 17;
+constexpr uint32_t kStackBits = 19;  // 512 k slots (16 MB), used up to 3/4: a 24-year run reached 98 k distinct stacks and dropped 30 % with 2^17
 constexpr uint32_t kStackSlots = 1u << kStackBits;
-constexpr size_t kPoolWords = 8u << 20;  // 32 MB of frames
+constexpr size_t kPoolWords = 12u << 20;  // 48 MB of frames (~300 k stacks of ~40 frames)
 constexpr int kMaxModules = 64;
 constexpr uint32_t kModuleTag = 0xF0000000u;  // leaf in another module: kModuleTag | module index
 constexpr uint32_t kUnknownLeaf = 0xFFFFFFFFu;
+constexpr uint32_t kOwnTag = 0xE0000000u;      // leaf in community_patch.dll: kOwnTag | RVA (resolve with its .map)
 
 struct StackEntry {
     uint64_t hash;
@@ -190,6 +193,9 @@ uint32_t module_leaf(uintptr_t eip) {
         return kUnknownLeaf;
     }
     uintptr_t base = reinterpret_cast<uintptr_t>(h);
+    if (h == reinterpret_cast<HMODULE>(&__ImageBase)) {
+        return kOwnTag | static_cast<uint32_t>(eip - base);  // our own code: keep the offset, not an export
+    }
     int index = -1;
     for (int i = 0; i < g_module_count; i++) {
         if (g_modules[i] == base) {
@@ -338,7 +344,9 @@ void report(int32_t day) {
             if (k) {
                 fputc(';', out);
             }
-            if (f == kUnknownLeaf) {
+            if (f != kUnknownLeaf && (f & 0xF0000000u) == kOwnTag) {
+                fprintf(out, "cp+0x%X", f & 0x0FFFFFFFu);
+            } else if (f == kUnknownLeaf) {
                 fputc('?', out);
             } else if ((f & 0xF0000000u) == kModuleTag) {
                 uint32_t module = (f >> 16) & 0x0FFFu;

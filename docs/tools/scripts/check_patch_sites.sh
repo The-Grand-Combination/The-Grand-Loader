@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Checks the `original` bytes of every row of re/symbols/patch_sites.csv against a v2game.exe.
-#   tools/scripts/check_patch_sites.sh [path/to/v2game.exe]    (default: $V2_GAME_DIR/v2game.exe)
+# Checks the `original` bytes of every row of docs/re/symbols/patch_sites.csv against a v2game.exe.
+#   docs/tools/scripts/check_patch_sites.sh [path/to/v2game.exe]    (default: $V2_GAME_DIR/v2game.exe)
 # Prints one line per row (OK / DIFF / SKIP when the row has no original bytes) with the file offset,
 # and exits non-zero if any row differs. Runs under Git Bash; needs only od and gawk.
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")/../.." && pwd)"
+here="$(cd "$(dirname "$0")/../../.." && pwd)"  # repo root (this file is docs/tools/scripts/)
 exe="${1:-${V2_GAME_DIR:-}/v2game.exe}"
-csv="$here/re/symbols/patch_sites.csv"
+csv="$here/docs/re/symbols/patch_sites.csv"
 [ -f "$exe" ] || { echo "v2game.exe not found: $exe" >&2; exit 2; }
 
 # v2game.exe 3.04 section table: file offset = VA - delta.

@@ -12,7 +12,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// Daily tick of v2game.exe 3.04 (re/systems/tick.md):
+// Daily tick of v2game.exe 3.04 (docs/re/systems/tick.md):
 //
 //   Update_World_and_Advance_Time (0x00682EC0)            <- 0x0072ECFA
 //     DayTick (0x006859C0)                                 <- 0x00683AB1

@@ -24,7 +24,7 @@ On the first game tick it starts a thread that, every `sample_profiler` ms while
    driver, ...) to a collapsed-stack table.
 
 Addresses are written as listing VAs (base `0x00400000`). The exe is relocated by ASLR at runtime (the
-first run had it at `0x00080000`), and raw runtime addresses would not match `re/decomp/`. Each sample is
+first run had it at `0x00080000`), and raw runtime addresses would not match `docs/re/decomp/`. Each sample is
 weighted by the real time since the previous one. Totals are cumulative from the first game day (reset on
 a load) and rewritten to `v2cp_samples.tsv` next to `v2game.exe` every 30 game days.
 
@@ -35,12 +35,16 @@ Cost: one suspend/resume per ms, a few µs each, about 1 % of the game thread. R
 
 ## Reading it
 
+Leaves inside `community_patch.dll` are written as `cp+0x<RVA>` and named from the link map
+(`out/x86-release/bin/community_patch.map`, or `CP_MAP=<map>` for the map of the DLL that took the
+samples). Every other DLL is named by its nearest export.
+
 ```sh
-tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv"                        # modules, top exclusive / inclusive
-tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv" CommandQueue_Process   # its call sites by time
+docs/tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv"                        # modules, top exclusive / inclusive
+docs/tools/scripts/annotate_samples.sh "<game dir>/v2cp_samples.tsv" CommandQueue_Process   # its call sites by time
 ```
 
-The script needs `re/decomp/index.tsv` (see [re/ghidra.md](../re/ghidra.md)). It prints time by
+The script needs `docs/re/decomp/index.tsv` (see [docs/re/ghidra.md](re/ghidra.md)). It prints time by
 module, exclusive and inclusive time per function (inclusive counts a function once per stack, so
 recursion is not doubled), time in other DLLs by the exe function that called out, and for a zoomed
 function its callees and callers.

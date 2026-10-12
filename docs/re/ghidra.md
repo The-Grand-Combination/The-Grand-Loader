@@ -23,15 +23,15 @@ set PATH=%JAVA_HOME%\bin;%PATH%
 
 Full auto-analysis takes ~25 minutes. The result is `%USERPROFILE%\ghidra_projects\v2game.gpr` with the program `/v2game.exe`. MSVC RTTI is recovered automatically, so many vtables carry their real class name (`CCasusBelliType::vftable`, `CAndTrigger::vftable`, `CEventScope::vftable`, ...). These names are the fastest way into a subsystem: list them with the `syms` command below.
 
-## 2. Load the names from `re/symbols/` (and keep them in step)
+## 2. Load the names from `docs/re/symbols/` (and keep them in step)
 
-The Ghidra project is disposable: the names live in `re/symbols/*.csv`. After creating a project, apply
-them with `tools/ghidra/V2Symbols.java` (no `-readOnly`, so the renames are saved):
+The Ghidra project is disposable: the names live in `docs/re/symbols/*.csv`. After creating a project, apply
+them with `docs/tools/ghidra/V2Symbols.java` (no `-readOnly`, so the renames are saved):
 
 ```bat
 "<ghidra>\support\analyzeHeadless.bat" %USERPROFILE%\ghidra_projects v2game ^
     -process v2game.exe -noanalysis ^
-    -scriptPath "<repo>\tools\ghidra" -postScript V2Symbols.java "<repo>\re\symbols" "<outDir>" import
+    -scriptPath "<repo>\docs\tools\ghidra" -postScript V2Symbols.java "<repo>\docs\re\symbols" "<outDir>" import
 ```
 
 | cmd | needs write | result in `<outDir>\V2Symbols_<cmd>.txt` |
@@ -43,9 +43,9 @@ them with `tools/ghidra/V2Symbols.java` (no `-readOnly`, so the renames are save
 Workflow: name things in the Ghidra GUI while exploring, run `export`, move the rows you trust into the
 CSVs with a confidence and a note, commit. The CSV diff is the record of what was learned.
 
-## 3. Full decompilation into `re/decomp/` (local, not committed)
+## 3. Full decompilation into `docs/re/decomp/` (local, not committed)
 
-`tools/ghidra/V2DecompAll.java` writes the decompiled C of all ~63 800 functions into `re/decomp/`,
+`docs/tools/ghidra/V2DecompAll.java` writes the decompiled C of all ~63 800 functions into `docs/re/decomp/`,
 one file per 64 KB block (`0068.c` holds `0x00680000..0x0068FFFF`), plus `index.tsv`. It is git-ignored:
 it can be regenerated, and it is derived from the game binary, so it must not be published. Quote short
 excerpts in `systems/` pages instead. Regenerate it after an `import` so the code uses the current names.
@@ -53,7 +53,7 @@ excerpts in `systems/` pages instead. Regenerate it after an `import` so the cod
 ```bat
 "<ghidra>\support\analyzeHeadless.bat" %USERPROFILE%\ghidra_projects v2game ^
     -process v2game.exe -noanalysis -readOnly ^
-    -scriptPath "<repo>\tools\ghidra" -postScript V2DecompAll.java "<repo>\re\decomp" 60
+    -scriptPath "<repo>\docs\tools\ghidra" -postScript V2DecompAll.java "<repo>\docs\re\decomp" 60
 ```
 
 Each function starts with a header that can be grepped:
@@ -63,27 +63,27 @@ Each function starts with a header that can be grepped:
 // callers: Update_World_and_Advance_Time@00683ab1
 ```
 
-Functions too large for the 60 s timeout were redone with `V2Dump.java decomp` (120 s) into `re/decomp/large/`; `index.tsv` points at them. `Render_MapFrame` (`0x006592F0`, 31 KB) does not decompile at all: read it with `disasm`.
+Functions too large for the 60 s timeout were redone with `V2Dump.java decomp` (120 s) into `docs/re/decomp/large/`; `index.tsv` points at them. `Render_MapFrame` (`0x006592F0`, 31 KB) does not decompile at all: read it with `disasm`.
 
 `day` / `frame` are the call depth from `DayTick` / `CInGameIdler_Update` over direct calls
 (-1 = not reached). Virtual calls (triggers, effects, vtables) are not followed, so a function at -1 can
 still run every day. Typical queries (Git Bash):
 
 ```sh
-rg -n '\+ 0xb0c\)' re/decomp                                    # who reads the date
-rg -n 'CBManager_IsAnyCBUsable' re/decomp                         # every call site, with context
-awk -F'\t' '$6 >= 0' re/decomp/index.tsv | sort -t$'\t' -k3,3nr | head -50   # largest functions reached from the day tick
+rg -n '\+ 0xb0c\)' docs/re/decomp                                    # who reads the date
+rg -n 'CBManager_IsAnyCBUsable' docs/re/decomp                         # every call site, with context
+awk -F'\t' '$6 >= 0' docs/re/decomp/index.tsv | sort -t$'\t' -k3,3nr | head -50   # largest functions reached from the day tick
 ```
 
-## 4. Query it with `tools/ghidra/V2Dump.java`
+## 4. Query it with `docs/tools/ghidra/V2Dump.java`
 
 ```bat
 "<ghidra>\support\analyzeHeadless.bat" %USERPROFILE%\ghidra_projects v2game ^
     -process v2game.exe -noanalysis -readOnly ^
-    -scriptPath "<repo>\tools\ghidra" -postScript V2Dump.java "<outDir>" <cmd> <args...>
+    -scriptPath "<repo>\docs\tools\ghidra" -postScript V2Dump.java "<outDir>" <cmd> <args...>
 ```
 
-Each invocation takes ~20 s (project open + script). Output: `<outDir>\V2Dump_<cmd>.txt`, plus one `<func>_<addr>.c` per function for `decomp`. Commands are listed in [tools/ghidra/README.md](../tools/ghidra/README.md).
+Each invocation takes ~20 s (project open + script). Output: `<outDir>\V2Dump_<cmd>.txt`, plus one `<func>_<addr>.c` per function for `decomp`. Commands are listed in [docs/tools/ghidra/README.md](../tools/ghidra/README.md).
 
 Typical sequence for a new subsystem:
 

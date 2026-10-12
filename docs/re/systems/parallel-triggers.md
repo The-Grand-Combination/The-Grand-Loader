@@ -4,7 +4,7 @@ Can the AI's daily decision checks run on worker threads? Option 4 of [../next-s
 Study of 2026-10-11; nothing built yet.
 
 Sources: this repo's sessions; static scan [raw/trigger-writescan-2026-10-11.txt](../raw/trigger-writescan-2026-10-11.txt)
-(`tools/ghidra/V2WriteScan.java`); samples and decision profile of the 1836 runs.
+(`docs/tools/ghidra/V2WriteScan.java`); samples and decision profile of the 1836 runs.
 
 ## Summary
 

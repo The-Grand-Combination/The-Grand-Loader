@@ -1,4 +1,4 @@
-// V2Symbols: keeps the Ghidra project and re/symbols/*.csv in step. args: <symbolsDir> <outDir> <cmd>
+// V2Symbols: keeps the Ghidra project and docs/re/symbols/*.csv in step. args: <symbolsDir> <outDir> <cmd>
 //   check   compares functions.csv / globals.csv with the program (read-only)
 //   import  renames functions and labels globals from the CSVs (run without -readOnly to save)
 //   export  lists user-named functions and labels that the CSVs do not have yet

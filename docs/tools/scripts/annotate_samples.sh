@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Turns v2cp_samples.tsv (sample_profiler, collapsed stacks) into per-function tables.
-#   tools/scripts/annotate_samples.sh <v2cp_samples.tsv> [zoom: function name or VA] [top N, default 40]
-# Needs re/decomp/index.tsv (tools/ghidra/V2DecompAll.java, see re/ghidra.md) to map addresses to
-# functions; names from re/symbols/functions.csv take precedence. Runs under Git Bash (gawk).
+#   docs/tools/scripts/annotate_samples.sh <v2cp_samples.tsv> [zoom: function name or VA] [top N, default 40]
+# Needs docs/re/decomp/index.tsv (docs/tools/ghidra/V2DecompAll.java, see docs/re/ghidra.md) to map addresses to
+# functions; names from docs/re/symbols/functions.csv take precedence. Runs under Git Bash (gawk).
 #
 #   modules     where the leaf (EIP) was: v2game.exe or another DLL
 #   exclusive   functions the leaf was in
@@ -11,16 +11,28 @@
 #   zoom        for one function: its callers and its callees by inclusive time
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")/../.." && pwd)"
+here="$(cd "$(dirname "$0")/../../.." && pwd)"  # repo root (this file is docs/tools/scripts/)
 samples="${1:?usage: annotate_samples.sh <v2cp_samples.tsv> [zoom] [top]}"
 zoom="${2:-}"
 top="${3:-40}"
-index="$here/re/decomp/index.tsv"
-csv="$here/re/symbols/functions.csv"
-[ -f "$index" ] || { echo "re/decomp/index.tsv not found: run V2DecompAll.java first (re/ghidra.md)" >&2; exit 2; }
+index="$here/docs/re/decomp/index.tsv"
+csv="$here/docs/re/symbols/functions.csv"
+# Our own DLL's leaves are written as cp+0x<RVA>; with its link map they get function names.
+cpmap="${CP_MAP:-$here/out/x86-release/bin/community_patch.map}"
+[ -f "$index" ] || { echo "docs/re/decomp/index.tsv not found: run V2DecompAll.java first (docs/re/ghidra.md)" >&2; exit 2; }
 
-gawk -F'\t' -v zoom="$zoom" -v top="$top" -v csv="$csv" '
+gawk -F'\t' -v zoom="$zoom" -v top="$top" -v csv="$csv" -v cpmap="$cpmap" '
 BEGIN {
+    pref = 0x10000000; cpn = 0
+    while ((getline line < cpmap) > 0) {
+        if (line ~ /Preferred load address is/) { split(line, pl, " "); pref = strtonum("0x" pl[length(pl)]) }
+        if (line ~ /^ [0-9a-f][0-9a-f][0-9a-f][0-9a-f]:[0-9a-f]+ +[^ ]+ +[0-9a-f]+ /) {
+            split(line, ml, " "); a = strtonum("0x" ml[3]) - pref
+            if (a > 0) { cpn++; cpa[cpn] = a; s = ml[2]; if (s ~ /^\?/) { sub(/^\?/, "", s); sub(/@.*/, "", s) } else sub(/^_/, "", s); sub(/@[0-9]+$/, "", s); cps[cpn] = s }
+        }
+    }
+    # the map lists each section in address order; sort all by address (insertion sort is fine for a few thousand)
+    for (i = 2; i <= cpn; i++) { a = cpa[i]; s = cps[i]; j = i - 1; while (j > 0 && cpa[j] > a) { cpa[j+1] = cpa[j]; cps[j+1] = cps[j]; j-- } cpa[j+1] = a; cps[j+1] = s }
     while ((getline line < csv) > 0) {
         split(line, f, ",")
         if (f[1] ~ /^0x/) csvname[tolower(f[1])] = f[2]
@@ -39,9 +51,16 @@ function find(a,    lo, hi, mid) {
     while (lo < hi) { mid = int((lo + hi + 1) / 2); if (st[mid] <= a) lo = mid; else hi = mid - 1 }
     return lo
 }
+function cp_name(r,    lo, hi, mid) {
+    if (cpn == 0 || r < cpa[1]) return sprintf("[community_patch.dll+0x%X]", r)
+    lo = 1; hi = cpn
+    while (lo < hi) { mid = int((lo + hi + 1) / 2); if (cpa[mid] <= r) lo = mid; else hi = mid - 1 }
+    return sprintf("[cp!%s]", cps[lo])
+}
 # Name of a frame: a function of the exe, or a module.
 function frame_name(f,    i) {
     if (f ~ /^m[0-9]+(:|$)/) { split(f, mp, ":"); return "[" modname[mp[1]] (mp[2] != "" ? "!" mp[2] : "") "]" }
+    if (f ~ /^cp[+]0x/) return cp_name(strtonum(substr(f, 4)))
     if (f == "?") return "[unknown]"
     i = find(strtonum(f))
     return i ? sprintf("%s 0x%08X", nm[i], st[i]) : sprintf("? %s", f)
@@ -60,7 +79,10 @@ $1 == "stack" {
     for (k = 1; k <= cnt; k++) name[k] = frame_name(fr[k])
     leaf = name[1]
     excl[leaf] += w
-    if (fr[1] ~ /^m[0-9]+/ || fr[1] == "?") {
+    if (fr[1] ~ /^cp[+]0x/) {
+        module["[community_patch.dll]"] += w
+        if (cnt > 1) external[leaf " <- " name[2]] += w
+    } else if (fr[1] ~ /^m[0-9]+/ || fr[1] == "?") {
         split(fr[1], mp, ":"); modkey = fr[1] == "?" ? "[unknown]" : "[" modname[mp[1]] "]"
         module[modkey] += w
         if (cnt > 1) external[leaf " <- " name[2]] += w

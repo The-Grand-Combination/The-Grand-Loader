@@ -12,5 +12,5 @@ out/
 CMakeUserPresets.json
 deploy.local.cmd
 
-# full Ghidra decompilation (tools/ghidra/V2DecompAll.java): regenerable, derived from the game binary
-re/decomp/
+# full Ghidra decompilation (docs/tools/ghidra/V2DecompAll.java): regenerable, derived from the game binary
+docs/re/decomp/

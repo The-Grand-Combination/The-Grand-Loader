@@ -25,7 +25,7 @@ File offsets differ per section. Use them only for byte checks and static patchi
 ## Layout
 
 ```
-re/
+docs/re/
 ├── README.md        this page
 ├── symbols/         the source of truth for names and addresses
 │   ├── functions.csv     va, name, conf, area, src, note
@@ -90,6 +90,6 @@ re/
 5. Run the checks before committing:
 
 ```sh
-tools/scripts/check_patch_sites.sh "<game dir>/v2game.exe"     # original bytes of every patch site
+docs/tools/scripts/check_patch_sites.sh "<game dir>/v2game.exe"     # original bytes of every patch site
 analyzeHeadless ... -readOnly -postScript V2Symbols.java <repo>/re/symbols <out> check   # names vs Ghidra
 ```

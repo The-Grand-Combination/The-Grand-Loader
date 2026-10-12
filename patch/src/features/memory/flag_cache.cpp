@@ -8,7 +8,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04, FUN_007E3900 (flag atlas builder/loader, "/flags/flagfiles.tga"; re/systems/flags.md):
+// v2game.exe 3.04, FUN_007E3900 (flag atlas builder/loader, "/flags/flagfiles.tga"; docs/re/systems/flags.md):
 //
 //   0x007E55CC  CALL [D3DXCreateTextureFromFileInMemoryEx]  individual flags (TAG_gov.tga) read to build the
 //                                                           atlas: left alone (small, not multiples of 4)

@@ -1,7 +1,7 @@
 # Decisions
 
 Where and how often `potential` / `allow` are evaluated. Feature built on it:
-[docs/decision-cull.md](../../docs/decision-cull.md).
+[docs/decision-cull.md](../../decision-cull.md).
 
 Sources: this repo's sessions (2026-10-02..04). Raw material:
 [raw/decision-keyword-map.txt](../raw/decision-keyword-map.txt), [raw/decisions/](../raw/decisions/),
@@ -38,7 +38,7 @@ The first write-up named `AI_DiplomacyUpdate` as the daily loop; the per-country
 `potential`) with a flag nothing ever clears; 404 have a `NOT has_global_flag` gate on a global flag
 that is set and never cleared; 666 are tag-locked. First condition of `potential`: `tag` 637, `owns`
 221, `has_country_flag` 141, `is_greater_power` 130, `primary_culture` 128. Scripts:
-`tools/scripts/decision_*.pl`; output in [raw/decisions/](../raw/decisions/).
+`docs/tools/scripts/decision_*.pl`; output in [raw/decisions/](../raw/decisions/).
 
 ## Measured (TGC, 1836, max speed)
 

@@ -4,7 +4,7 @@ Diagnostic feature of `community_patch.dll`. Source: `patch/src/features/profile
 
 ## What it measures
 
-The daily tick of 3.04 as mapped in [re/systems/tick.md](../re/systems/tick.md):
+The daily tick of 3.04 as mapped in [docs/re/systems/tick.md](re/systems/tick.md):
 
 | Block | Function | Redirected call site | Runs |
 |---|---|---|---|

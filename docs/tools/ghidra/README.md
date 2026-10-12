@@ -29,20 +29,20 @@ analyzeHeadless <projectDir> v2game -import "<game dir>\v2game.exe" -loader PeLo
 
 ## V2Symbols.java
 
-Syncs the project with `re/symbols/functions.csv` and `globals.csv`:
+Syncs the project with `docs/re/symbols/functions.csv` and `globals.csv`:
 
 ```
 analyzeHeadless <projectDir> v2game -process v2game.exe -noanalysis [-readOnly] ^
-    -scriptPath <this folder> -postScript V2Symbols.java <repo>\re\symbols <outDir> check|import|export
+    -scriptPath <this folder> -postScript V2Symbols.java <repo>\docs\re\symbols <outDir> check|import|export
 ```
 
-`check` and `export` work read-only; `import` needs the project writable. Details: [re/ghidra.md](../../re/ghidra.md).
+`check` and `export` work read-only; `import` needs the project writable. Details: [docs/re/ghidra.md](../../re/ghidra.md).
 
 ## V2DecompAll.java
 
 Decompiles every function into `<outDir>` (one `.c` per 64 KB block + `index.tsv` with size, callers,
 callees and call depth from the daily tick and from the frame). ~64 k functions; run `-readOnly`.
-Details: [re/ghidra.md](../../re/ghidra.md).
+Details: [docs/re/ghidra.md](../../re/ghidra.md).
 
 ## V2WriteScan.java
 
@@ -55,4 +55,4 @@ analyzeHeadless <projectDir> v2game -process v2game.exe -noanalysis -readOnly ^
     -scriptPath <this folder> -postScript V2WriteScan.java <outDir> <roots.txt> <depth>
 ```
 
-Used for [re/systems/parallel-triggers.md](../../re/systems/parallel-triggers.md).
+Used for [docs/re/systems/parallel-triggers.md](../../re/systems/parallel-triggers.md).

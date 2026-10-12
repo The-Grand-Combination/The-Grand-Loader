@@ -32,3 +32,18 @@ first year of TGC against 196 vanilla). Evidence and the budget: [systems/perfor
 
 Left open in the hot-spot scan: `FUN_0095EB00` / `FUN_0095A5F0` (market pop loops), `FUN_0052FCD0`,
 the `has_country_flag` trie.
+
+## Our own overhead (mid-game profile, 2026-10-11)
+
+In 1848–1855 `community_patch.dll` is **6.5 ms/day (5 %)** of the game thread, the largest single item.
+The sampler cannot split it (one export, `V2CP_PluginInit`, stands for the whole DLL). To do:
+
+1. ~~Record DLL offsets in `sample_profiler` for our own module and emit a linker `.map` for
+   `community_patch.dll`, so each sample maps to a function.~~ Done 2026-10-11 (`cp+0x...` leaves, `annotate_samples.sh` + map).
+2. Suspects (the relation prefetch loops now use per-day country lists, 2026-10-11): the purge thunk (~100 k calls/day with `pushad`/`pushfd`), the relation prefetch loops that
+   test provinces of all 683 tags on every call (a per-day list of living countries would do), the
+   `prefetch_pops` walks.
+3. Keep only what pays for itself; slim the rest.
+
+Measured 1855–1878 (log.md): 5.8 ms/day, of which 2.6 is the purge's own relation misses moved into our
+pre-check (game work, not overhead); real overhead ~2.4 ms, spread over the prefetch loops and thunks.

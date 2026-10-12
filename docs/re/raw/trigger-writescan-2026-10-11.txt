@@ -1,5 +1,5 @@
 # V2WriteScan from the 235 trigger Evaluate functions + CDecision slot 6 (0x00A31490), direct calls, depth 8, 2026-10-11.
-# Reviewed in re/systems/parallel-triggers.md. The reached-function list is cut; rerun the script for it.
+# Reviewed in docs/re/systems/parallel-triggers.md. The reached-function list is cut; rerun the script for it.
 # roots 235, functions reached 688, max depth 8
 
 ## calls to watched functions: 2

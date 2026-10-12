@@ -4,13 +4,13 @@ The working page for speeding the game up: the measured budget, the rules learne
 ranked list of candidates with their evidence. Update it whenever a measurement comes in.
 
 Sources: `tick_profiler` logs in [raw/profiler/](../raw/profiler/), `year_timer` timings in
-[docs/timings.md](../../docs/timings.md), and reading `re/decomp/` (see [ghidra.md](../ghidra.md)).
+[docs/timings.md](../../timings.md), and reading `docs/re/decomp/` (see [ghidra.md](../ghidra.md)).
 
 ## Method
 
 1. **Measure** with `year_timer` (ms/day of the first year, three runs per configuration, compare
    medians) and `tick_profiler` (inclusive/exclusive ms per block; levels 1–5).
-2. **Read** the hot block in `re/decomp/`. `index.tsv` gives every function's size, callers, callees
+2. **Read** the hot block in `docs/re/decomp/`. `index.tsv` gives every function's size, callers, callees
    and call depth from `DayTick` (`day`) and `CInGameIdler_Update` (`frame`). Virtual calls are not
    followed, so triggers and effects show `-1` although they run daily.
 3. **Hypothesis -> feature behind an ini key, default off -> measure -> default on** only when the
@@ -149,9 +149,9 @@ High effort; only after 1–4.
 
 - `tick_profiler` redirects `CALL rel32` sites and vtable slots: exact call counts and inclusive times of
   known blocks, but blind to `CALL EAX` / `CALL [reg+n]`, which is where the largest remaining block lives.
-- `sample_profiler` ([docs/sample-profiler.md](../../docs/sample-profiler.md), 2026-10-11): about once a
+- `sample_profiler` ([docs/sample-profiler.md](../../sample-profiler.md), 2026-10-11): about once a
   millisecond it suspends the game thread, reads `EIP` and the return addresses on its stack, resumes it.
-  `tools/scripts/annotate_samples.sh` maps them to functions with `re/decomp/index.tsv`. It sees
+  `docs/tools/scripts/annotate_samples.sh` maps them to functions with `docs/re/decomp/index.tsv`. It sees
   everything (virtual calls, render, driver and CRT time by module), adds no cost to hot loops and needs
   no site tables. Use one profiler at a time.
 

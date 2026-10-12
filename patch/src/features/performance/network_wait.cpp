@@ -7,7 +7,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04 (re/systems/network.md):
+// v2game.exe 3.04 (docs/re/systems/network.md):
 //
 //   CommandQueue_Process (0x009AF9F0) -> [obj+0x38]->vt[0x1C](0) -> ... -> FUN_00A61780 (network class, vtable
 //   slot at 0x00E42744): enet_host_service(this+0x18 host, &event, this+0x20 timeout)    CALL at 0x00A618CC

@@ -8,7 +8,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04 (re/systems/economy.md, re/systems/performance.md):
+// v2game.exe 3.04 (docs/re/systems/economy.md, docs/re/systems/performance.md):
 //
 //   WorldMarketUpdate (0x00484060) calls Market_UpdateCountryPops (0x00485E40) once per country, CALL at
 //   0x0048468F with four stack arguments: market (EDI), country (EBX), ...

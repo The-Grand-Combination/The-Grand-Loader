@@ -4,7 +4,7 @@ How the speed setting (1–5 in the UI) turns into game days per second.
 
 Sources: `Engine/game-speed.md` in
 [maxioten/Victoria2-Reverse-Engineering](https://github.com/maxioten/Victoria2-Reverse-Engineering).
-The table values were re-read from the 3.04 exe in this repo (`tools/scripts/check_patch_sites.sh`
+The table values were re-read from the 3.04 exe in this repo (`docs/tools/scripts/check_patch_sites.sh`
 reads the same file offsets).
 
 ## Summary

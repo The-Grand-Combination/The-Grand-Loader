@@ -1,6 +1,6 @@
 # Static analysis of decision scripts (2026-10-03)
 
-Output of `tools/scripts/decision_once_pattern.pl` and `decision_dead_patterns.pl` run on the game's
+Output of `docs/tools/scripts/decision_once_pattern.pl` and `decision_dead_patterns.pl` run on the game's
 `mod/TGC` (the mod of all profiler runs; 1653 decisions, matches the 1651 counted at runtime) and `mod/GFM`.
 
 - `*-once-decisions.txt`: decisions whose effect sets country flag F, whose `potential` has a top-level

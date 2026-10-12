@@ -1,7 +1,7 @@
 # Casus belli evaluation
 
 How `cb_types.txt` is loaded and when `can_use` runs. Feature built on it:
-[docs/cb-cull.md](../../docs/cb-cull.md).
+[docs/cb-cull.md](../../cb-cull.md).
 
 Sources: this repo's sessions (2026-10-01..04). This page started as
 `Engine/Casus_Belli_Evaluation.md`, written in these sessions for the maxioten repo, and is

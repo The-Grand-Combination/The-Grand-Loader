@@ -4,11 +4,12 @@
 #include <xmmintrin.h>
 
 #include <cstdint>
+#include <vector>
 
 #include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04 (re/systems/performance.md). Each scan iterates the other countries that have provinces
+// v2game.exe 3.04 (docs/re/systems/performance.md). Each scan iterates the other countries that have provinces
 // and reads `self+0xBE8[other]`, the relation object of the pair; the samples sit right after the first
 // read of that object:
 //
@@ -53,25 +54,72 @@ inline T read(uintptr_t at) {
     return *reinterpret_cast<const T*>(at);
 }
 
-// Prefetches, for every other country with provinces, the cache lines of `country`'s relation with it
-// that hold the given offsets. Prefetching never faults, so a stale pointer costs nothing.
-void prefetch_relations(uintptr_t country, const uint32_t* offsets, int count) {
+// The countries the scans visit, split once per game day instead of testing every tag's provinces on
+// every call (mid-game profile: ~1.3 M such tests a day, most of this feature's own cost). A country that
+// gains or loses its provinces during the day is prefetched by yesterday's list until the next day:
+// prefetching never changes results, only which lines are warm.
+struct CountryLists {
+    std::vector<uint32_t> live;  // country index (+0x20) of every tag with provinces
+    std::vector<uint32_t> dead;  // index != 0, no provinces
+    std::vector<uint32_t> all;   // index of every tag 1..count-1 (the AI target scan's loop)
+    int32_t date = -1;
+    int32_t count = -1;
+};
+CountryLists g_lists;
+uintptr_t g_lists_world_slot = 0;
+
+const CountryLists* country_lists() {
     uintptr_t manager = read<uint32_t>(g_country_manager_slot);
-    uintptr_t relations = country ? read<uint32_t>(country + kCountryRelations) : 0;
-    if (!manager || !relations) {
-        return;
+    uintptr_t world = read<uint32_t>(g_lists_world_slot);
+    if (!manager || !world) {
+        return nullptr;
     }
-    int countries = read<int32_t>(manager);
+    int32_t countries = read<int32_t>(manager);
+    int32_t date = read<int32_t>(world + 0xB0C) / 24;
+    if (date == g_lists.date && countries == g_lists.count) {
+        return &g_lists;
+    }
+    g_lists.live.clear();
+    g_lists.dead.clear();
+    g_lists.all.clear();
     uintptr_t array = read<uint32_t>(manager + 4);
-    for (int i = 0; i < countries; i++) {
+    for (int32_t i = 0; i < countries; i++) {
         uintptr_t other = read<uint32_t>(array + i * 4);
-        if (!other || read<uint32_t>(other + kCountryProvincesEnd) == read<uint32_t>(other + kCountryProvincesBegin)) {
+        if (!other) {
             continue;
         }
-        uintptr_t rel = read<uint32_t>(relations + read<uint32_t>(other + kCountryIndex) * 4);
+        uint32_t index = read<uint32_t>(other + kCountryIndex);
+        bool has_provinces = read<uint32_t>(other + kCountryProvincesEnd) != read<uint32_t>(other + kCountryProvincesBegin);
+        if (i >= 1) {
+            g_lists.all.push_back(index);
+        }
+        if (has_provinces) {
+            g_lists.live.push_back(index);
+        } else if (index != 0) {
+            g_lists.dead.push_back(index);
+        }
+    }
+    g_lists.date = date;
+    g_lists.count = countries;
+    return &g_lists;
+}
+
+inline void prefetch_list(uintptr_t relations, const std::vector<uint32_t>& indices, const uint32_t* offsets, int count) {
+    for (uint32_t index : indices) {
+        uintptr_t rel = read<uint32_t>(relations + index * 4);
         for (int k = 0; k < count; k++) {
             _mm_prefetch(reinterpret_cast<const char*>(rel + offsets[k]), _MM_HINT_T0);
         }
+    }
+}
+
+// Prefetches, for every other country with provinces, the cache lines of `country`'s relation with it
+// that hold the given offsets. Prefetching never faults, so a stale pointer costs nothing.
+void prefetch_relations(uintptr_t country, const uint32_t* offsets, int count) {
+    const CountryLists* lists = country_lists();
+    uintptr_t relations = country ? read<uint32_t>(country + kCountryRelations) : 0;
+    if (lists && relations) {
+        prefetch_list(relations, lists->live, offsets, count);
     }
 }
 
@@ -83,20 +131,10 @@ constexpr uint32_t kPurgeOffsets[] = {0x20, 0x50, 0xA8};
 // (its body is data-dependent, so dead tags cannot be skipped). prefetch_relations only covers countries
 // with provinces; this covers the rest for that one field.
 void prefetch_dead_relations(uintptr_t country, uint32_t offset) {
-    uintptr_t manager = read<uint32_t>(g_country_manager_slot);
+    const CountryLists* lists = country_lists();
     uintptr_t relations = country ? read<uint32_t>(country + kCountryRelations) : 0;
-    if (!manager || !relations) {
-        return;
-    }
-    int countries = read<int32_t>(manager);
-    uintptr_t array = read<uint32_t>(manager + 4);
-    for (int i = 0; i < countries; i++) {
-        uintptr_t other = read<uint32_t>(array + i * 4);
-        uint32_t index = other ? read<uint32_t>(other + kCountryIndex) : 0;
-        if (!index || read<uint32_t>(other + kCountryProvincesEnd) != read<uint32_t>(other + kCountryProvincesBegin)) {
-            continue;
-        }
-        _mm_prefetch(reinterpret_cast<const char*>(read<uint32_t>(relations + index * 4) + offset), _MM_HINT_T0);
+    if (lists && relations) {
+        prefetch_list(relations, lists->dead, &offset, 1);
     }
 }
 
@@ -215,24 +253,20 @@ uintptr_t g_ai_scan = 0;
 
 void __stdcall before_ai_scan(uintptr_t ai) {
     uintptr_t manager = read<uint32_t>(g_country_manager_slot);
-    if (!manager || !ai) {
+    const CountryLists* lists = country_lists();
+    if (!manager || !ai || !lists) {
         return;
     }
     int countries = read<int32_t>(manager);
-    uintptr_t array = read<uint32_t>(manager + 4);
     int self_index = read<int32_t>(ai + kAiCountryIndex);
     if (self_index <= 0 || self_index >= countries) {
         return;
     }
-    uintptr_t self = read<uint32_t>(array + self_index * 4);
+    uintptr_t self = read<uint32_t>(read<uint32_t>(manager + 4) + self_index * 4);
     uintptr_t relations = self ? read<uint32_t>(self + kCountryRelations) : 0;
-    if (!relations) {
-        return;
-    }
-    for (int i = 1; i < countries; i++) {
-        uintptr_t other = read<uint32_t>(array + i * 4);
-        uintptr_t rel = read<uint32_t>(relations + read<uint32_t>(other + kCountryIndex) * 4);
-        _mm_prefetch(reinterpret_cast<const char*>(rel + 0x34), _MM_HINT_T0);
+    if (relations) {
+        constexpr uint32_t kOffset = 0x34;
+        prefetch_list(relations, lists->all, &kOffset, 1);
     }
 }
 
@@ -256,6 +290,7 @@ void install_relations_prefetch(const Config& config) {
         return;
     }
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
+    g_lists_world_slot = hooks::exe_addr(0xE588E8);  // g_world
     g_recalc = hooks::exe_addr(kRecalcRva);
     g_market = hooks::exe_addr(kMarketRva);
     g_purge = hooks::exe_addr(kPurgeRva);
@@ -291,6 +326,7 @@ void install_ai_relations_prefetch(const Config& config) {
         return;
     }
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
+    g_lists_world_slot = hooks::exe_addr(0xE588E8);  // g_world
     g_ai_scan = hooks::exe_addr(kAiScanRva);
     if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan, reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
         logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", kAiScanSlotRva + 0x400000);

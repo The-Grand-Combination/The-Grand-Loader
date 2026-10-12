@@ -8,7 +8,7 @@
 #include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04 (re/systems/tick.md, re/systems/performance.md):
+// v2game.exe 3.04 (docs/re/systems/tick.md, docs/re/systems/performance.md):
 //
 //   DayTick (0x006859C0), end: every AI object of world+0xA4 is appended to bucket (country % N) of the
 //     job queue at world+0xB84 (16-byte list headers, +8 = job count); N = 1 in single player.

@@ -10,7 +10,7 @@
 #include "log.h"
 #include "parallel/worker_pool.h"
 
-// v2game.exe 3.04 (re/systems/events.md, re/systems/parallel-triggers.md):
+// v2game.exe 3.04 (docs/re/systems/events.md, docs/re/systems/parallel-triggers.md):
 //
 //   DayTick, CALL EventManager_DailyScan (0x008A7CD0, stdcall 1, RET 4) at 0x006861E8.
 //   The scan builds one CEventScope on its stack, then
