@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "config.h"
 
 namespace cp::features {
@@ -15,5 +17,9 @@ void install_relations_prefetch(const Config& config);
 // `prefetch_ai_relations`: the same for the AI's daily target scan (FUN_0084B0F0, one per AI country),
 // which reads relation +0x34 for every country. Read-only.
 void install_ai_relations_prefetch(const Config& config);
+
+// Prefetches relation `offset` of `country` with every tag 1..count-1 (per-day list); nothing when
+// prefetch_relations is off. For loops that visit dead tags too (Country_PrePass at 0x00508DA7).
+void prefetch_all_relations(uintptr_t country, uint32_t offset);
 
 }  // namespace cp::features

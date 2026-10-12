@@ -1,6 +1,6 @@
 # performance_patch: the Victoria II Performance Patch, a plugin for The Grand Loader. Released on its own
 # (it needs the loader installed); bump this version for patch releases.
-project(performance_patch VERSION 0.1.0 LANGUAGES CXX)
+project(performance_patch VERSION 1.0.0 LANGUAGES CXX)
 
 add_library(performance_patch SHARED
     src/main.cpp
@@ -21,6 +21,7 @@ add_library(performance_patch SHARED
     src/features/memory/flag_cache.cpp
     src/features/performance/ai_queue.cpp
     src/features/performance/events_parallel.cpp
+    src/features/performance/country_prepass.cpp
     src/parallel/worker_pool.cpp
 )
 

@@ -1,4 +1,4 @@
-// Generated from the Ghidra classification of v2game.exe 3.04 trigger classes (see docs/cb-cull.md).
+// Generated from the Ghidra classification of v2game.exe 3.04 trigger classes (see docs/cull-cb-checks.md).
 // A trigger class is listed here when its Evaluate(scope) reads only the scope's own country
 // (scope+0x0C), literals stored in the trigger and global state; it never dereferences the THIS
 // scope (scope+0x24), the FROM reference (scope+0x30/+0x34), evaluates children or opens a new scope.

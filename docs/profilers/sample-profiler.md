@@ -44,7 +44,7 @@ docs/tools/scripts/annotate_samples.sh "<game dir>/performance_patch_samples.tsv
 docs/tools/scripts/annotate_samples.sh "<game dir>/performance_patch_samples.tsv" CommandQueue_Process   # its call sites by time
 ```
 
-The script needs `docs/re/decomp/index.tsv` (see [docs/re/ghidra.md](re/ghidra.md)). It prints time by
+The script needs `docs/re/decomp/index.tsv` (see [docs/re/ghidra.md](../re/ghidra.md)). It prints time by
 module, exclusive and inclusive time per function (inclusive counts a function once per stack, so
 recursion is not doubled), time in other DLLs by the exe function that called out, and for a zoomed
 function its callees and callers.

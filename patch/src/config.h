@@ -16,6 +16,7 @@ struct Config {
     bool prefetch_relations = false;    // prefetch relation objects before the three daily country x country scans
     bool prefetch_pops = false;         // prefetch each country's pops before its daily market update
     bool prefetch_ai_relations = false; // prefetch relations before the AI's daily target scan
+    bool skip_clean_resets = false;     // skip Country_PrePass's per-country table reset when it would write what is already there
     bool compress_flag_cache = false;   // create, cache and load the flag atlases as DXT1 instead of uncompressed
     bool fast_ai_queue = false;         // at max speed, finish the AI job queue in the frame it started in
     int parallel_decisions = 0;         // 0 off, 1 AI decision checks on worker threads, 2 shadow mode (compare only)

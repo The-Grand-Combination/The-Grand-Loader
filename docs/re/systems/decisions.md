@@ -1,7 +1,7 @@
 # Decisions
 
 Where and how often `potential` / `allow` are evaluated. Feature built on it:
-[docs/decision-cull.md](../../decision-cull.md).
+[docs/cull-decision-checks.md](../../cull-decision-checks.md).
 
 Sources: this repo's sessions (2026-10-02..04). Raw material:
 [raw/decision-keyword-map.txt](../raw/decision-keyword-map.txt), [raw/decisions/](../raw/decisions/),

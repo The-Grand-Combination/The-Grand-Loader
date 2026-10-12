@@ -1,7 +1,7 @@
 # Frame, hourly tick and daily tick
 
 How the game turns wall time into game days, and what runs once per day. The timing numbers are from
-`tick_profiler` on TGC in 1836 at max speed ([docs/tick-profiler.md](../../tick-profiler.md)).
+`tick_profiler` on TGC in 1836 at max speed ([docs/profilers/tick-profiler.md](../../profilers/tick-profiler.md)).
 
 Sources: this repo's sessions (October 2026); the call-chain and `Country_DailyUpdate` notes in
 [maxioten/Victoria2-Reverse-Engineering](https://github.com/maxioten/Victoria2-Reverse-Engineering)

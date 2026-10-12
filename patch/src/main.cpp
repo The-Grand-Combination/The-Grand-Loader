@@ -14,6 +14,7 @@
 #include "features/memory/flag_cache.h"
 #include "features/performance/ai_queue.h"
 #include "features/performance/events_parallel.h"
+#include "features/performance/country_prepass.h"
 #include "features/performance/worker_threads.h"
 #include "features/profilers/year_timer.h"
 #include "log.h"
@@ -48,6 +49,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_flag_cache(config);
     cp::features::install_ai_queue(config);
     cp::features::install_events_parallel(config);
+    cp::features::install_country_prepass(config);
     return 0;
 }
 

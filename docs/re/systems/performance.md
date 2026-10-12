@@ -149,7 +149,7 @@ High effort; only after 1–4.
 
 - `tick_profiler` redirects `CALL rel32` sites and vtable slots: exact call counts and inclusive times of
   known blocks, but blind to `CALL EAX` / `CALL [reg+n]`, which is where the largest remaining block lives.
-- `sample_profiler` ([docs/sample-profiler.md](../../sample-profiler.md), 2026-10-11): about once a
+- `sample_profiler` ([docs/profilers/sample-profiler.md](../../profilers/sample-profiler.md), 2026-10-11): about once a
   millisecond it suspends the game thread, reads `EIP` and the return addresses on its stack, resumes it.
   `docs/tools/scripts/annotate_samples.sh` maps them to functions with `docs/re/decomp/index.tsv`. It sees
   everything (virtual calls, render, driver and CRT time by module), adds no cost to hot loops and needs

@@ -28,5 +28,5 @@ package.cmd   release zips in out/release/
 Requires Visual Studio Build Tools (x86 C++), CMake ≥ 3.25 and Ninja.
 
 - Writing another plugin: [launcher/PLUGINS.md](launcher/PLUGINS.md)
-- Feature notes and timings: [docs/](docs/)
+- How each optimisation works, with timings: [docs/README.md](docs/README.md)
 - Reverse engineering of `v2game.exe`: [docs/re/README.md](docs/re/README.md)

@@ -46,6 +46,7 @@ uintptr_t g_recalc = 0;
 uintptr_t g_market = 0;
 uintptr_t g_purge = 0;
 uintptr_t g_country_manager_slot = 0;
+bool g_relations_enabled = false;  // prefetch_relations installed (prefetch_all_relations is a no-op otherwise)
 uintptr_t g_purge_self = 0;  // country whose relations the purge loop last prefetched
 uint8_t g_skip_purge = 0;
 
@@ -316,6 +317,7 @@ void install_relations_prefetch(const Config& config) {
                  s.call_rva + 0x400000, s.name);
         }
     }
+    g_relations_enabled = true;
     logf("prefetch_relations: active on %d of 4 country-pair scans", active);
 }
 
@@ -333,6 +335,14 @@ void install_ai_relations_prefetch(const Config& config) {
         return;
     }
     logf("prefetch_ai_relations: active, relations prefetched before each AI country's daily target scan");
+}
+
+void prefetch_all_relations(uintptr_t country, uint32_t offset) {
+    const CountryLists* lists = g_relations_enabled ? country_lists() : nullptr;
+    uintptr_t relations = lists && country ? read<uint32_t>(country + kCountryRelations) : 0;
+    if (relations) {
+        prefetch_list(relations, lists->all, &offset, 1);
+    }
 }
 
 }  // namespace cp::features

@@ -15,7 +15,7 @@
 #include "log.h"
 #include "parallel/worker_pool.h"
 
-// Background (docs/re/systems/decisions.md, docs/decision-cull.md, docs/re/raw/decision-keyword-map.txt):
+// Background (docs/re/systems/decisions.md, docs/cull-decision-checks.md, docs/re/raw/decision-keyword-map.txt):
 //
 //   AI_DecisionUpdate (0x00821190), once per AI country per day, driven from the per-frame AI job
 //   (CInGameIdler::Update -> FUN_006874C0 -> FUN_0081E9E0 -> CALL at 0x0081EA9B, ECX = AI object):

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(Victoria2CommunityPatches
-    VERSION 0.1.0  # repository version; the loader and each plugin carry their own (see their CMakeLists)
+    VERSION 1.0.0  # repository version; the loader and each plugin carry their own (see their CMakeLists)
     DESCRIPTION "The Grand Loader and the Victoria II Performance Patch (v2game.exe 3.04)"
     LANGUAGES CXX)
 

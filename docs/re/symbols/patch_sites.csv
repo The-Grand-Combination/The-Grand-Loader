@@ -72,3 +72,5 @@ cp_parallel_events_fire_a,0x008A7EF4,E8 27 02 00 00,call redirect,experimental,c
 cp_parallel_events_fire_b,0x008A80D5,E8 46 00 00 00,call redirect,experimental,cp,parallel_events: CALL Event_Fire in the scan (province pass)
 cp_prefetch_pair_array,0x0050B6B9,E8 12 46 02 00,call redirect,experimental,cp,prefetch_relations: CALL FUN_0052FCD0 in Country_DailyUpdate (other+0x1580[self]); shared with tick_profiler
 cp_prefetch_pops_distribution,0x00481860,E8 9B D2 4D 00,call redirect,experimental,cp,prefetch_pops: CALL FUN_0095EB00 in ProcessMarketAndGoodsDistribution (next pop in EAX); shared with tick_profiler
+cp_prepass_reset,0x0050861B,E8 F0 76 01 00,call redirect,experimental,cp,"country_prepass: CALL FUN_0051FD10 in Country_PrePass (skip_clean_resets; dead-tag relation prefetch; pop prefetch)"
+cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,experimental,cp,prefetch_pops: CALL Country_DailyUpdate in DayTick (country pop walk); shared with tick_profiler

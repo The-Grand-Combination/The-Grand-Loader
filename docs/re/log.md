@@ -22,7 +22,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-02 — `cull_cb_checks`: attacker-only culling of `can_use`
 
 - **Question:** can the daily N×N CB scan be short-circuited per attacker without changing results?
-- **Answer:** yes. Hooked `CCasusBelliType::CanUse` (vtable `0x00E33724+0x20`) and the two AI call sites of `IsAnyCBUsable`; attacker-only top-level conditions are evaluated once per (CB, attacker, day). Classification of all 236 trigger classes by decompiling their `Evaluate`: 174 scalar + 20 country-reference (instance flags `+0x18` THIS / `+0x19` FROM) usable, 40 pair-dependent excluded. → [cb-cull.md](../cb-cull.md)
+- **Answer:** yes. Hooked `CCasusBelliType::CanUse` (vtable `0x00E33724+0x20`) and the two AI call sites of `IsAnyCBUsable`; attacker-only top-level conditions are evaluated once per (CB, attacker, day). Classification of all 236 trigger classes by decompiling their `Evaluate`: 174 scalar + 20 country-reference (instance flags `+0x18` THIS / `+0x19` FROM) usable, 40 pair-dependent excluded. → [cb-cull.md](../cull-cb-checks.md)
 - **Correction to the previous entry:** in `can_use` the scope is the attacker and `THIS` is the defender (`scope+0x24`); `FROM` is unset. The decomp document was updated.
 - **Open:** measure the real gain on a heavy mod (log line every 30 days reports calls/culled/evaluated); whether the scalar parsers' `= THIS` (ignored by their `Evaluate`) is a script-side bug worth documenting.
 
@@ -49,7 +49,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-02 — `tick_profiler`: per-block timing of the daily tick
 
 - **Why:** decisions (~10 %) and CB scans (≤5 %) do not explain the ~240 ms/day; the remaining ~85 % had no owner.
-- **How:** eight single-caller call sites in the tick redirected to register-preserving thunks that swap the return address (works for the game's custom conventions); inclusive/exclusive ms/day per block every 30 days. → [tick-profiler.md](../tick-profiler.md)
+- **How:** eight single-caller call sites in the tick redirected to register-preserving thunks that swap the return address (works for the game's custom conventions); inclusive/exclusive ms/day per block every 30 days. → [tick-profiler.md](../profilers/tick-profiler.md)
 - **Open:** first report from the user's mod; then split the largest exclusive block.
 - **First result:** ~185 ms/day: 43 % outside the simulation step (render/UI/wait), 37 % in `DayTick` outside the province/country/event loops, 10 % `Country_DailyUpdate` (which also holds the decisions' `potential`, now estimated at 10–12 ms/day: the earlier 25 ms included the per-call clock), AI ≤4 %, events 2 %, provinces 1 %. Level 2 (every call inside `DayTick`) added to split the 37 %.
 - **Level 2 result (2026-10-03):** `DayTick` exclusive dropped to 2.7 ms once its calls were split. The simulation cost sits in two functions: `Economy_Update` (`0x00489990`, world market, "worldmarket.cpp", 1 call/day) at ~37 ms/day and the per-country pre-pass `FUN_00508590` (683 calls/day) at ~21 ms/day, next to `Country_DailyUpdate` at ~20 ms. `time_throttle` is called 1375×/day and costs 0.2 ms. Level 3 (calls inside those two functions, 90 sites) added.
@@ -68,7 +68,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-03 — `decision_profiler` results; `cull_decision_checks` + `decision_profiling` built
 
 - **Measured (TGC, 1836, max speed, two 30-day windows):** 529 k `potential` evaluations/day = 23.5 ms of ~200 ms (12 %), 2500 pass/day. 213 k/day (6.5 ms) are tag-locked decisions evaluated for the wrong country; 10 k/day (0.45 ms) are pairs whose flag gate already fails. Flat distribution: heaviest decision 0.29 ms/day (`pay_owed_steamers`), top 25 = 2.5 ms. 665 tag-locked, 1291 with a top-level `NOT has_*_flag` gate. → [raw/profiler/decisions-2026-10-03.log](raw/profiler/decisions-2026-10-03.log)
-- **Built:** `decision_profiler` renamed/extended into `cull_decision_checks` (both layers: tag lock, dead-pair bitset invalidated by hooks on `CClrCountryFlagEffect::Execute` `0x00882A40` / `CClrGlobalFlagEffect::Execute` `0x00882BA0`, vtable slot 11, plus a 30-day full reset) and `decision_profiling` (rewrites `v2cp_decisions.log` with running per-day averages for every decision; constant size). → [decision-cull.md](../decision-cull.md)
+- **Built:** `decision_profiler` renamed/extended into `cull_decision_checks` (both layers: tag lock, dead-pair bitset invalidated by hooks on `CClrCountryFlagEffect::Execute` `0x00882A40` / `CClrGlobalFlagEffect::Execute` `0x00882BA0`, vtable slot 11, plus a 30-day full reset) and `decision_profiling` (rewrites `v2cp_decisions.log` with running per-day averages for every decision; constant size). → [decision-cull.md](../cull-decision-checks.md)
 - **Corrections:** `CHourlyTickCommand::Execute` is vtable slot 6 (`+0x18`), not 7; the gate counts above include flags that other scripts clear, which is why the runtime count (1291) exceeds the static once-only count (767 + 404).
 - **Open:** first-year timing with `cull_decision_checks = 1 / 0`; confirm `passed/day` unchanged with cull on; late-game share of dead pairs.
 - **Crash fixed (2026-10-03):** `CEffect::Execute` is `__thiscall(scope, arg2)`, two stack arguments (`RET 0x8`); the first hook declared one, cleaned 4 bytes instead of 8 and returned into the stack (crash EIP == ESP+0x10 right after loading, when history effects run). Lesson: check the `RET imm16` of a virtual before hooking its slot; Ghidra's parameter count follows usage, not the convention.
@@ -97,7 +97,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-04 — `cull_cb_checks` v3
 
 - **Why:** the 2026-10-02 profile put AI CB scans at 11.1 ms/day with only 4.8 in `can_use`. `IsCBUsable` (`0x0092EEC0`) explains the rest: per type it walks the held-CB list `rel+0x50` and, for `always`/held types, builds two `CEventScope`s before `CanUse` (slot 8). ~100 walks per pair and ~350 k scope constructions a day.
-- **v3:** per pair, one scope pair (laid out as `IsCBUsable` does: attacker, `+0x24` -> THIS = defender), `CanUse` only for the attacker's live `always` types (v2 pre-pass) and for the held types found in one walk of the list; first true returns. Same boolean OR, no side effects. `IsCBUsable` is no longer called. → [cb-cull.md](../cb-cull.md)
+- **v3:** per pair, one scope pair (laid out as `IsCBUsable` does: attacker, `+0x24` -> THIS = defender), `CanUse` only for the attacker's live `always` types (v2 pre-pass) and for the held types found in one walk of the list; first true returns. Same boolean OR, no side effects. `IsCBUsable` is no longer called. → [cb-cull.md](../cull-cb-checks.md)
 - **Open:** `year 1836` with `cull_cb_checks = 1` (v3) against 189 ms/day (decision cull on, CB cull off). Default stays `0` until measured.
 - **Result (2026-10-04, `year_timer`, TGC 1836, `cull_decision_checks = 0`):** `cull_cb_checks` v3 **185 ms/day (1.07 min)** against the 196 baseline: −11 ms/day, −5.6 %, i.e. essentially the whole 11 ms/day the profile attributed to the AI CB scans. The N×N loop was cheap per iteration but the scope construction and the held-list walks per type were not. Default should move to `1` once the combined run confirms.
 
@@ -131,7 +131,7 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-11 — `sample_profiler`
 
 - **Why:** level 4 left ~51 ms/day inside `CommandQueue_Process` in virtual calls, which call redirection cannot see.
-- **Built:** a sampler thread started from the first hourly tick (so on the game thread, outside the loader lock): every N ms while the date advances, suspend the game thread, read `EIP`/`ESP`, copy 4 KB of stack, resume; count `EIP` (per module outside the exe) and stack values that follow a `CALL` (inclusive per call site, upper bound). `v2cp_samples.tsv` every 30 days; `docs/tools/scripts/annotate_samples.sh` maps it to functions through `docs/re/decomp/index.tsv`. → [docs/sample-profiler.md](../sample-profiler.md)
+- **Built:** a sampler thread started from the first hourly tick (so on the game thread, outside the loader lock): every N ms while the date advances, suspend the game thread, read `EIP`/`ESP`, copy 4 KB of stack, resume; count `EIP` (per module outside the exe) and stack values that follow a `CALL` (inclusive per call site, upper bound). `v2cp_samples.tsv` every 30 days; `docs/tools/scripts/annotate_samples.sh` maps it to functions through `docs/re/decomp/index.tsv`. → [docs/sample-profiler.md](../profilers/sample-profiler.md)
 - **Open:** first run (TGC 1836, both culls off, to compare with level 4); zoom into `CommandQueue_Process`.
 
 ## 2026-10-11 — First sampling profile; the exe is relocated by ASLR
@@ -340,3 +340,17 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 ## 2026-10-11 — Names: The Grand Loader and the Victoria II Performance Patch
 
 - The loader is now **The Grand Loader** (API prefix `TGL_`: `TGL_PluginInit`, `TGL_HostApi`, `include/tgl/plugin_api.h`, CMake `tgl::plugin_api`; log `the_grand_loader.log`; version label suffix " - The Grand Loader"). The plugin is the **Victoria II Performance Patch**: `mod/performance_patch.ini`, `mod/performance_patch/performance_patch.dll`, outputs `performance_patch_samples.tsv` / `performance_patch_decisions.log`, link map `performance_patch.map`. Release zips: `the-grand-loader-<v>.zip`, `the-grand-loader-sdk-<v>.zip`, `performance-patch-<v>.zip`. Entries above keep the old names (`v2cp.log`, `community_patch`) as the history.
+
+## 2026-10-12 — Country_DailyUpdate and Country_PrePass opened (late-game profile)
+
+- **Country_PrePass (15.8 ms/day):** its own time is still 70 % at `0x00508DEE` (relation `+0x2C`) and 12 % at `0x00508EB7` (`+0x30`) despite the relation prefetch: that prefetch runs before `Country_Recalculate`, whose call (`0x005089DB`) is skipped for tags without provinces, while the loop at `0x00508DA7` runs for all 683 tags. In the late game ~525 dead tags scan 683 relations each, unprefetched.
+- **FUN_0051FD10 (2.5 ms/day):** called for every tag at the start of Country_PrePass (`0x0050861B`, stdcall 1); resets `country+0x1514` (goods × 0x18 bytes) and the matrix `country+0x14F4` (types × goods × 0x18) to the pair at `DAT_013F3688/C`, ~30 KB per tag per day; samples on the stores.
+- **Pop walks:** `FUN_0050B9B0` (Country_PrePass; stall after `[pop+0x27C]` at `0x0050C089`) and Country_DailyUpdate's monthly pop pass (`0x005093C6`, after `[pop+0x27C]`; it reads every pop daily for `id % month == day`).
+- **Built:** `country_prepass` thunk on `0x0050861B`: for tags without provinces, prefetch relation `+0x2C/+0x30` with every tag (with `prefetch_relations`); for tags with provinces, prefetch their pops (with `prefetch_pops`); and **`skip_clean_resets`**: skip FUN_0051FD10 when both tables already have the right sizes and hold the reset pair everywhere (then the call writes nothing new). `prefetch_pops` 4th site: `CALL Country_DailyUpdate` at `0x00685ED1`, country pop walk. Same results by construction; not measured yet.
+
+## 2026-10-12 — First run with country_prepass: 125 ms/day in 1836; the tables are always clean
+
+- **Measured (user):** all patches including the new ones, 1836: **125 ms/day** (best so far 124; within noise, as expected: the dead-tag share and the relation-prefetch gap only grow later).
+- **`skip_clean_resets`: 100 % of the resets skipped** (245 880 of 245 880 in the first year), alive tags included: at the time FUN_0051FD10 runs, both tables always already hold the reset pair, so the vanilla call rewrote identical values for every tag every day. The check reads exactly the memory the call would write (sizes, row pointers, value pair, entry count, re-checked against the decompilation), so skipping stays exact. Because everything is clean, the check reads the whole ~30 KB per tag (~20 MB/day): it saves the write traffic (line fill + write-back), not the scan.
+- The tables are read through row-pointer getters (`FUN_005394D0` and the `0x0053xxxx` accessors, callers `FUN_006E7D70`) and a loop inside Country_PrePass (`0x005085xx`); writes through those pointers cannot be ruled out statically, so the scan cannot be dropped.
+- **Open:** late-game measurement (same 1879 save) against 129–154 ms/day.

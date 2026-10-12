@@ -1,7 +1,7 @@
 # The Grand Loader (dinput8.dll proxy) and the plugin ABI it owns. Released on its own: any plugin, not
 # only the Performance Patch, is loaded by it. Bump this version for loader releases; bump
 # TGL_PLUGIN_API_VERSION in include/tgl/plugin_api.h only when the ABI changes.
-project(the_grand_loader VERSION 0.1.0 LANGUAGES CXX)
+project(the_grand_loader VERSION 1.0.0 LANGUAGES CXX)
 
 # Header-only view of the plugin ABI for plugins to consume (always available, also when the loader
 # itself is not built).

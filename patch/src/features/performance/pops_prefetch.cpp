@@ -210,6 +210,64 @@ __declspec(naked) void distribution_thunk() {
     }
 }
 
+
+// Every pop of a country: all lists of all its provinces (country+0x9D8 ids, every type entry of
+// province+0x194..+0x198), walked together. Used before Country_DailyUpdate (its monthly pop pass reads
+// every pop daily to test pop.id % month_length == day) and, through prefetch_country_pops, at the start
+// of Country_PrePass (FUN_0050B9B0 walks the same lists, stalling after [pop+0x27C] at 0x0050C089).
+void walk_country_pops(uintptr_t country) {
+    uintptr_t world = read<uint32_t>(g_world_slot);
+    if (!world || !country) {
+        return;
+    }
+    uintptr_t provinces = read<uint32_t>(world + kWorldProvinces);
+    const int32_t* ids = reinterpret_cast<const int32_t*>(read<uint32_t>(country + kCountryProvincesBegin));
+    const int32_t* ids_end = reinterpret_cast<const int32_t*>(read<uint32_t>(country + kCountryProvincesEnd));
+    if (!provinces) {
+        return;
+    }
+    int count = 0;
+    for (; ids < ids_end; ids++) {
+        uintptr_t province = read<uint32_t>(provinces + *ids * 4);
+        if (!province) {
+            continue;
+        }
+        uintptr_t lists = read<uint32_t>(province + kProvincePopLists);
+        uintptr_t lists_end = read<uint32_t>(province + kProvincePopListsEnd);
+        for (uintptr_t at = lists; at + 16 <= lists_end; at += 16) {
+            uintptr_t head = read<uint32_t>(at);
+            if (head) {
+                g_cursors[count++] = head;
+                if (count == kMaxCursors) {
+                    walk(count);
+                    count = 0;
+                }
+            }
+        }
+    }
+    walk(count);
+}
+
+// Country_DailyUpdate (0x005091A0, stdcall 2: country, random array), CALL at 0x00685ED1 in DayTick.
+constexpr uint32_t kDailyUpdateCallRva = 0x285ED1;
+constexpr uint32_t kDailyUpdateRva = 0x1091A0;
+uintptr_t g_daily_update = 0;
+bool g_enabled = false;
+
+void __stdcall before_daily_update(uintptr_t country) { walk_country_pops(country); }
+
+__declspec(naked) void daily_update_thunk() {
+    __asm {
+        pushad
+        pushfd
+        push dword ptr [esp + 40]       ; country
+        call before_daily_update
+        popfd
+        popad
+        jmp dword ptr [g_daily_update]
+    }
+}
+
 }  // namespace
 
 void install_pops_prefetch(const Config& config) {
@@ -242,7 +300,22 @@ void install_pops_prefetch(const Config& config) {
         logf("prefetch_pops: call site %08X (market distribution) not recognised or already hooked, skipped",
              kDistributionCallRva + 0x400000);
     }
-    logf("prefetch_pops: active on %d of 3 pop loops (country market update, DayTick province pass, market distribution)", active);
+    g_daily_update = hooks::exe_addr(kDailyUpdateRva);
+    if (hooks::redirect_call(hooks::exe_addr(kDailyUpdateCallRva), g_daily_update,
+                             reinterpret_cast<uintptr_t>(&daily_update_thunk))) {
+        active++;
+    } else {
+        logf("prefetch_pops: call site %08X (Country_DailyUpdate) not recognised or already hooked, skipped",
+             kDailyUpdateCallRva + 0x400000);
+    }
+    g_enabled = true;
+    logf("prefetch_pops: active on %d of 4 pop loops (country market update, DayTick province pass, market distribution, Country_DailyUpdate)", active);
+}
+
+void prefetch_country_pops(uintptr_t country) {
+    if (g_enabled) {
+        walk_country_pops(country);
+    }
 }
 
 }  // namespace cp::features
