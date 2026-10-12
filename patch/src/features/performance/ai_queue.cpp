@@ -1,5 +1,5 @@
-#include "features/ai_queue.h"
-#include "features/decision_cull.h"
+#include "features/performance/ai_queue.h"
+#include "features/performance/decision_cull.h"
 
 #include <windows.h>
 

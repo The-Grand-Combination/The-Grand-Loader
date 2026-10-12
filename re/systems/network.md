@@ -33,7 +33,7 @@ CInGameIdler_Update
 
 ## Patch: `skip_network_wait` (on by default)
 
-`patch/src/features/network_wait.cpp` redirects the `0x00A618CC` call and forwards it with a timeout of
+`patch/src/features/performance/network_wait.cpp` redirects the `0x00A618CC` call and forwards it with a timeout of
 0. Every packet is still received and dispatched; at most it waits for the next frame's poll.
 
 1. **Does the day advance faster?** Yes: −20 to −22 % on the first year (below).

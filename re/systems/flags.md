@@ -30,7 +30,7 @@ game stops trying to rewrite them).
 
 ## Patch: `compress_flag_cache`
 
-`patch/src/features/flag_cache.cpp` wraps three of the D3DX calls (`CALL [import]` -> `CALL wrapper; NOP`):
+`patch/src/features/memory/flag_cache.cpp` wraps three of the D3DX calls (`CALL [import]` -> `CALL wrapper; NOP`):
 
 1. the copy (`0x007E629C`) is created as DXT1 instead of A8R8G8B8, so `D3DXLoadSurfaceFromSurface`
    compresses the atlas into it;

@@ -61,8 +61,11 @@ with content mods. Any project can ship a plugin this way; `community_patch` is 
 ```
 launcher/   dinput8.dll — proxy, plugin discovery and loading, log. Owns the plugin ABI.
 patch/      community_patch.dll — the Community Patches plugin.
-  src/features/   one file per patch
-    profilers/    diagnostic profilers (tick_profiler, sample_profiler)
+  src/features/   one file per patch, by kind:
+    performance/  speed patches (culls, prefetches, network wait, AI queue, parallel decisions/events, engine threads)
+    memory/       memory patches (flag_cache)
+    profilers/    diagnostics (tick_profiler, sample_profiler, year_timer)
+  src/parallel/   worker pool shared by the parallel features
   src/hooks/      hooking primitives
   mod/            the .ini shipped with the patch
 docs/       one page per shipped feature, timings.md (first-year table)

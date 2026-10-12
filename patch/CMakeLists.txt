@@ -5,18 +5,18 @@ add_library(community_patch SHARED
     src/hooks/iat.cpp
     src/hooks/memory.cpp
     src/hooks/hourly_tick.cpp
-    src/features/year_timer.cpp
-    src/features/worker_threads.cpp
-    src/features/cb_cull.cpp
+    src/features/profilers/year_timer.cpp
+    src/features/performance/worker_threads.cpp
+    src/features/performance/cb_cull.cpp
     src/features/profilers/tick_profiler.cpp
-    src/features/decision_cull.cpp
+    src/features/performance/decision_cull.cpp
     src/features/profilers/sample_profiler.cpp
-    src/features/network_wait.cpp
-    src/features/relations_prefetch.cpp
-    src/features/pops_prefetch.cpp
-    src/features/flag_cache.cpp
-    src/features/ai_queue.cpp
-    src/features/events_parallel.cpp
+    src/features/performance/network_wait.cpp
+    src/features/performance/relations_prefetch.cpp
+    src/features/performance/pops_prefetch.cpp
+    src/features/memory/flag_cache.cpp
+    src/features/performance/ai_queue.cpp
+    src/features/performance/events_parallel.cpp
     src/parallel/worker_pool.cpp
 )
 

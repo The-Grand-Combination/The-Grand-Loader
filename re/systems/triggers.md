@@ -52,7 +52,7 @@ By decompiling every `Evaluate` and looking for `scope+0x24`, `scope+0x30/+0x34`
 scope construction: 174 scalar (read only the scope country, literals and globals), 20
 country-reference, 40 pair-dependent, 2 helpers reviewed as scalar. Table:
 [raw/trigger-classes.txt](../raw/trigger-classes.txt); generated header used by `cull_cb_checks`:
-`patch/src/features/cb_cull_triggers.h`.
+`patch/src/features/performance/cb_cull_triggers.h`.
 
 ## Effects
 

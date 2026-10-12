@@ -1,6 +1,6 @@
 # `cull_decision_checks` / `decision_profiling`
 
-Source: `patch/src/features/decision_cull.cpp`. Measurements: [re/raw/profiler/](../re/raw/profiler/). Research: [re/systems/decisions.md](../re/systems/decisions.md).
+Source: `patch/src/features/performance/decision_cull.cpp`. Measurements: [re/raw/profiler/](../re/raw/profiler/). Research: [re/systems/decisions.md](../re/systems/decisions.md).
 
 ## Why
 

@@ -1,4 +1,4 @@
-#include "features/cb_cull.h"
+#include "features/performance/cb_cull.h"
 
 #include <windows.h>
 
@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "features/cb_cull_triggers.h"
+#include "features/performance/cb_cull_triggers.h"
 #include "hooks/memory.h"
 #include "log.h"
 
