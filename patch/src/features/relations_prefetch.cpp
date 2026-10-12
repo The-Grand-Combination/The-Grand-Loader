@@ -161,6 +161,48 @@ __declspec(naked) void purge_thunk() {
 }
 
 
+
+// FUN_0052FCD0 (stdcall 2, RET 8), called once per country from Country_DailyUpdate (CALL at 0x0050B6B9,
+// args: country, 0): for every country of world+0xADC with provinces other than self it reads
+// `other+0x1580[self]` (8 bytes): one miss on the other country's array per pair (48 % of its samples at
+// 0x00530388). Two passes: the array pointers' lines, then the elements.
+constexpr uint32_t kPairCallRva = 0x10B6B9;
+constexpr uint32_t kPairRva = 0x12FCD0;
+constexpr uint32_t kWorldPtrRva = 0xE588E8;
+constexpr uint32_t kWorldLiving = 0xADC;   // vector<CCountry*> walked by FUN_0052FCD0 and FUN_00522CF0
+constexpr uint32_t kCountryPairArray = 0x1580;
+
+uintptr_t g_pair = 0;
+uintptr_t g_world_slot = 0;
+
+void __stdcall before_pair(uintptr_t country) {
+    uintptr_t world = read<uint32_t>(g_world_slot);
+    if (!world || !country) {
+        return;
+    }
+    uint32_t self = read<uint32_t>(country + kCountryIndex);
+    uintptr_t begin = read<uint32_t>(world + kWorldLiving), end = read<uint32_t>(world + kWorldLiving + 4);
+    for (uintptr_t it = begin; it < end; it += 4) {
+        _mm_prefetch(reinterpret_cast<const char*>(read<uint32_t>(it) + kCountryPairArray), _MM_HINT_T0);
+    }
+    for (uintptr_t it = begin; it < end; it += 4) {
+        uintptr_t other = read<uint32_t>(it);
+        _mm_prefetch(reinterpret_cast<const char*>(read<uint32_t>(other + kCountryPairArray) + self * 8), _MM_HINT_T0);
+    }
+}
+
+__declspec(naked) void pair_thunk() {
+    __asm {
+        pushad
+        pushfd
+        push dword ptr [esp + 40]
+        call before_pair
+        popfd
+        popad
+        jmp dword ptr [g_pair]
+    }
+}
+
 // AI target scan (2026-10-11): FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
 // reached only through vtable slot 0x00E2773C, once per AI country per day from the AI job queue. It loops
 // over every country (index 1..count, provinces or not) and tests `CMP [self+0xBE8[other] + 0x34], 0`;
@@ -217,6 +259,8 @@ void install_relations_prefetch(const Config& config) {
     g_recalc = hooks::exe_addr(kRecalcRva);
     g_market = hooks::exe_addr(kMarketRva);
     g_purge = hooks::exe_addr(kPurgeRva);
+    g_pair = hooks::exe_addr(kPairRva);
+    g_world_slot = hooks::exe_addr(kWorldPtrRva);
     struct Site {
         uint32_t call_rva;
         uintptr_t target;
@@ -226,6 +270,7 @@ void install_relations_prefetch(const Config& config) {
         {kRecalcCallRva, g_recalc, &recalc_thunk, "Country_Recalculate"},
         {kMarketCallRva, g_market, &market_thunk, "market capacity (FUN_00522CF0)"},
         {kPurgeCallRva, g_purge, &purge_thunk, "CountryRelation_DailyPurge"},
+        {kPairCallRva, g_pair, &pair_thunk, "country pair array (FUN_0052FCD0)"},
     };
     int active = 0;
     for (const Site& s : sites) {
@@ -236,7 +281,7 @@ void install_relations_prefetch(const Config& config) {
                  s.call_rva + 0x400000, s.name);
         }
     }
-    logf("prefetch_relations: active on %d of 3 relation scans", active);
+    logf("prefetch_relations: active on %d of 4 country-pair scans", active);
 }
 
 

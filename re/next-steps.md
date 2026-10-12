@@ -19,9 +19,9 @@ first year of TGC against 196 vanilla). Evidence and the budget: [systems/perfor
 2. **~~Drop dead countries from the country x country loops~~ (checked 2026-10-11: three of the five scans
    already skip them; the other two have data-dependent bodies that write other countries, so a skip
    cannot be proven a no-op. Only a prefetch tweak came out of it.)**
-3. **Throttle rendering at max speed (medium).** `Render_MapFrame` is ~15 ms/day; at speed 5 nobody
-   needs 30+ frames per game day. Render at most N fps at speed 5 only. Trade-off: the map updates
-   less often while it runs.
+3. **~~Throttle rendering at max speed~~ (closed 2026-10-11).** Fewer frames would lower the already low
+   max-speed frame rate (~20 fps, set by `kSpeedThrottle[4]` = 0.06 s, see [systems/game-speed.md](systems/game-speed.md));
+   the opposite (more frames) costs speed. Left as is (user decision).
 4. **Parallelise read-only phases (highest potential, highest effort; built: `parallel_decisions`, `parallel_events`; rejected: `Country_Recalculate`, world market).** Full parallel simulation
    needs bit-identical sums or multiplayer desyncs. Viable path: run only the reading parts in parallel
    (decision `potential`s, AI target scans) for all countries and let the original loop consume the

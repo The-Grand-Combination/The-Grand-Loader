@@ -175,8 +175,8 @@ miss; the fix pattern is a read-only prefetch before the loop.
 | `Country_Recalculate` | 7.8 | 46 % | relation `+0x20` | `prefetch_relations` |
 | `FUN_004B9C60` | 1.3 | 89 % `0x004B9C9B` | pop `+0x27C` (DayTick pop pass) | `prefetch_pops` (2nd site) |
 | `FUN_00485390`, `Market_UpdateCountryPops` | 4.5 | 32–34 % | first pop read | `prefetch_pops` |
-| `FUN_0095EB00` | 1.4 | 90 % `0x0095EB63` | pop `+0x11C` (market distribution) | open |
+| `FUN_0095EB00` | 1.4 | 90 % `0x0095EB63` | pop `+0x11C` (market distribution) | `prefetch_pops` (3rd site, next pop) |
 | `FUN_0095A5F0` | 2.1 | 46 % `0x0095A66D` | pop `+0x180..+0x21C` | open |
-| `FUN_0052FCD0` | 1.9 | 48 % `0x00530388` | `other+0x1580[self]` | open |
+| `FUN_0052FCD0` | 1.9 | 48 % `0x00530388` | `other+0x1580[self]` | `prefetch_relations` (4th site) |
 | `FUN_009E6C10` | 2.2 | 67 % `0x009E6C2F` | flag trie node (`has_country_flag`) | open; mostly decision triggers, already culled |
 | `Economy_AccumulateElement` | 2.4 | 55 % `0x00969889` | pop `+0xA4` vector | open |

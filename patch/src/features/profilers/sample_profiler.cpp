@@ -263,7 +263,9 @@ void record(uintptr_t eip, uintptr_t esp, uintptr_t ebp, const uint8_t* stack, s
     static bool anchor[kStackCopyBytes / 4];
     size_t anchors[kMaxFrames];
     int nanchors = 0;
-    for (uintptr_t e = ebp; e >= esp && e + 8 <= esp + bytes && nanchors < kMaxFrames;) {
+    // `e - esp` cannot overflow once e >= esp; `e + 8` could (a chain value near 0xFFFFFFFF wrapped
+    // around, passed the bound and wrote anchor[] far out of range: the crash of 2026-10-11).
+    for (uintptr_t e = ebp; bytes >= 8 && e >= esp && e - esp <= bytes - 8 && nanchors < kMaxFrames;) {
         size_t slot = (e + 4 - esp) / 4;
         anchor[slot] = true;
         anchors[nanchors++] = slot;

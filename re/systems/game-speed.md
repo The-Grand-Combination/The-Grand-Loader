@@ -62,3 +62,13 @@ long market update no longer pumps messages.
 
 1. Meaning of `world+0xB20` and `world+0xBB8`.
 2. What `g_throttleScale` holds and who writes it.
+
+## Why max speed renders at ~20 fps (2026-10-11)
+
+At speed 4 the day starts on practically every frame, so the game spends almost all its time inside the
+daily tick, and the only frames drawn during a tick are the ones `UpdateTimeThrottle` allows: one every
+`kSpeedThrottle[4] × g_throttleScale × (g_timeFactor + 1)` = at least **0.06 s**, i.e. ~16–20 fps, on any
+hardware (speeds 0–2: 0.03 s, ~33 fps; speed 3: 0.04 s, ~25 fps). `kSpeedThrottle` (`0x00F0956C`) is read
+only by `UpdateTimeThrottle` (`0x00685691`), so a patch could lower entry 4; each extra frame costs ~4–5 ms
+of render and UI, i.e. ~30 fps ≈ +10 ms/day and ~60 fps ≈ +25 ms/day at 124 ms/day (estimates).
+**Decision (user):** leave it as is; no frame-rate option.

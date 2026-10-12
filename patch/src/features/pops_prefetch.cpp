@@ -179,6 +179,37 @@ __declspec(naked) void province_pops_thunk() {
     }
 }
 
+
+// ProcessMarketAndGoodsDistribution (0x004808D0) has the same province x pop-type list walk inline, with no
+// call per country to hang a batch on; per pop it does `MOV EAX,[EDI+0x27C]` (next), `MOV ESI,EDI` and
+// CALL FUN_0095EB00 at 0x00481860 (pop in ESI), whose samples sit after the pop's first read (90 % at
+// 0x0095EB63). Here the next pop (EAX) is prefetched while the current one is processed.
+constexpr uint32_t kDistributionCallRva = 0x081860;  // CALL FUN_0095EB00
+constexpr uint32_t kPopDistributeRva = 0x55EB00;     // FUN_0095EB00
+
+uintptr_t g_pop_distribute = 0;
+
+void __stdcall prefetch_pop(uintptr_t pop) {
+    if (!pop) {
+        return;
+    }
+    for (uint32_t off = 0; off < kPopSize; off += 64) {
+        _mm_prefetch(reinterpret_cast<const char*>(pop + off), _MM_HINT_T0);
+    }
+}
+
+__declspec(naked) void distribution_thunk() {
+    __asm {
+        pushad
+        pushfd
+        push eax                        ; next pop
+        call prefetch_pop
+        popfd
+        popad
+        jmp dword ptr [g_pop_distribute]
+    }
+}
+
 }  // namespace
 
 void install_pops_prefetch(const Config& config) {
@@ -189,6 +220,7 @@ void install_pops_prefetch(const Config& config) {
     g_world_slot = hooks::exe_addr(kWorldPtrRva);
     g_update_pops = hooks::exe_addr(kUpdatePopsRva);
     g_province_pops = hooks::exe_addr(kProvincePopsRva);
+    g_pop_distribute = hooks::exe_addr(kPopDistributeRva);
     int active = 0;
     if (hooks::redirect_call(hooks::exe_addr(kCallSiteRva), g_update_pops,
                              reinterpret_cast<uintptr_t>(&update_pops_thunk))) {
@@ -203,7 +235,14 @@ void install_pops_prefetch(const Config& config) {
         logf("prefetch_pops: call site %08X (DayTick provinces) not recognised or already hooked, skipped",
              kProvinceCallRva + 0x400000);
     }
-    logf("prefetch_pops: active on %d of 2 pop loops (country market update, DayTick province pass)", active);
+    if (hooks::redirect_call(hooks::exe_addr(kDistributionCallRva), g_pop_distribute,
+                             reinterpret_cast<uintptr_t>(&distribution_thunk))) {
+        active++;
+    } else {
+        logf("prefetch_pops: call site %08X (market distribution) not recognised or already hooked, skipped",
+             kDistributionCallRva + 0x400000);
+    }
+    logf("prefetch_pops: active on %d of 3 pop loops (country market update, DayTick province pass, market distribution)", active);
 }
 
 }  // namespace cp::features
