@@ -25,6 +25,10 @@ add_library(performance_patch SHARED
     src/features/multiplayer/state_checksum.cpp
     src/features/multiplayer/oos_log.cpp
     src/features/multiplayer/fpu_pin.cpp
+    src/features/multiplayer/oos_test.cpp
+    src/features/multiplayer/sync_check.cpp
+    src/features/multiplayer/world_rng.cpp
+    src/features/multiplayer/host_wait.cpp
     src/parallel/worker_pool.cpp
 )
 

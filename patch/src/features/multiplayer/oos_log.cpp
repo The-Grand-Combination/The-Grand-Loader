@@ -3,36 +3,26 @@
 #include <windows.h>
 
 #include <cstdint>
-#include <cstring>
 
 #include "features/multiplayer/state_checksum.h"
 #include "game/world.h"
-#include "hooks/memory.h"
 #include "log.h"
 
-// v2game.exe 3.04 (docs/re/systems/multiplayer.md): Update_World_and_Advance_Time compares the local sync
-// vector (EAX = world+0xB74) with the one in the tick command (ECX) through Vector_Equals (0x0068F340,
-// CALL at 0x00683036; returns 1 when they differ). On a difference the game writes "Checksum:" lines to
-// its own log, realigns the global RNG, shows the OOS dialog once and pauses. This hook runs before the
-// original call, compares the vectors itself and names what differed in the_grand_loader.log.
+// Reporter for sync_check.cpp, which owns the hook on the game's comparison. Elements 0 and 1 are the
+// game's own (draw count and seed): a difference there is what the game itself reacts to. The others
+// come from state_checksum: a difference there is a divergence the game does not see.
 
 namespace cp::features {
 
 namespace {
 
-constexpr uint32_t kEqualsCallRva = 0x283036;
-constexpr uint32_t kEqualsRva = 0x28F340;
-constexpr int kFullLogs = 20;         // mismatching ticks logged in full
-constexpr int kThenEveryDays = 30;    // afterwards one line per this many days
+constexpr int kFullLogs = 20;       // mismatching ticks logged in full
+constexpr int kThenEveryDays = 30;  // afterwards one line per this many days
 
-uintptr_t g_original_equals = 0;
+bool g_enabled = false;
 int g_mismatches = 0;
 int32_t g_last_logged_day = -1000000;
 bool g_fpu_logged = false;
-
-struct IntVector {
-    uint32_t begin, end, capacity;
-};
 
 int32_t current_day() {
     uintptr_t world = game::world();
@@ -54,18 +44,23 @@ void log_fpu_once() {
     logf("oos_log: game thread x87 control word %04X (%s precision), MXCSR %08X", cw, precision, csr);
 }
 
-void __cdecl compare(const IntVector* local, const IntVector* host) {
+}  // namespace
+
+void report_sync_vectors(const uint32_t* a, size_t n_local, const uint32_t* b, size_t n_host) {
+    if (!g_enabled) {
+        return;
+    }
     log_fpu_once();
-    size_t n_local = (local->end - local->begin) / 4;
-    size_t n_host = (host->end - host->begin) / 4;
-    const uint32_t* a = reinterpret_cast<const uint32_t*>(local->begin);
-    const uint32_t* b = reinterpret_cast<const uint32_t*>(host->begin);
     bool differ = n_local != n_host;
+    bool game_sees_it = false;
     for (size_t i = 0; !differ && i < n_local; i++) {
         differ = a[i] != b[i];
     }
     if (!differ) {
         return;
+    }
+    for (size_t i = 0; i < 2 && i < n_local && i < n_host; i++) {
+        game_sees_it = game_sees_it || a[i] != b[i];
     }
     int32_t day = current_day();
     g_mismatches++;
@@ -80,7 +75,9 @@ void __cdecl compare(const IntVector* local, const IntVector* host) {
              day, static_cast<unsigned>(n_local), static_cast<unsigned>(n_host));
         return;
     }
-    logf("oos_log: day %d: OUT OF SYNC (mismatch #%d)", day, g_mismatches);
+    logf("oos_log: day %d: %s (mismatch #%d)", day,
+         game_sees_it ? "OUT OF SYNC (the game reacts: RNG realign, dialog, pause)" : "SILENT DIVERGENCE (state differs, the game does not react)",
+         g_mismatches);
     if (!full) {
         return;
     }
@@ -91,44 +88,13 @@ void __cdecl compare(const IntVector* local, const IntVector* host) {
     }
 }
 
-__declspec(naked) void equals_thunk() {
-    __asm {
-        pushad
-        pushfd
-        push ecx   // host (command) vector
-        push eax   // local (world) vector
-        call compare
-        add esp, 8
-        popfd
-        popad
-        jmp dword ptr [g_original_equals]
-    }
-}
-
-}  // namespace
-
 void install_oos_log(const Config& config) {
     if (!config.oos_log) {
         logf("oos_log: disabled");
         return;
     }
-    uintptr_t site = hooks::exe_addr(kEqualsCallRva);
-    if (*reinterpret_cast<const unsigned char*>(site) != 0xE8) {
-        logf("oos_log: no CALL at %08X, feature off", kEqualsCallRva + 0x400000);
-        return;
-    }
-    int32_t rel;
-    std::memcpy(&rel, reinterpret_cast<const void*>(site + 1), sizeof(rel));
-    uintptr_t current = site + 5 + static_cast<uintptr_t>(rel);
-    if (current != hooks::exe_addr(kEqualsRva)) {
-        logf("oos_log: the Vector_Equals call site is already redirected; chaining to it");
-    }
-    g_original_equals = current;
-    if (!hooks::redirect_call(site, current, reinterpret_cast<uintptr_t>(&equals_thunk))) {
-        logf("oos_log: could not patch the compare call site, feature off");
-        return;
-    }
-    logf("oos_log: active");
+    g_enabled = true;
+    logf("oos_log: active (reports every differing element of the daily sync check)");
 }
 
 }  // namespace cp::features

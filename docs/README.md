@@ -29,6 +29,9 @@ Every player of a game must use the same values.
 | [`state_checksum`](state-checksum.md) | adds hashes of the game state to the daily sync check, so a desync is reported the day it happens |
 | [`oos_log`](oos-log.md) | names the element of the sync check that differed, in `the_grand_loader.log` |
 | [`pin_fpu`, `fpu_precision`](pin-fpu.md) | fixes the floating-point control registers at every tick, so all machines compute alike |
+| [`fix_rng_resync`](fix-rng-resync.md) | on a sync mismatch, realigns the random generator to the host's position instead of restarting it |
+| [`sync_world_rng`](sync-world-rng.md) | takes the lockstep draws of the world's clock-seeded generator from the shared one |
+| [`mp_host_wait_days`](mp-host-wait-days.md) | the host waits for the slowest player instead of running ahead until the "lagging behind" warning |
 
 ## Memory
 

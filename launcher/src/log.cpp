@@ -4,6 +4,7 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <share.h>
 #include <string>
 
 namespace tgl::log {
@@ -16,7 +17,21 @@ void open(std::wstring_view path) {
     if (g_file) {
         return;
     }
-    _wfopen_s(&g_file, std::wstring(path).c_str(), L"w");
+    // Deny other writers while this instance runs, so a second instance started from the same folder
+    // (a local multiplayer test) cannot truncate this file; it gets its own, named by process id.
+    std::wstring primary(path);
+    g_file = _wfsopen(primary.c_str(), L"w", _SH_DENYWR);
+    if (g_file) {
+        return;
+    }
+    size_t dot = primary.rfind(L'.');
+    std::wstring stem = dot == std::wstring::npos ? primary : primary.substr(0, dot);
+    std::wstring ext = dot == std::wstring::npos ? L"" : primary.substr(dot);
+    std::wstring secondary = stem + L"." + std::to_wstring(GetCurrentProcessId()) + ext;
+    g_file = _wfsopen(secondary.c_str(), L"w", _SH_DENYWR);
+    if (g_file) {
+        line("loader", "the main log is held by another running instance; this instance logs here instead");
+    }
 }
 
 void line(std::string_view prefix, std::string_view message) {

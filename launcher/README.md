@@ -17,7 +17,7 @@ loads that DLL and calls its `TGL_PluginInit` export. Plugins are loaded in file
 alphabetical). An `.ini` without a matching DLL is ignored, so content mods are not affected; the game
 itself only reads `.mod` descriptors, so plugins never appear in its mod list.
 
-Every line the loader and the plugins log goes to `the_grand_loader.log` in the game folder.
+Every line the loader and the plugins log goes to `the_grand_loader.log` in the game folder. A second instance started from the same folder while the first runs (a local multiplayer test) writes to `the_grand_loader.<pid>.log` instead, so neither overwrites the other.
 
 ## Writing a plugin
 

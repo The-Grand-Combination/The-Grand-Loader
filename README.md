@@ -17,7 +17,7 @@ Don't forget to join our [discord server](https://discord.gg/xuDjNrmpFR).
 To uninstall, delete `dinput8.dll` and `mod/performance_patch*`.
 
 Settings are in `mod/performance_patch.ini`, with one line explaining each option. Each launch writes
-`the_grand_loader.log` next to `v2game.exe`.
+`the_grand_loader.log` next to `v2game.exe` (a second instance running from the same folder writes `the_grand_loader.<pid>.log`).
 
 ## Development
 

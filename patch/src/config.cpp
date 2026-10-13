@@ -88,15 +88,23 @@ Config load_config(const std::wstring& config_file) {
             config.pin_fpu = parse_int(value, 0) != 0;
         } else if (key == "fpu_precision") {
             config.fpu_precision = parse_int(value, 24);
+        } else if (key == "oos_test_button") {
+            config.oos_test_button = parse_int(value, 0) != 0;
+        } else if (key == "fix_rng_resync") {
+            config.fix_rng_resync = parse_int(value, 0) != 0;
+        } else if (key == "sync_world_rng") {
+            config.sync_world_rng = parse_int(value, 0) != 0;
+        } else if (key == "mp_host_wait_days") {
+            config.mp_host_wait_days = parse_int(value, 0);
         }
     });
     logf("config: engine_worker_threads=%d cull_cb_checks=%d cull_cb_profiling=%d tick_profiler=%d "
-         "cull_decision_checks=%d decision_profiling=%d sample_profiler=%d skip_network_wait=%d prefetch_relations=%d prefetch_pops=%d prefetch_ai_relations=%d skip_clean_resets=%d compress_flag_cache=%d fast_ai_queue=%d parallel_decisions=%d parallel_events=%d state_checksum=%d oos_log=%d pin_fpu=%d fpu_precision=%d",
+         "cull_decision_checks=%d decision_profiling=%d sample_profiler=%d skip_network_wait=%d prefetch_relations=%d prefetch_pops=%d prefetch_ai_relations=%d skip_clean_resets=%d compress_flag_cache=%d fast_ai_queue=%d parallel_decisions=%d parallel_events=%d state_checksum=%d oos_log=%d pin_fpu=%d fpu_precision=%d oos_test_button=%d fix_rng_resync=%d sync_world_rng=%d mp_host_wait_days=%d",
          config.engine_worker_threads, config.cull_cb_checks ? 1 : 0, config.cull_cb_profiling ? 1 : 0,
          config.tick_profiler, config.cull_decision_checks ? 1 : 0, config.decision_profiling ? 1 : 0,
          config.sample_profiler, config.skip_network_wait ? 1 : 0, config.prefetch_relations ? 1 : 0,
          config.prefetch_pops ? 1 : 0, config.prefetch_ai_relations ? 1 : 0, config.skip_clean_resets ? 1 : 0, config.compress_flag_cache ? 1 : 0, config.fast_ai_queue ? 1 : 0, config.parallel_decisions, config.parallel_events,
-         config.state_checksum ? 1 : 0, config.oos_log ? 1 : 0, config.pin_fpu ? 1 : 0, config.fpu_precision);
+         config.state_checksum ? 1 : 0, config.oos_log ? 1 : 0, config.pin_fpu ? 1 : 0, config.fpu_precision, config.oos_test_button ? 1 : 0, config.fix_rng_resync ? 1 : 0, config.sync_world_rng ? 1 : 0, config.mp_host_wait_days);
     return config;
 }
 

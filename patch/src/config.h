@@ -25,6 +25,10 @@ struct Config {
     bool oos_log = false;               // multiplayer: log which element of the sync vector differed
     bool pin_fpu = false;               // multiplayer: fixed x87 control word and MXCSR at every tick
     int fpu_precision = 24;             // with pin_fpu: 24 (what Direct3D leaves on Windows) or 53
+    bool oos_test_button = false;       // multiplayer test aid: Force OOS button and Ctrl+Shift+O
+    bool fix_rng_resync = false;        // multiplayer: on a sync mismatch, realign the RNG to the host's position, not to the seed
+    bool sync_world_rng = false;        // multiplayer: lockstep draws from the world RNG come from the shared, counted generator
+    int mp_host_wait_days = 0;          // multiplayer: host holds its ticks while a player is more than N days behind (0 = off)
 };
 
 // Reads mod\performance_patch.ini.

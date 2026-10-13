@@ -21,8 +21,8 @@
 // So whatever is in the vector after DayTick travels with the next tick and is compared on every client
 // against the client's own vector at the same point of its own day. The game's vector is a draw counter
 // only. This feature redirects the CALL DayTick to a thunk that runs DayTick and then appends hashes of
-// the state (provinces, countries, pops, the world RNG position, the date). Vector_Equals compares sizes
-// first, so every player must run the same setting.
+// the state (the global RNG position after the day, provinces, countries, pops, the date). The game's
+// comparison is limited to its own two elements by sync_check.cpp; ours are compared and logged there.
 //
 // The vector is a MSVC std::vector<int>: the game clears it with end = begin (capacity stays), and grows
 // it with its own operator new / delete. Our push_back does the same with the same functions.
@@ -46,7 +46,8 @@ uintptr_t g_saved_return[kMaxDepth];
 uint32_t g_depth = 0;
 bool g_logged_first = false;
 
-const char* const kNames[] = {"rng_calls", "rng_seed", "provinces", "countries", "pops", "world_rng", "date"};
+const char* const kNames[] = {"rng_calls", "rng_seed", "rng_calls_end", "provinces", "countries", "pops", "date"};
+constexpr uint32_t kRngCallsRva = 0xB20C14;  // g_rngCalls
 
 inline uint32_t fnv(uint32_t h, uint32_t v) {
     // FNV-1a over the four bytes of v
@@ -147,10 +148,10 @@ void after_day_tick() {
     }
     uintptr_t vec = world + game::kWorldSyncVector;
     uint32_t values[5] = {
+        game::read32(hooks::exe_addr(kRngCallsRva)),  // the global RNG position after this day: the host's position when a client compares
         hash_provinces(world),
         hash_countries(),
         hash_pops(world),
-        game::read32(world + game::kWorldRngIndex),
         game::read32(world + game::kWorldDate),
     };
     for (uint32_t v : values) {
@@ -203,6 +204,15 @@ __declspec(naked) void day_tick_thunk() {
 
 const char* sync_element_name(size_t index) {
     return index < sizeof(kNames) / sizeof(kNames[0]) ? kNames[index] : "extra";
+}
+
+size_t sync_element_index(const char* name) {
+    for (size_t i = 0; i < sizeof(kNames) / sizeof(kNames[0]); i++) {
+        if (std::strcmp(kNames[i], name) == 0) {
+            return i;
+        }
+    }
+    return static_cast<size_t>(-1);
 }
 
 void install_state_checksum(const Config& config) {

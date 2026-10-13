@@ -9,4 +9,5 @@ profiler's hooks would show up in the samples). Everything is written next to `v
 | `sample_profiler = N` | [sample-profiler.md](sample-profiler.md) |
 | `decision_profiling = 1` | [decision-profiling.md](decision-profiling.md) |
 | `cull_cb_profiling = 1` | [cull-cb-profiling.md](cull-cb-profiling.md) |
+| `oos_test_button = 1` | [oos-test-button.md](oos-test-button.md) |
 | always on | [year-timer.md](year-timer.md) |

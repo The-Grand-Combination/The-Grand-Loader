@@ -20,6 +20,10 @@
 #include "features/multiplayer/state_checksum.h"
 #include "features/multiplayer/oos_log.h"
 #include "features/multiplayer/fpu_pin.h"
+#include "features/multiplayer/oos_test.h"
+#include "features/multiplayer/sync_check.h"
+#include "features/multiplayer/world_rng.h"
+#include "features/multiplayer/host_wait.h"
 #include "log.h"
 
 namespace {
@@ -56,7 +60,11 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     // after tick_profiler: state_checksum chains to whatever the DayTick call site holds
     cp::features::install_state_checksum(config);
     cp::features::install_oos_log(config);
+    cp::features::install_sync_check(config);
+    cp::features::install_world_rng(config);
+    cp::features::install_host_wait(config);
     cp::features::install_fpu_pin(config);
+    cp::features::install_oos_test(config);
     return 0;
 }
 
