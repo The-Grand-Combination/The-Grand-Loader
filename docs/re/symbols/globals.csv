@@ -81,3 +81,8 @@ va,name,kind,conf,src,note
 0x00E439F8,CWorkerThread_vftable,vtable,C,re,
 0x00E38B28,CRngEngine_vftable,vtable,C,re,
 0x00E0A7E4,CResignTarget_vftable,vtable,?,re,"set by FUN_00676240; slot 0x114/4 = 0x009C4300 (not proven to be the resign action)"
+0x00F20C1C,g_mtSeed,u32,C,cp,"seed of g_mtState; element 1 of the sync vector"
+0x013F3AB8,crt_sse2_available,u32,C,cp,"CRT: non-zero selects the SSE2 math implementations (with MXCSR and CW tests)"
+0x01258A65,g_randomLogging,u8,C,cp,"console toggle: log every RNG wrapper draw (random.cpp) and every executed command"
+0x01319B80,g_eventManager,ptr,C,cp,"lazy singleton (0xA08 bytes); own MT at +0x58, seeded from __time64"
+0x01258A8C,g_timer,ptr,I,cp,"vt+0x14 returns seconds as double; used as seed source and for the AI frame budget"

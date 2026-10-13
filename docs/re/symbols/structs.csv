@@ -14,7 +14,7 @@ World,0xB64,firedOnceEvents,HashTable,C,re,fire_only_once table; insert has no d
 World,0xB94,flagB94,u8,?,re,changes the GP vassal branch of AI_GetOpinionScore
 World,0xBB8,timeBarrier,u8,C,re,"CMP at 0x00682D05; JZ 0x00682D0C skips temporal processing"
 World,0xBD0,marketCountries,vector,C,cp,"+0xBD0/+0xBD4 country list used by the world market"
-World,0xD11,headless,u8,I,re,"non-zero: no spatial registration, no event scan"
+World,0xD11,tutorialMode,u8,C,cp,"set to 1 by Tutorial_Start (0x0077B800); gates the AI bucket fill, the event scan and spatial registration; not a client flag"
 CountryManager,0x0,count,u32,C,cp,all defined tags
 CountryManager,0x4,countries,CCountry**,C,cp,
 CCountry,0x08,eventCandidates,vector<CEvent*>,C,re,"+0x08/+0x0C; read by the daily event scan"
@@ -22,9 +22,9 @@ CCountry,0x1C,tag,char[4],C,cp,
 CCountry,0x20,index,u32,C,cp,
 CCountry,0x31,isGreatPower,u8,I,re,
 CCountry,0x68,delayedEvents,vector,C,re,"+0x68/+0x6C; item+0x54 counts days down"
-CCountry,0x208,flag208,u32,?,re,AI branch of Event_Fire requires != 0
-CCountry,0x37C,aiGate0,u8,?,cp,AI_DailyUpdate requires 0 (human?)
-CCountry,0x37D,aiGate1,u8,?,cp,AI_DailyUpdate requires 0 (disabled?)
+CCountry,0x208,aiObject,AiObject*,C,cp,"created on the host only (World_CreateAiObjects); null on clients; Event_Fire chooses AI options only when set"
+CCountry,0x37C,aiDailyDone,u8,C,cp,"embedded AI state +0x18 (base 0x364): set by AI_DailyUpdate; Country_DailyUpdate skips the update when non-zero"
+CCountry,0x37D,aiSkipDiplomacy,u8,C,cp,"embedded AI state +0x19; AI_DiplomacyUpdate returns when non-zero"
 CCountry,0x7B4,armies,list,I,re,military strength source
 CCountry,0x9D8,ownedProvinces,vector,C,cp,"+0x9D8/+0x9DC; empty = country does not exist"
 CCountry,0xBCC,technology,ptr,C,re,"+0x2B8 tech state array indexed by tech+0x2E4"
@@ -128,3 +128,30 @@ CEvent,0x1A1,flag1A1,u8,C,re,0 -> window may be suppressed by the UI manager
 CEvent,0x1A2,flag1A2,u8,C,re,window variant
 CEvent,0x1A3,fireOnlyOnce,u8,I,re,behaviour confirmed; name inferred
 CEvent,0x1A4,flag1A4,u8,C,re,full-window variant
+World,0xA4,aiObjects,vector<AiObject*>,C,cp,"+0xA4/+0xA8/+0xAC; filled on the host only; walked by the AI bucket fill at the end of DayTick"
+World,0xB4,worldRng,u32[624],C,cp,"embedded MT19937; index +0xA74; seeded from the clock in World_ctor or from save token 0x7A4; read by AI_DailyRoll and AI frame code"
+World,0xA74,worldRngIndex,u32,C,cp,
+World,0xB74,syncVector,vector<u32>,C,cp,"+0xB74/+0xB78/+0xB7C; [rngCalls, seed] written at tick start, copied into CHourlyTickCommand by the host, compared by every receiver (Vector_Equals at 0x00683036)"
+World,0xB84,aiJobBuckets,vector,C,cp,"+0xB84/+0xB88; 16-byte list headers, country % N; only bucket 0 is drained by AI_FrameUpdate"
+World,0xBA8,oosDialogShown,u8,C,cp,"set once after the OOS dialog; never reset in a session"
+CCountry,0x364,aiState,struct,C,cp,"embedded per-country AI state passed to AI_DailyUpdate/AI_DailyRoll (EAX/EDI); +0xC country index, +0x10/+0x14 last update dates, +0x18 done, +0x19 skip diplomacy"
+CCountry,0xE78,money,i64,C,cp,"treasury, 2^15 fixed point; Country_PrePass writes other countries too"
+CMapProvince,0x134,controllerIndex,u32,C,cp,
+CMapProvince,0x198,popListsEnd,ptr,C,cp,"+0x194/+0x198 vector of 16-byte entries, one per pop type, +0 = first pop"
+Pop,0x0C,id,u32,C,cp,"indexes the daily random table ((id + 0x714) % 1000)"
+CCommand,0x04,typeTag,u32,C,cp,"0x18D"
+CCommand,0x24,playerId,u32,C,cp,"session vt+0x44 at construction (+0x28 word: vt+0x48)"
+CCommand,0x2C,typeId,u32,C,cp,"+0x2C/+0x30 (e.g. 0x32B hourly tick, 0x42F random seed, 0x430 pause, 0x41D start game, 0x158 file transfer)"
+CCommand,0x34,tickStamp,u16,C,cp,"set by the server from sessionMgr+0x54 when broadcasting"
+CCommand,0x36,sendImmediately,u8,C,cp,"non-zero: serialize and send at once instead of the batch ring"
+CCommand,0x3C,payload,struct,C,cp,"first subclass field (hourly tick: the sync vector; pause: name string)"
+SessionManager,0x2C,state,u32,C,cp,"0 idle, 3 error, 4 in game, 6 synching (state received), 9/0xD/0xE lobby and transfer, 0xB/0xC in-game variants"
+SessionManager,0x34,isServer,u8,C,cp,"1 in single player and for the host"
+SessionManager,0x38,session,NetSession*,C,cp,
+SessionManager,0x54,tick,u32,C,cp,"stamped into broadcast commands"
+SessionManager,0x70,newPeers,list,C,cp,"+0x70/+0x74/+0x78; filled on connect, drained by the lobbies"
+SessionManager,0xD8,setupCommands,list,C,cp,"+0xD8/+0xDC/+0xE0; clones of executed commands whose vt+0x30 predicate returns 1; sent to every connecting peer (message 0x12)"
+SessionManager,0x110,receivedState,ptr,C,cp,"buffer of message 0x12 until SessionManager_FinishSync consumes it"
+SessionManager,0x234,executing,u8,C,cp,"set while a command runs"
+NetSession,0x18,enetHost,ptr,C,cp,"peers at +0x20 of it, stride 0xE8"
+NetSession,0x20,serviceTimeoutMs,u32,C,cp,"15 base, 35 client/server"
