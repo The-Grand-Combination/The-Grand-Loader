@@ -172,9 +172,13 @@ unless marked.
   the creating thread to 24 bits (documented D3D9 behaviour; `oos_log` prints the value seen). Inline
   `fldcw cw | 0xC00` sequences (truncating conversions) save and restore, harmless. No game code reads
   `cpuid` on the simulation path (`FUN_004AAFD0`, `FUN_009E8210` are off it).
-- **CRT `rand()`** (`FUN_00AAF0C5`, 329 call sites) is used on the daily path only by the text
-  generator `FUN_0046B3A0` ("has missing description. Please script one"), i.e. display text. The
-  simulation's randomness is the Mersenne Twister instances above.
+- **CRT `rand()`** is `0x00AB047B` (`FUN_00AB047B`, 37 callers; `0x00AAF0C5` with its 329 call sites is an
+  `_atol` thunk that was mislabelled `rand` until 2026-10-13). Its callers include `AI_DecisionUpdate`
+  (`0x008212FA`, `0x00821453`: the `ai_will_do` roll, see [parallel-triggers.md](parallel-triggers.md)). That
+  is a per-frame AI job (`AI_CountryFrameJob`), host-only, so its draws reach clients as commands and do not
+  desync. The game never calls `srand` (the CRT init sets `_holdrand = 1` once); the state is per thread,
+  which matters for the parallel-triggers work, not for multiplayer. The text generator `FUN_0046B3A0` calls only the `_atol` thunk. The
+  simulation's main randomness is the Mersenne Twister instances above.
 - **Wall clock on the daily path:** `DayTick` reads `QueryPerformanceCounter` around `FUN_0046ACB0`
   (timing only) and `__time64` only to seed the lazily created event manager; `Province_DailyUpdate`
   and `FUN_00687E30` have the same lazy-creation sequence. Nothing else.

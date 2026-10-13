@@ -390,3 +390,14 @@ Oldest first. Each entry: date, question, where the answer lives, what is still 
 - **Force OOS button** works (host log: flip then `rng_calls` mismatch by 1). On the client it looked inert because the client had been out of sync since day 2 and the dialog shows once.
 - **FPU confirmed:** game thread at `CW 007F` (24-bit) on both instances, `MXCSR 1FB3/1FBB` (exception flags set, FTZ/DAZ off) before `pin_fpu` set `1F80`.
 - Loader: a second instance in the same folder now logs to `the_grand_loader.<pid>.log` (the first holds the main log with deny-write). Crash logger: logs C++ exceptions (RTTI type, `what()`, throw site, stack) and `abort()`.
+
+## 2026-10-13 — Corrections from an external byte/Ghidra check of a884da1
+
+Five entries checked against the exe bytes (`check_patch_sites.sh` section math) and the local decompilation; all five changed.
+
+- **`kSpeedAdvance4` (`0x00E45BB8`) is 0.0001, not 0.0004:** bytes `17 B7 D1 38`, loaded by `MOVSS` at `0x00682C59`. Fixed in `globals.csv`, `functions.csv` (`ProcessGameTimeAdvance` note) and `systems/game-speed.md`.
+- **`0x00AAF0C5` is an `_atol` thunk, not `rand`:** `FUN_00aaf0c5` is `push ebp; mov ebp,esp; pop ebp; jmp _atol`. CRT `rand` is `0x00AB047B` (`ptd+0x14 = state*0x343FD+0x269EC3`, returns `(state>>16)&0x7FFF`), as `parallel-triggers.md` already said; `AI_DecisionUpdate` calls it at `0x008212FA`/`0x00821453`. Consequence: the math-audit statement above ("CRT `rand()` on the daily path only in the text generator") described the `_atol` thunk. The real `rand` is drawn by `AI_DecisionUpdate`, a host-only frame job (`AI_CountryFrameJob`), and the game never calls `srand`, so it is not a multiplayer desync source; its per-thread state matters only for the parallel-triggers work.
+- **`cp_mp_hourly_tick_fpu`:** the `original` column held the text `vtable slot`, which made `check_patch_sites.sh` fail; now `F0 EC 72 00` (76 OK, 2 SKIP).
+- **`World+0xB3C` is the ongoing-war list** (was `specialModifiers`, no evidence): the loop at `0x00840FD7` in `AI_GetOpinionScore` feeds each payload to `FUN_00832DD0`, which searches two 8-byte-entry participant vectors (`+0x2C/+0x30`, `+0x3C/+0x40`, entry `+4` = country id) and adds ±50 under `AIREASON_CURRENT_WARS` (`0x00E26BCC`). Still [I]: layout of the war object beyond those vectors is unknown.
+- **`0x01258A48` is the issue registry, `g_issueManager`** (was `g_unitManager`, "iterated in the per-country pre-pass": no patch source references it). `FUN_008C4A70` (the `CIssueGroupTrigger` parser: "unknown issue in trigger", "mismatching issue ... for group") loads it at `0x008C4AD4` and resolves the name through the string-hash lookup `FUN_00975ED0`; a miss yields the `CNullIssue` singleton `DAT_01258A40`. Its vectors `+0x18..+0x6C` size per-country arrays in `FUN_00503020`.
+- Re-import into Ghidra with `V2Symbols.java import` to propagate the renames.

@@ -76,4 +76,4 @@ cp_prepass_reset,0x0050861B,E8 F0 76 01 00,call redirect,experimental,cp,"countr
 cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,experimental,cp,prefetch_pops: CALL Country_DailyUpdate in DayTick (country pop walk); shared with tick_profiler
 cp_mp_day_tick,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,state_checksum: CALL DayTick in Update_World_and_Advance_Time; thunk swaps the return address and appends the state hashes to world+0xB74 after DayTick
 cp_mp_vector_equals,0x00683036,E8 05 C3 00 00,call redirect,shipped,cp,oos_log: CALL Vector_Equals in Update_World_and_Advance_Time (EAX = world+0xB74 ECX = command vector); logs differing elements then runs the original
-cp_mp_hourly_tick_fpu,0x00E1242C,vtable slot,slot replace,shipped,cp,pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick
+cp_mp_hourly_tick_fpu,0x00E1242C,F0 EC 72 00,slot replace,shipped,cp,pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick

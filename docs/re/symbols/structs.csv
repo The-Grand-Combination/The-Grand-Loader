@@ -7,7 +7,7 @@ World,0xB14,timeAccumulator,f32,C,re,accumulated frame time in ProcessGameTimeAd
 World,0xB20,timeStopped,u32,C,re,non-zero -> ProcessGameTimeAdvance returns
 World,0xB24,uiManager,ptr,I,re,
 World,0xB28,speed,u32,C,cp,"game speed index 0..4"
-World,0xB3C,specialModifiers,list,I,re,walked by AI_GetOpinionScore
+World,0xB3C,wars,list,I,re,"ongoing-war list: nodes {payload, ?, next}; AI_GetOpinionScore walks it at 0x00840FD7 and scores each war with FUN_00832DD0 (two 8-byte-entry participant vectors at war+0x2C/+0x30 and +0x3C/+0x40, entry+4 = country id) under AIREASON_CURRENT_WARS (0x00E26BCC). Named specialModifiers until 2026-10-13"
 World,0xB5C,playerTag,char[4],C,cp,
 World,0xB60,playerIndex,u32,C,cp,player country index
 World,0xB64,firedOnceEvents,HashTable,C,re,fire_only_once table; insert has no duplicate check and no rehash
