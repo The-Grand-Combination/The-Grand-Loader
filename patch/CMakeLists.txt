@@ -22,6 +22,9 @@ add_library(performance_patch SHARED
     src/features/performance/ai_queue.cpp
     src/features/performance/events_parallel.cpp
     src/features/performance/country_prepass.cpp
+    src/features/multiplayer/state_checksum.cpp
+    src/features/multiplayer/oos_log.cpp
+    src/features/multiplayer/fpu_pin.cpp
     src/parallel/worker_pool.cpp
 )
 

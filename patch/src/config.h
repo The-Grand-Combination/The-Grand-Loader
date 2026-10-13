@@ -21,6 +21,10 @@ struct Config {
     bool fast_ai_queue = false;         // at max speed, finish the AI job queue in the frame it started in
     int parallel_decisions = 0;         // 0 off, 1 AI decision checks on worker threads, 2 shadow mode (compare only)
     int parallel_events = 0;            // 0 off, 1 event scan triggers on worker threads, 2 shadow mode (compare only)
+    bool state_checksum = false;        // multiplayer: append state hashes to the daily sync vector
+    bool oos_log = false;               // multiplayer: log which element of the sync vector differed
+    bool pin_fpu = false;               // multiplayer: fixed x87 control word and MXCSR at every tick
+    int fpu_precision = 24;             // with pin_fpu: 24 (what Direct3D leaves on Windows) or 53
 };
 
 // Reads mod\performance_patch.ini.

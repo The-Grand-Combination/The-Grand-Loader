@@ -17,6 +17,9 @@
 #include "features/performance/country_prepass.h"
 #include "features/performance/worker_threads.h"
 #include "features/profilers/year_timer.h"
+#include "features/multiplayer/state_checksum.h"
+#include "features/multiplayer/oos_log.h"
+#include "features/multiplayer/fpu_pin.h"
 #include "log.h"
 
 namespace {
@@ -50,6 +53,10 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_ai_queue(config);
     cp::features::install_events_parallel(config);
     cp::features::install_country_prepass(config);
+    // after tick_profiler: state_checksum chains to whatever the DayTick call site holds
+    cp::features::install_state_checksum(config);
+    cp::features::install_oos_log(config);
+    cp::features::install_fpu_pin(config);
     return 0;
 }
 

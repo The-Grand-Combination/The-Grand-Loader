@@ -20,6 +20,16 @@ otherwise, an optimisation gives **the same results** as the unpatched game. Tim
 | [`parallel_events`](parallel-events.md) | evaluates the daily event scan's triggers on worker threads |
 | [`engine_worker_threads`](engine-worker-threads.md) | thread count of the game's own TBB scheduler |
 
+## Multiplayer
+
+Every player of a game must use the same values.
+
+| option | what it does |
+|---|---|
+| [`state_checksum`](state-checksum.md) | adds hashes of the game state to the daily sync check, so a desync is reported the day it happens |
+| [`oos_log`](oos-log.md) | names the element of the sync check that differed, in `the_grand_loader.log` |
+| [`pin_fpu`, `fpu_precision`](pin-fpu.md) | fixes the floating-point control registers at every tick, so all machines compute alike |
+
 ## Memory
 
 | option | what it does |

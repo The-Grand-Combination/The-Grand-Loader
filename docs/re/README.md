@@ -62,6 +62,7 @@ docs/re/
 | [performance.md](systems/performance.md) | measured budget, lessons, ranked performance candidates |
 | [parallel-triggers.md](systems/parallel-triggers.md) | feasibility of evaluating triggers on worker threads |
 | [network.md](systems/network.md) | ENet session, the 35 ms per-frame network wait |
+| [multiplayer.md](systems/multiplayer.md) | command flow, what the OOS check compares, the built-in RNG realign, join in progress, RNG instances |
 | [flags.md](systems/flags.md) | flag atlases, the uncompressed managed textures, `compress_flag_cache` |
 
 ## Conventions
