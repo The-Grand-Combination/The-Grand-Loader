@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <cwchar>
+
 namespace tgl {
 
 std::vector<PluginEntry> discover_plugins(const std::wstring& game_dir) {
@@ -18,6 +20,10 @@ std::vector<PluginEntry> discover_plugins(const std::wstring& game_dir) {
             continue;
         }
         std::wstring file = found.cFileName;
+        // The wildcard also matches 8.3 short names (settings.initial -> SETTIN~1.INI).
+        if (file.size() <= 4 || _wcsicmp(file.c_str() + file.size() - 4, L".ini") != 0) {
+            continue;
+        }
         PluginEntry entry;
         entry.name = file.substr(0, file.size() - 4);
         entry.config_file = mod_dir + L"\\" + file;

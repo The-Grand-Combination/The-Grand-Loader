@@ -14,7 +14,7 @@ without waiting for a real one.
 - A small always-on-top tool window with a "Force OOS" button, owned by a thread of the patch, is kept
   over the top-right corner of the game window (repositioned four times a second; hidden when the game
   is minimised). It never takes focus. Exclusive fullscreen hides it; Ctrl+Shift+O, polled on the game
-  thread at every tick, works everywhere.
+  thread at every tick while the game window has the focus, works everywhere.
 - On the next hourly tick the first element of the local sync vector (`world+0xB74`, the random draw
   count) is flipped before the game compares it with the host's. The comparison fails and the game
   takes its real out-of-sync path. The tick command was copied from the vector before the flip, so

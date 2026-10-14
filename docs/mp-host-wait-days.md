@@ -22,6 +22,6 @@ which makes the gap open sooner.
   commands) and skips the call while the slowest player is more than `mp_host_wait_days` days
   behind; the host then waits instead of running ahead. On clients, and in single player, nothing
   changes.
-- A player whose reports stop (a disconnect) would hold the host forever, so a wait longer than
-  15 seconds is released with a log line, and the game's own player-lost handling takes over.
+- A player whose reported date stops changing for 15 seconds (a disconnect) is left out of the
+  check, so it cannot hold the host; the game's own player-lost handling takes over.
 - The first ten waits are logged with the lag seen.

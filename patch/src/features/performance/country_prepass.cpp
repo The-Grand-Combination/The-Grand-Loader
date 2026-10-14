@@ -42,6 +42,7 @@ constexpr uint32_t kCountryMatrix = 0x14F4;
 constexpr uint32_t kCountryProvincesBegin = 0x9D8;
 constexpr uint32_t kCountryProvincesEnd = 0x9DC;
 constexpr uint32_t kEntrySize = 0x18;
+constexpr uint32_t kDeadTagOffsets[] = {0x2C, 0x30};
 constexpr uint64_t kReportEvery = 683 * 30;    // about every 30 game days
 
 bool g_skip_resets = false;
@@ -101,8 +102,7 @@ uint8_t __stdcall before_reset(uintptr_t country) {
         return 0;
     }
     if (read32(country + kCountryProvincesEnd) == read32(country + kCountryProvincesBegin)) {
-        prefetch_all_relations(country, 0x2C);  // the dead tag's relation loop (0x00508DA7)
-        prefetch_all_relations(country, 0x30);
+        prefetch_all_relations(country, kDeadTagOffsets, 2);  // the dead tag's relation loop (0x00508DA7)
     } else {
         prefetch_country_pops(country);  // FUN_0050B9B0's pop walk
     }

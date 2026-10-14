@@ -1,10 +1,10 @@
 #include "features/performance/ai_queue.h"
-#include "features/performance/decision_cull.h"
 
 #include <windows.h>
 
 #include <cstdint>
 
+#include "features/performance/decision_cull.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -34,7 +34,6 @@ constexpr int64_t kMaxFrameMs = 250;              // keeps the window responsive
 using AiFrameUpdateFn = void(__stdcall*)(void* queue_ref);
 AiFrameUpdateFn g_ai_frame_update = nullptr;
 uintptr_t g_world_slot = 0;
-int64_t g_qpc_freq = 0;
 int64_t g_max_frame_ticks = 0;  // kMaxFrameMs in QPC ticks
 
 inline int64_t qpc() {
@@ -95,8 +94,7 @@ void install_ai_queue(const Config& config) {
     }
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
-    g_qpc_freq = freq.QuadPart;
-    g_max_frame_ticks = g_qpc_freq * kMaxFrameMs / 1000;
+    g_max_frame_ticks = freq.QuadPart * kMaxFrameMs / 1000;
     g_world_slot = hooks::exe_addr(kWorldPtrRva);
     g_ai_frame_update = reinterpret_cast<AiFrameUpdateFn>(hooks::exe_addr(kAiFrameUpdateRva));
     if (!hooks::redirect_call(hooks::exe_addr(kCallSiteRva), hooks::exe_addr(kAiFrameUpdateRva),

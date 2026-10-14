@@ -4,11 +4,11 @@
 
 #include <cstring>
 
-#include "log.h"
-
 namespace cp::hooks {
 
-uintptr_t exe_base() { return reinterpret_cast<uintptr_t>(host().exe_base); }
+uintptr_t g_exe_base = 0;
+
+void set_exe_base(const void* base) { g_exe_base = reinterpret_cast<uintptr_t>(base); }
 
 bool expect_bytes(uintptr_t at, const void* expected, size_t size) {
     return std::memcmp(reinterpret_cast<const void*>(at), expected, size) == 0;
@@ -44,6 +44,17 @@ bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) 
     rel = static_cast<int32_t>(target - (site + 5));
     std::memcpy(patched + 1, &rel, sizeof(rel));
     return write_bytes(site, patched, sizeof(patched));
+}
+
+bool chain_call(uintptr_t site, uintptr_t target, uintptr_t& previous) {
+    previous = 0;
+    if (*reinterpret_cast<const unsigned char*>(site) != 0xE8) {
+        return false;
+    }
+    int32_t rel;
+    std::memcpy(&rel, reinterpret_cast<const void*>(site + 1), sizeof(rel));
+    previous = site + 5 + static_cast<uintptr_t>(rel);
+    return redirect_call(site, previous, target);
 }
 
 }  // namespace cp::hooks

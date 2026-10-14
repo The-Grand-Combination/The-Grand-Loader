@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
-#include <utility>
+#include <iterator>
 #include <vector>
 
 #include "features/profilers/tick_profiler_sites.h"
@@ -145,8 +145,8 @@ void report() {
         if (t.calls == 0) {
             continue;
         }
-        cp::logf("tick_profiler:   %-22s %9.2f %9.2f %10llu", t.name, ms(t.inclusive) / days, ms(t.exclusive) / days,
-                 static_cast<unsigned long long>(t.calls / days));
+        cp::logf("tick_profiler:   %-22s %9.2f %9.2f %10.1f", t.name, ms(t.inclusive) / days, ms(t.exclusive) / days,
+                 static_cast<double>(t.calls) / days);
     }
     if (g_lost_frames) {
         cp::logf("tick_profiler: frames were lost at least once in this window (exception unwind); exclusive times may be off");
@@ -177,9 +177,6 @@ void on_day(int32_t day) {
     g_last_day = day;
 }
 
-}  // namespace
-
-// Called from the thunks; plain integer code only (the thunks save XMM/flags/registers around it).
 // Pops the shadow stack down to `depth` without attributing the dropped frames.
 void drop_frames(int depth) {
     while (g_depth > depth) {
@@ -188,6 +185,11 @@ void drop_frames(int depth) {
         g_lost_frames = true;
     }
 }
+
+}  // namespace
+
+// Set by pp_profiler_enter when the call is not recorded; the thunk then leaves the return address alone.
+extern "C" int g_pp_bypass = 0;
 
 extern "C" uintptr_t __cdecl pp_profiler_enter(int site, uintptr_t ret, uintptr_t ret_slot) {
     int target = g_site_target_index[site];
@@ -207,8 +209,10 @@ extern "C" uintptr_t __cdecl pp_profiler_enter(int site, uintptr_t ret, uintptr_
     }
     drop_frames(keep);
     if (g_depth >= kMaxDepth) {
-        drop_frames(kMaxDepth - 1);
+        g_pp_bypass = 1;  // not recorded: the thunk must not install the return stub for this call
+        return g_site_target_addr[site];
     }
+    g_pp_bypass = 0;
     Frame& f = g_shadow[g_depth++];
     f.target = target;
     f.ret = ret;
@@ -230,9 +234,11 @@ extern "C" uintptr_t __cdecl pp_profiler_leave(uintptr_t esp_now) {
         k--;
     }
     if (k == g_depth) {
-        g_lost_frames = true;  // nothing matches below esp_now; best effort: the most recent frame
+        // Every recorded frame has the stub installed, so this cannot happen unless the stack was
+        // switched under us; the most recent frame is the only candidate.
+        g_lost_frames = true;
         if (g_depth == 0) {
-            return 0;  // no frame at all; unrecoverable
+            return 0;
         }
         k = g_depth - 1;
     }
@@ -327,7 +333,10 @@ extern "C" void __declspec(naked) pp_profiler_thunk_common() {
         call pp_profiler_enter    ; eax = original target
         add esp, 12
         mov [esp + 272], eax        ; site slot := target
+        cmp dword ptr [g_pp_bypass], 0
+        jne no_stub
         mov dword ptr [esp + 276], offset pp_profiler_return_stub
+    no_stub:
         movdqu xmm0, [esp]
         movdqu xmm1, [esp + 16]
         movdqu xmm2, [esp + 32]
@@ -374,7 +383,7 @@ PP_THUNK10(55) PP_THUNK10(56) PP_THUNK10(57) PP_THUNK10(58) PP_THUNK10(59)
 namespace {
 #define T(N) pp_profiler_thunk_##N
 #define T10(B) T(B##0), T(B##1), T(B##2), T(B##3), T(B##4), T(B##5), T(B##6), T(B##7), T(B##8), T(B##9)
-void (*const kThunks[kMaxSites])() = {
+void (*const kThunks[])() = {
     T(0), T(1), T(2), T(3), T(4), T(5), T(6), T(7), T(8), T(9),
     T10(1), T10(2), T10(3), T10(4), T10(5), T10(6), T10(7), T10(8), T10(9),
     T10(10), T10(11), T10(12), T10(13), T10(14), T10(15), T10(16), T10(17), T10(18), T10(19),
@@ -385,8 +394,7 @@ void (*const kThunks[kMaxSites])() = {
 };
 #undef T10
 #undef T
-constexpr int kThunkCount = kMaxSites;
-static_assert(kMaxSites == 600, "thunk table covers ids 0..599");
+static_assert(std::size(kThunks) == kMaxSites, "one thunk per site id");
 
 int target_index(uint32_t rva) {
     for (size_t i = 0; i < g_targets.size(); i++) {
@@ -400,6 +408,7 @@ int target_index(uint32_t rva) {
     for (const Known& k : kKnown) {
         if (k.target_rva == rva) {
             name = k.name;
+            break;
         }
     }
     if (name) {
@@ -412,7 +421,7 @@ int target_index(uint32_t rva) {
 }
 
 bool add_site(uint32_t site_rva, uint32_t target_rva) {
-    if (g_site_count >= kThunkCount) {
+    if (g_site_count >= kMaxSites) {
         return false;
     }
     uintptr_t site = cp::hooks::exe_addr(site_rva);
@@ -432,7 +441,7 @@ bool add_site(uint32_t site_rva, uint32_t target_rva) {
 
 // A vtable slot (or any stored function pointer) that currently holds `target_rva`.
 bool add_slot(uint32_t slot_rva, uint32_t target_rva) {
-    if (g_site_count >= kThunkCount) {
+    if (g_site_count >= kMaxSites) {
         return false;
     }
     uintptr_t target = cp::hooks::exe_addr(target_rva);
@@ -458,20 +467,25 @@ void install_tick_profiler(const Config& config) {
     QueryPerformanceFrequency(&freq);
     g_qpc_freq = freq.QuadPart;
 
+    auto fail = [](const char* what) {
+        logf("tick_profiler: %s not recognised, feature off", what);
+        g_site_count = 0;
+        g_targets.clear();
+        g_sites_added.clear();
+        g_world_target = g_frame_target = -1;
+    };
     // Level 1 must match completely or nothing is patched: a partial set would skew the exclusive times.
     for (const Level1& b : kLevel1) {
         if (!add_site(b.site_rva, b.target_rva)) {
-            logf("tick_profiler: call site %08X not recognised, feature off", b.site_rva + 0x400000);
-            g_site_count = 0;
-            g_targets.clear();
+            char what[48];
+            snprintf(what, sizeof(what), "call site %08X", b.site_rva + 0x400000);
+            fail(what);
             return;
         }
     }
     // The per-frame function is reached through its vtable (CInGameIdler slot at 0x00E0A350).
     if (!add_slot(0xA0A350, 0x254D80)) {
-        logf("tick_profiler: CInGameIdler::Update slot not recognised, feature off");
-        g_site_count = 0;
-        g_targets.clear();
+        fail("CInGameIdler::Update slot");
         return;
     }
     int level1 = g_site_count;
@@ -510,21 +524,17 @@ void install_tick_profiler(const Config& config) {
     // Each redirect is independent; ids follow the order the sites were added.
     for (int site = 0; site < g_site_count; site++) {
         const Added& a = g_sites_added[site];
-        if (a.slot) {
-            hooks::replace_pointer(hooks::exe_addr(a.rva), g_site_target_addr[site],
-                                   reinterpret_cast<uintptr_t>(kThunks[site]));
-        } else {
-            hooks::redirect_call(hooks::exe_addr(a.rva), g_site_target_addr[site],
-                                 reinterpret_cast<uintptr_t>(kThunks[site]));
+        uintptr_t thunk = reinterpret_cast<uintptr_t>(kThunks[site]);
+        bool ok = a.slot ? hooks::replace_pointer(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk)
+                         : hooks::redirect_call(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk);
+        if (!ok) {
+            logf("tick_profiler: could not patch site %08X, its target will show 0 calls", a.rva + 0x400000);
+            skipped++;
         }
     }
     logf("tick_profiler: active at level %d, %d call sites (%d level-1, %d skipped), %zu targets, report every %d game days",
          config.tick_profiler, g_site_count, level1, skipped, g_targets.size(), kReportEveryDays);
 }
-
-}  // namespace cp::features
-
-namespace cp::features {
 
 void tick_profiler_crash_context() {
     if (g_site_count == 0) {

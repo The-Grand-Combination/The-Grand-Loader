@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "features/performance/cb_cull_triggers.h"
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -41,9 +42,6 @@ constexpr uint32_t kIsAnyCBUsableRva = 0x52EDE0;    // CBManager_IsAnyCBUsable(r
 constexpr uint32_t kScopeCtorRva = 0x4A8650;        // CEventScope::ctor(this, parent = 0)
 constexpr uint32_t kScanCallSites[] = {0x45DCDA,    // in AI_ScoreWarTargets
                                        0x45E5FB};   // in AI_ScoreDiplomaticTargets
-constexpr uint32_t kWorldPtrRva = 0xE588E8;         // DAT_012588E8
-constexpr uint32_t kWorldDateOffset = 0xB0C;        // hours
-constexpr uint32_t kCountryManagerPtrRva = 0xE587E4;  // DAT_012587E4, +0 = count
 constexpr uint32_t kCBManagerPtrRva = 0xF1ACAC;     // DAT_0131ACAC, +0xC/+0x10 = vector<CCasusBelliType*>
 constexpr uint32_t kAndVtableRva = 0x9F9994;        // CAndTrigger::vftable
 constexpr uint32_t kOrVtableRva = 0xA2FB70;         // COrTrigger::vftable
@@ -64,7 +62,6 @@ constexpr uint32_t kTriggerThisFlag = 0x18;  // value was `THIS`
 constexpr uint32_t kTriggerFromFlag = 0x19;  // value was `FROM`
 constexpr uint32_t kVtableEvaluate = 0x18;   // CTrigger slot 6: bool Evaluate(scope)
 constexpr uint32_t kScopeTag = 0x08;         // CEventScope: country tag
-constexpr uint32_t kScopeIndex = 0x0C;       //              country index
 constexpr uint32_t kScopeThis = 0x24;        //              THIS scope pointer
 constexpr size_t kScopeSize = 0x60;          // ctor writes up to +0x48
 
@@ -120,7 +117,7 @@ int32_t g_window_start_day = -1;
 int64_t g_window_start_qpc = 0;
 int64_t g_qpc_freq = 0;
 
-inline uint32_t read32(uintptr_t at) { return *reinterpret_cast<const uint32_t*>(at); }
+using game::read32;
 inline uint8_t read8(uintptr_t at) { return *reinterpret_cast<const uint8_t*>(at); }
 
 inline int64_t qpc() {
@@ -132,13 +129,10 @@ inline double ms(uint64_t ticks) {
     return g_qpc_freq ? 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq) : 0.0;
 }
 
-int32_t current_day() {
-    uintptr_t world = read32(hooks::exe_addr(kWorldPtrRva));
-    return world ? static_cast<int32_t>(read32(world + kWorldDateOffset)) / 24 : -1;
-}
+int32_t current_day() { return game::day(game::world()); }
 
 size_t country_count() {
-    uintptr_t manager = read32(hooks::exe_addr(kCountryManagerPtrRva));
+    uintptr_t manager = game::country_manager();
     return manager ? read32(manager) : 0;
 }
 
@@ -199,17 +193,16 @@ inline bool can_use(uintptr_t type, void* scope) {
     return fn(reinterpret_cast<void*>(type), nullptr, scope) != 0;
 }
 
-// Rebuilds g_types when the CB list changed (first use, or a reload).
+// Rebuilds g_types when the CB list changed (first use, or a reload, which reallocates the manager's
+// vector). Called on every scan, so the cheap test comes first.
+uintptr_t g_types_begin = 0;
 void refresh_types() {
     size_t count = cb_type_count();
     uintptr_t begin = cb_types_begin();
-    bool same = g_types.size() == count;
-    for (size_t i = 0; same && i < count; i++) {
-        same = g_types[i].type == read32(begin + i * 4);
-    }
-    if (same) {
+    if (begin == g_types_begin && g_types.size() == count) {
         return;
     }
+    g_types_begin = begin;
     g_types.assign(count, TypeInfo{});
     size_t classified = 0, always = 0;
     for (size_t i = 0; i < count; i++) {
@@ -369,9 +362,16 @@ char __stdcall is_any_cb_usable_hook(void* relation, void* defender_ref, void* a
         }
     }
 
+    char result = 0;
+    uintptr_t held = relation ? read32(reinterpret_cast<uintptr_t>(relation) + kRelationHeldList) : 0;
+    if (state->live_always.empty() && !held) {
+        if (g_profiling && sampled) {
+            g_stats.scan_ticks += static_cast<uint64_t>(qpc() - start) * kSample;
+        }
+        return 0;  // nothing to test: the scopes are not needed
+    }
     ScopePair scopes;
     build_scopes(scopes, attacker_ref, defender_ref);
-    char result = 0;
 
     // `always = yes` types that survived the attacker-only conditions today
     for (uint32_t i : state->live_always) {
@@ -386,8 +386,8 @@ char __stdcall is_any_cb_usable_hook(void* relation, void* defender_ref, void* a
     }
     // CBs the attacker actually holds against this defender (the original finds these by walking
     // the same list once per type); `always` types were covered above, dead ones cannot pass
-    if (!result && relation) {
-        for (uintptr_t node = read32(reinterpret_cast<uintptr_t>(relation) + kRelationHeldList); node;
+    if (!result && held) {
+        for (uintptr_t node = held; node;
              node = read32(node + kHeldNodeNext)) {
             uintptr_t cb = read32(node + kHeldNodeCB);
             if (!cb) {
@@ -460,7 +460,7 @@ void install_cb_cull(const Config& config) {
             return;  // an already redirected site still behaves correctly
         }
     }
-    logf("cb_cull: active (v3: one scope pair per target, can_use only for live `always` and held types; %zu attacker-only "
+    logf("cb_cull: active (one scope pair per target, can_use only for live `always` and held types; %zu attacker-only "
          "trigger classes), profiling %s",
          g_attacker_only_classes.size(), g_profiling ? "on" : "off");
 }

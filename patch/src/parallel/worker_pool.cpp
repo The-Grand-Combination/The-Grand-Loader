@@ -4,6 +4,7 @@
 
 #include <cstdint>
 
+#include "hooks/fpu.h"
 #include "log.h"
 
 namespace cp::parallel {
@@ -28,24 +29,6 @@ struct Pool {
 Pool g_pool;
 int g_workers = -1;  // -1 = not started
 
-void read_fpu(uint16_t* x87, uint32_t* mxcsr) {
-    uint16_t cw;
-    uint32_t csr;
-    __asm {
-        fnstcw cw
-        stmxcsr csr
-    }
-    *x87 = cw;
-    *mxcsr = csr;
-}
-
-void write_fpu(uint16_t x87, uint32_t mxcsr) {
-    __asm {
-        fldcw x87
-        ldmxcsr mxcsr
-    }
-}
-
 void work_batch() {
     for (;;) {
         LONG i = InterlockedIncrement(&g_pool.next) - 1;
@@ -66,7 +49,7 @@ DWORD WINAPI worker_main(void*) {
         seen = g_pool.generation;
         ReleaseSRWLockExclusive(&g_pool.lock);
 
-        write_fpu(g_pool.x87, g_pool.mxcsr);
+        hooks::write_fpu(g_pool.x87, g_pool.mxcsr);
         work_batch();
 
         AcquireSRWLockExclusive(&g_pool.lock);
@@ -81,7 +64,7 @@ void start() {
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     int wanted = static_cast<int>(info.dwNumberOfProcessors) - 1;
-    wanted = wanted < 1 ? 1 : (wanted > kMaxWorkers ? kMaxWorkers : wanted);
+    wanted = wanted < 0 ? 0 : (wanted > kMaxWorkers ? kMaxWorkers : wanted);  // 0 on one core: serial path
     g_workers = 0;
     for (int i = 0; i < wanted; i++) {
         HANDLE thread = CreateThread(nullptr, 0, &worker_main, nullptr, 0, nullptr);
@@ -108,7 +91,7 @@ void run(int count, TaskFn task, void* context) {
     }
     uint16_t x87;
     uint32_t mxcsr;
-    read_fpu(&x87, &mxcsr);
+    hooks::read_fpu(x87, mxcsr);
     if (g_workers == 0 || count == 1) {
         for (int i = 0; i < count; i++) {
             task(i, context);

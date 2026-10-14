@@ -279,34 +279,25 @@ void install_pops_prefetch(const Config& config) {
     g_update_pops = hooks::exe_addr(kUpdatePopsRva);
     g_province_pops = hooks::exe_addr(kProvincePopsRva);
     g_pop_distribute = hooks::exe_addr(kPopDistributeRva);
-    int active = 0;
-    if (hooks::redirect_call(hooks::exe_addr(kCallSiteRva), g_update_pops,
-                             reinterpret_cast<uintptr_t>(&update_pops_thunk))) {
-        active++;
-    } else {
-        logf("prefetch_pops: call site %08X (market) not recognised or already hooked, skipped", kCallSiteRva + 0x400000);
-    }
-    if (hooks::redirect_call(hooks::exe_addr(kProvinceCallRva), g_province_pops,
-                             reinterpret_cast<uintptr_t>(&province_pops_thunk))) {
-        active++;
-    } else {
-        logf("prefetch_pops: call site %08X (DayTick provinces) not recognised or already hooked, skipped",
-             kProvinceCallRva + 0x400000);
-    }
-    if (hooks::redirect_call(hooks::exe_addr(kDistributionCallRva), g_pop_distribute,
-                             reinterpret_cast<uintptr_t>(&distribution_thunk))) {
-        active++;
-    } else {
-        logf("prefetch_pops: call site %08X (market distribution) not recognised or already hooked, skipped",
-             kDistributionCallRva + 0x400000);
-    }
     g_daily_update = hooks::exe_addr(kDailyUpdateRva);
-    if (hooks::redirect_call(hooks::exe_addr(kDailyUpdateCallRva), g_daily_update,
-                             reinterpret_cast<uintptr_t>(&daily_update_thunk))) {
-        active++;
-    } else {
-        logf("prefetch_pops: call site %08X (Country_DailyUpdate) not recognised or already hooked, skipped",
-             kDailyUpdateCallRva + 0x400000);
+    struct Site {
+        uint32_t call_rva;
+        uintptr_t target;
+        void (*thunk)();
+        const char* name;
+    } sites[] = {
+        {kCallSiteRva, g_update_pops, &update_pops_thunk, "market"},
+        {kProvinceCallRva, g_province_pops, &province_pops_thunk, "DayTick provinces"},
+        {kDistributionCallRva, g_pop_distribute, &distribution_thunk, "market distribution"},
+        {kDailyUpdateCallRva, g_daily_update, &daily_update_thunk, "Country_DailyUpdate"},
+    };
+    int active = 0;
+    for (const Site& s : sites) {
+        if (hooks::redirect_call(hooks::exe_addr(s.call_rva), s.target, reinterpret_cast<uintptr_t>(s.thunk))) {
+            active++;
+        } else {
+            logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped", s.call_rva + 0x400000, s.name);
+        }
     }
     g_enabled = true;
     logf("prefetch_pops: active on %d of 4 pop loops (country market update, DayTick province pass, market distribution, Country_DailyUpdate)", active);

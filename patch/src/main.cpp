@@ -4,26 +4,27 @@
 
 #include "config.h"
 #include "crash_log.h"
-#include "features/performance/cb_cull.h"
-#include "features/performance/decision_cull.h"
-#include "features/profilers/tick_profiler.h"
-#include "features/profilers/sample_profiler.h"
-#include "features/performance/network_wait.h"
-#include "features/performance/relations_prefetch.h"
-#include "features/performance/pops_prefetch.h"
 #include "features/memory/flag_cache.h"
-#include "features/performance/ai_queue.h"
-#include "features/performance/events_parallel.h"
-#include "features/performance/country_prepass.h"
-#include "features/performance/worker_threads.h"
-#include "features/profilers/year_timer.h"
-#include "features/multiplayer/state_checksum.h"
-#include "features/multiplayer/oos_log.h"
 #include "features/multiplayer/fpu_pin.h"
+#include "features/multiplayer/host_wait.h"
+#include "features/multiplayer/oos_log.h"
 #include "features/multiplayer/oos_test.h"
+#include "features/multiplayer/state_checksum.h"
 #include "features/multiplayer/sync_check.h"
 #include "features/multiplayer/world_rng.h"
-#include "features/multiplayer/host_wait.h"
+#include "features/performance/ai_queue.h"
+#include "features/performance/cb_cull.h"
+#include "features/performance/country_prepass.h"
+#include "features/performance/decision_cull.h"
+#include "features/performance/events_parallel.h"
+#include "features/performance/network_wait.h"
+#include "features/performance/pops_prefetch.h"
+#include "features/performance/relations_prefetch.h"
+#include "features/performance/worker_threads.h"
+#include "features/profilers/sample_profiler.h"
+#include "features/profilers/tick_profiler.h"
+#include "features/profilers/year_timer.h"
+#include "hooks/memory.h"
 #include "log.h"
 
 namespace {
@@ -39,6 +40,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
         return 1;
     }
     g_host = host;
+    cp::hooks::set_exe_base(host->exe_base);
     cp::logf("Victoria II Performance Patch %s", PERFORMANCE_PATCH_VERSION);
 
     cp::install_crash_log(&cp::features::tick_profiler_crash_context);

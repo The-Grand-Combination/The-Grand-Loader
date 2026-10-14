@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -56,7 +57,7 @@ inline T read(uintptr_t at) {
 }
 
 // The countries the scans visit, split once per game day instead of testing every tag's provinces on
-// every call (mid-game profile: ~1.3 M such tests a day, most of this feature's own cost). A country that
+// every call. A country that
 // gains or loses its provinces during the day is prefetched by yesterday's list until the next day:
 // prefetching never changes results, only which lines are warm.
 struct CountryLists {
@@ -67,16 +68,15 @@ struct CountryLists {
     int32_t count = -1;
 };
 CountryLists g_lists;
-uintptr_t g_lists_world_slot = 0;
 
 const CountryLists* country_lists() {
     uintptr_t manager = read<uint32_t>(g_country_manager_slot);
-    uintptr_t world = read<uint32_t>(g_lists_world_slot);
+    uintptr_t world = game::world();
     if (!manager || !world) {
         return nullptr;
     }
     int32_t countries = read<int32_t>(manager);
-    int32_t date = read<int32_t>(world + 0xB0C) / 24;
+    int32_t date = game::day(world);
     if (date == g_lists.date && countries == g_lists.count) {
         return &g_lists;
     }
@@ -147,6 +147,9 @@ void __stdcall before_market(uintptr_t country) { prefetch_relations(country, kM
 
 // Returns 1 when the purge of `rel` would do nothing.
 uint8_t __stdcall before_purge(uintptr_t rel, uintptr_t self) {
+    if (!rel) {
+        return 0;
+    }
     if (self != g_purge_self) {
         g_purge_self = self;
         prefetch_relations(self, kPurgeOffsets, 3);
@@ -207,15 +210,13 @@ __declspec(naked) void purge_thunk() {
 // 0x00530388). Two passes: the array pointers' lines, then the elements.
 constexpr uint32_t kPairCallRva = 0x10B6B9;
 constexpr uint32_t kPairRva = 0x12FCD0;
-constexpr uint32_t kWorldPtrRva = 0xE588E8;
 constexpr uint32_t kWorldLiving = 0xADC;   // vector<CCountry*> walked by FUN_0052FCD0 and FUN_00522CF0
 constexpr uint32_t kCountryPairArray = 0x1580;
 
 uintptr_t g_pair = 0;
-uintptr_t g_world_slot = 0;
 
 void __stdcall before_pair(uintptr_t country) {
-    uintptr_t world = read<uint32_t>(g_world_slot);
+    uintptr_t world = game::world();
     if (!world || !country) {
         return;
     }
@@ -242,7 +243,7 @@ __declspec(naked) void pair_thunk() {
     }
 }
 
-// AI target scan (2026-10-11): FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
+// AI target scan: FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
 // reached only through vtable slot 0x00E2773C, once per AI country per day from the AI job queue. It loops
 // over every country (index 1..count, provinces or not) and tests `CMP [self+0xBE8[other] + 0x34], 0`;
 // 90 % of its samples sit right after that read (0x0084B29D). Later, rarely, it reads +0x3C.
@@ -291,12 +292,10 @@ void install_relations_prefetch(const Config& config) {
         return;
     }
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
-    g_lists_world_slot = hooks::exe_addr(0xE588E8);  // g_world
     g_recalc = hooks::exe_addr(kRecalcRva);
     g_market = hooks::exe_addr(kMarketRva);
     g_purge = hooks::exe_addr(kPurgeRva);
     g_pair = hooks::exe_addr(kPairRva);
-    g_world_slot = hooks::exe_addr(kWorldPtrRva);
     struct Site {
         uint32_t call_rva;
         uintptr_t target;
@@ -328,7 +327,6 @@ void install_ai_relations_prefetch(const Config& config) {
         return;
     }
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
-    g_lists_world_slot = hooks::exe_addr(0xE588E8);  // g_world
     g_ai_scan = hooks::exe_addr(kAiScanRva);
     if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan, reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
         logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", kAiScanSlotRva + 0x400000);
@@ -337,11 +335,11 @@ void install_ai_relations_prefetch(const Config& config) {
     logf("prefetch_ai_relations: active, relations prefetched before each AI country's daily target scan");
 }
 
-void prefetch_all_relations(uintptr_t country, uint32_t offset) {
+void prefetch_all_relations(uintptr_t country, const uint32_t* offsets, int count) {
     const CountryLists* lists = g_relations_enabled ? country_lists() : nullptr;
     uintptr_t relations = lists && country ? read<uint32_t>(country + kCountryRelations) : 0;
     if (relations) {
-        prefetch_list(relations, lists->all, &offset, 1);
+        prefetch_list(relations, lists->all, offsets, count);
     }
 }
 

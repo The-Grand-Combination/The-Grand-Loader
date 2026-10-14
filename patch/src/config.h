@@ -31,7 +31,7 @@ struct Config {
     int mp_host_wait_days = 0;          // multiplayer: host holds its ticks while a player is more than N days behind (0 = off)
 };
 
-// Reads mod\performance_patch.ini.
+// Reads the ini at `config_file`; unknown keys are ignored, missing keys keep their defaults.
 Config load_config(const std::wstring& config_file);
 
 }  // namespace cp

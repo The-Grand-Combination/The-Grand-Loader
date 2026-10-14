@@ -36,8 +36,7 @@ constexpr uint32_t kReloadCacheSite = 0x3E6492;
 
 constexpr DWORD kFormatUnknown = 0;
 constexpr DWORD kFormatA8R8G8B8 = 21;
-// DXT1: 4 bits per pixel, the same colour encoding as DXT5 but 1-bit alpha. Flag atlases are fully opaque
-// (every 4x4 block of TGC's DXT5 atlases had alpha 255/255), so nothing is lost against DXT5 at half the size.
+// DXT1: half of DXT5, 1-bit alpha; the atlases are fully opaque (see the header).
 constexpr DWORD kFormatDxt1 = 0x31545844;  // D3DFMT_DXT1, FOURCC 'DXT1'
 constexpr DWORD kFileFormatTga = 2;  // D3DXIFF_TGA
 constexpr DWORD kFileFormatDds = 4;  // D3DXIFF_DDS
@@ -113,12 +112,19 @@ HRESULT WINAPI load_cache(void* device, const void* data, UINT size, UINT width,
                           src_info, palette, texture);
 }
 
+// The 6-byte `CALL dword ptr [exe+iat_rva]` expected at an import call site.
+void import_call_bytes(uint32_t iat_rva, uint8_t out[6]) {
+    out[0] = 0xFF;
+    out[1] = 0x15;
+    uint32_t iat = static_cast<uint32_t>(hooks::exe_addr(iat_rva));
+    memcpy(out + 2, &iat, 4);
+}
+
 // Replaces `CALL dword ptr [exe+iat_rva]` at `site_rva` with `CALL wrapper; NOP`.
 bool hook_import_call(uint32_t site_rva, uint32_t iat_rva, void* wrapper) {
     uintptr_t site = hooks::exe_addr(site_rva);
-    uint8_t expected[6] = {0xFF, 0x15};
-    uint32_t iat = static_cast<uint32_t>(hooks::exe_addr(iat_rva));
-    memcpy(expected + 2, &iat, 4);
+    uint8_t expected[6];
+    import_call_bytes(iat_rva, expected);
     if (!hooks::expect_bytes(site, expected, sizeof(expected))) {
         return false;
     }
@@ -147,22 +153,25 @@ void install_flag_cache(const Config& config) {
         uint32_t iat;
         void* wrapper;
     } sites[] = {
-        {kCreateCopySite, kIatCreateTexture, reinterpret_cast<void*>(&create_copy)},
-        {kSaveCacheSite, kIatSaveTextureToFileInMemory, reinterpret_cast<void*>(&save_cache)},
+        // In this order a partial set is harmless: converting on load and saving as DDS are each safe alone;
+        // the DXT copy is only created once the save site takes DDS.
         {kReloadCacheSite, kIatCreateTextureFromFileInMemoryEx, reinterpret_cast<void*>(&load_cache)},
+        {kSaveCacheSite, kIatSaveTextureToFileInMemory, reinterpret_cast<void*>(&save_cache)},
+        {kCreateCopySite, kIatCreateTexture, reinterpret_cast<void*>(&create_copy)},
     };
-    // Check every site before patching any: a partial set (DXT copy saved as TGA) would write a broken cache.
     for (const Site& s : sites) {
-        uint8_t expected[6] = {0xFF, 0x15};
-        uint32_t iat = static_cast<uint32_t>(hooks::exe_addr(s.iat));
-        memcpy(expected + 2, &iat, 4);
+        uint8_t expected[6];
+        import_call_bytes(s.iat, expected);
         if (!hooks::expect_bytes(hooks::exe_addr(s.site), expected, sizeof(expected))) {
             logf("compress_flag_cache: call site %08X not recognised, feature off", s.site + 0x400000);
             return;
         }
     }
     for (const Site& s : sites) {
-        hook_import_call(s.site, s.iat, s.wrapper);
+        if (!hook_import_call(s.site, s.iat, s.wrapper)) {
+            logf("compress_flag_cache: could not patch call site %08X, stopping here", s.site + 0x400000);
+            return;
+        }
     }
     logf("compress_flag_cache: active (flag atlases created, cached and loaded as DXT1)");
 }

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "hooks/hourly_tick.h"
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 #include "parallel/worker_pool.h"
@@ -43,9 +44,6 @@ namespace cp::features {
 namespace {
 
 // --- v2game.exe 3.04 (RVA = VA - 0x00400000) ---------------------------------------------------
-constexpr uint32_t kWorldPtrRva = 0xE588E8;              // DAT_012588E8
-constexpr uint32_t kWorldDateOffset = 0xB0C;             // hours
-constexpr uint32_t kCountryManagerPtrRva = 0xE587E4;     // DAT_012587E4, +0 count of tags, +4 CCountry* array
 constexpr uint32_t kDecisionManagerPtrRva = 0xF19730;    // DAT_01319730; lists at +0xC/+0x10 and +0x28/+0x2C
 constexpr uint32_t kDecisionManagerGetterRva = 0x475040; // DecisionManager_Get()
 constexpr uint32_t kGetterCallSites[] = {0x45D34F, 0x45D459};  // in AI_DiplomacyUpdate
@@ -67,8 +65,7 @@ constexpr uint32_t kClrGlobalFlagExecuteRva = 0x482BA0;
 constexpr uint32_t kManagerSize = 0x38;       // DecisionManager_Get allocates 0x38 bytes
 constexpr uint32_t kListA = 0x0C;             // vector<CDecision*>: begin +0, end +4, capacity +8
 constexpr uint32_t kListB = 0x28;
-constexpr uint32_t kCountryTag = 0x1C;        // CCountry
-constexpr uint32_t kCountryIndex = 0x20;
+constexpr uint32_t kWorldControllers = 0xAEC;  // vector<u32> per country: 0 = AI-controlled (what `ai = yes` tests)
 constexpr uint32_t kDecisionName = 0x08;      // std::string (SSO): buffer/pointer +0x08, size +0x18, capacity +0x1C
 constexpr uint32_t kDecisionPotential = 0x24; // embedded CAndTrigger
 constexpr uint32_t kBlockBegin = 0x08;        // trigger block: vector<CTrigger*> begin
@@ -136,9 +133,17 @@ struct CountryLists {
     std::vector<uintptr_t> a;  // replaces manager list A
     std::vector<uintptr_t> b;  // replaces manager list B
     int32_t built_day = -1;
+    int32_t controller = -1;  // world+0xAEC entry at build time: a change flips `ai = yes/no`
     uint32_t version = 0;  // bumped on every build; parallel results are only used for the version they saw
     bool dirty = true;
 };
+
+int32_t controller_of(size_t country);
+
+bool lists_stale(const CountryLists& lists, size_t country, int32_t day) {
+    return lists.dirty || lists.built_day < 0 || day - lists.built_day >= kRefreshDays ||
+           lists.controller != controller_of(country);
+}
 std::vector<CountryLists> g_lists;
 alignas(16) uint8_t g_fake_manager[kManagerSize];
 
@@ -160,7 +165,7 @@ int32_t g_last_day = -1;
 int32_t g_period_start_day = -1;
 std::wstring g_report_path;
 
-inline uint32_t read32(uintptr_t at) { return *reinterpret_cast<const uint32_t*>(at); }
+using game::read32;
 inline uint8_t read8(uintptr_t at) { return *reinterpret_cast<const uint8_t*>(at); }
 
 inline int64_t qpc() {
@@ -172,18 +177,26 @@ inline double ms(uint64_t ticks) {
     return g_qpc_freq ? 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq) : 0.0;
 }
 
-int32_t current_day() {
-    uintptr_t world = read32(hooks::exe_addr(kWorldPtrRva));
-    return world ? static_cast<int32_t>(read32(world + kWorldDateOffset)) / 24 : -1;
-}
+int32_t current_day() { return game::day(game::world()); }
 
 size_t country_count() {
-    uintptr_t manager = read32(hooks::exe_addr(kCountryManagerPtrRva));
+    uintptr_t manager = game::country_manager();
     return manager ? read32(manager) : 0;
 }
 
+// The controller entry of a country (0 = AI); -1 when the table is shorter.
+int32_t controller_of(size_t country) {
+    uintptr_t world = game::world();
+    if (!world) {
+        return -1;
+    }
+    uintptr_t begin = read32(world + kWorldControllers);
+    uintptr_t end = read32(world + kWorldControllers + 4);
+    return country < (end - begin) / 4 ? static_cast<int32_t>(read32(begin + country * 4)) : -1;
+}
+
 uintptr_t country_object(size_t index) {
-    uintptr_t manager = read32(hooks::exe_addr(kCountryManagerPtrRva));
+    uintptr_t manager = game::country_manager();
     return manager && index < read32(manager) ? read32(read32(manager + 4) + index * 4) : 0;
 }
 
@@ -246,6 +259,7 @@ void build_lists(size_t country, int32_t day) {
     lists.a.clear();
     lists.b.clear();
     lists.built_day = day;
+    lists.controller = controller_of(country);
     lists.version++;
     lists.dirty = false;
 
@@ -256,7 +270,7 @@ void build_lists(size_t country, int32_t day) {
     alignas(16) unsigned char scope[kScopeSize];
     std::memset(scope, 0, sizeof(scope));
     g_scope_ctor(scope, nullptr, nullptr);
-    std::memcpy(scope + kScopeTag, reinterpret_cast<const void*>(object + kCountryTag), 8);  // {tag, index}
+    std::memcpy(scope + kScopeTag, reinterpret_cast<const void*>(object + game::kCountryTag), 8);  // {tag, index}
 
     for (const DecisionInfo& d : g_decisions) {
         if (d.locked_country >= 0 && static_cast<size_t>(d.locked_country) != country) {
@@ -293,7 +307,7 @@ uintptr_t __cdecl manager_for_country(uint32_t country) {
         return real;
     }
     CountryLists& lists = g_lists[country];
-    if (lists.dirty || lists.built_day < 0 || day - lists.built_day >= kRefreshDays) {
+    if (lists_stale(lists, country, day)) {
         build_lists(country, day);
     }
     std::memcpy(g_fake_manager, reinterpret_cast<const void*>(real), kManagerSize);
@@ -310,10 +324,14 @@ uintptr_t(__cdecl* volatile g_manager_for_country)(uint32_t) = &manager_for_coun
 // The getter takes no arguments; the AI object is in ESI at both call sites (+0xC = country index).
 __declspec(naked) void getter_stub() {
     __asm {
+        push ecx
+        push edx
         mov eax, dword ptr [esi + 0xC]
         push eax
         call dword ptr [g_manager_for_country]
         add esp, 4
+        pop edx
+        pop ecx
         ret
     }
 }
@@ -435,7 +453,7 @@ void frame_begin(void* queue_ref) {
             continue;
         }
         CountryLists& lists = g_lists[country];
-        if (lists.dirty || lists.built_day < 0 || day - lists.built_day >= kRefreshDays) {
+        if (lists_stale(lists, country, day)) {
             build_lists(country, day);  // the same rebuild the AI update would do, done here on the game thread
         }
         Precomputed& p = g_pre[country];
@@ -500,7 +518,7 @@ void shadow_compare(uint32_t country, uintptr_t ai, const Precomputed& p) {
                     uintptr_t object = country_object(country);
                     char tag[4] = {};
                     if (object) {
-                        std::memcpy(tag, reinterpret_cast<const void*>(object + kCountryTag), 3);
+                        std::memcpy(tag, reinterpret_cast<const void*>(object + game::kCountryTag), 3);
                     }
                     logf("parallel_decisions: MISMATCH day %d %s (%u) %s: serial %d, parallel %d", current_day(), tag,
                          country, decision_name(decision).c_str(), serial ? 1 : 0, in_batch ? 1 : 0);
@@ -542,6 +560,8 @@ int __fastcall ai_decisions_hook(void* ai, void* edx) {
             if (g_parallel == 1) {
                 set_fake_list(kListA, p->a);
                 set_fake_list(kListB, p->b);
+                g_ai_decisions_seen -= g_lists[country].a.size() + g_lists[country].b.size();  // counted by manager_for_country
+                g_ai_decisions_seen += p->a.size() + p->b.size();
             } else {
                 shadow_compare(country, reinterpret_cast<uintptr_t>(ai), *p);
             }

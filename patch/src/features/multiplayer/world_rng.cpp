@@ -3,7 +3,7 @@
 #include <windows.h>
 
 #include <cstdint>
-#include <cstring>
+#include <iterator>
 
 #include "game/world.h"
 #include "hooks/memory.h"
@@ -13,8 +13,8 @@
 //
 //   Rng_Next (0x009B7610): MT19937 step on the state whose address is in EAX (index at state+0x9C0).
 //   World_ctor seeds world+0xB4 from the clock; the save key that could reseed it (token 0x7A4) is not
-//   written, so two machines never share it. Measured 2026-10-13: the `world_rng` index differed on
-//   day 2 of a two-instance game.
+//   written, so two machines never share it (confirmed on a two-instance game: the index differed on
+//   day 2, docs/re/log.md 2026-10-13).
 //
 //   Ten sites draw from it with `MOV EAX,[g_world]; ADD EAX,0xB4; CALL Rng_Next`:
 //     0x00820D18 FUN_00820760 (AI frame job, host)      0x00421ECF/0x00421F32 FUN_00821DC0
@@ -33,21 +33,11 @@ namespace cp::features {
 
 namespace {
 
-constexpr uint32_t kRngNextRva = 0x5B7610;
-constexpr uint32_t kMtStateRva = 0xB0ECF0;   // g_mtState
-constexpr uint32_t kRngCallsRva = 0xB20C14;  // g_rngCalls
-constexpr uint32_t kInGameIdlerVtableRva = 0xA0A34C;  // CInGameIdler::vftable
-constexpr uint32_t kIdlerSessionManagerSlot = 0x44;    // vt[17]() -> session manager
-constexpr uint32_t kSessionManagerExecuting = 0x234;
 constexpr uint32_t kSiteRvas[] = {0x420D18, 0x421ECF, 0x421F32, 0x43381E, 0x438955,
                                   0x43C722, 0x44401D, 0x446408, 0x45CFBF, 0x4687EA};
 
 uintptr_t g_rng_next = 0;
 uintptr_t g_mt_state = 0;
-uint32_t* g_rng_calls = nullptr;
-int g_sites = 0;
-uint32_t g_lockstep_draws = 0, g_private_draws = 0;
-bool g_logged = false;
 
 // Private MT19937, seeded from the clock once.
 struct Mt {
@@ -81,23 +71,13 @@ struct Mt {
 Mt g_private;
 
 bool in_command_execution() {
-    uintptr_t world = game::world();
-    if (!world) {
-        return false;
-    }
-    uintptr_t idler = game::read32(world + 0xB24);
-    if (!idler || game::read32(idler) != hooks::exe_addr(kInGameIdlerVtableRva)) {
-        return false;  // not the in-game idler: no session manager accessor
-    }
-    using GetFn = uintptr_t(__thiscall*)(uintptr_t);
-    uintptr_t mgr = reinterpret_cast<GetFn>(game::read32(game::read32(idler) + kIdlerSessionManagerSlot))(idler);
-    return mgr && *reinterpret_cast<const uint8_t*>(mgr + kSessionManagerExecuting) != 0;
+    uintptr_t mgr = game::session_manager(game::world());
+    return mgr && *reinterpret_cast<const uint8_t*>(mgr + game::kSessionManagerExecuting) != 0;
 }
 
 uint32_t __cdecl draw() {
     if (in_command_execution()) {
-        g_lockstep_draws++;
-        (*g_rng_calls)++;
+        game::rng_calls()++;
         uint32_t value;
         uintptr_t state = g_mt_state;
         uintptr_t fn = g_rng_next;
@@ -108,7 +88,6 @@ uint32_t __cdecl draw() {
         }
         return value;
     }
-    g_private_draws++;
     return g_private.next();
 }
 
@@ -132,18 +111,18 @@ void install_world_rng(const Config& config) {
         logf("sync_world_rng: disabled");
         return;
     }
-    g_rng_next = hooks::exe_addr(kRngNextRva);
-    g_mt_state = hooks::exe_addr(kMtStateRva);
-    g_rng_calls = reinterpret_cast<uint32_t*>(hooks::exe_addr(kRngCallsRva));
+    g_rng_next = hooks::exe_addr(game::kRngNextRva);
+    g_mt_state = hooks::exe_addr(game::kMtStateRva);
+    int sites = 0;
     for (uint32_t rva : kSiteRvas) {
         if (hooks::redirect_call(hooks::exe_addr(rva), g_rng_next, reinterpret_cast<uintptr_t>(&draw_thunk))) {
-            g_sites++;
+            sites++;
         } else {
             logf("sync_world_rng: site %08X does not call Rng_Next as expected, left alone", rva + 0x400000);
         }
     }
     logf("sync_world_rng: active on %d of %d world-RNG draw sites (lockstep draws go to the global generator, counted)",
-         g_sites, static_cast<int>(sizeof(kSiteRvas) / sizeof(kSiteRvas[0])));
+         sites, static_cast<int>(std::size(kSiteRvas)));
 }
 
 }  // namespace cp::features

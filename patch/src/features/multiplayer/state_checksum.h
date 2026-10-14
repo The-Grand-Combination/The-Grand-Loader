@@ -6,12 +6,15 @@
 
 namespace cp::features {
 
-// Appends hashes of the game state to the world's daily sync vector after every DayTick, so that the
-// game's own comparison (host vector carried by the hourly tick command vs. the local one) also
-// catches divergence that does not change the number of random draws.
+// Elements of the sync vector written by the game itself: draw count and seed.
+constexpr size_t kGameSyncElements = 2;
+
+// Appends hashes of the game state to the world's daily sync vector after every DayTick. The game's
+// own comparison stays limited to its two elements (sync_check.cpp); the appended ones are compared
+// there and reported by oos_log.
 void install_state_checksum(const Config& config);
 
-// Names of the elements of the sync vector, for oos_log: the game's own two, then ours.
+// Name of an element of the sync vector, the game's own two first.
 const char* sync_element_name(size_t index);
 
 // Index of a named element in the sync vector, or (size_t)-1.

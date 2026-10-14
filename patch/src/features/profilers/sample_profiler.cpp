@@ -99,16 +99,24 @@ inline int64_t qpc() {
 
 inline double ms(uint64_t ticks) { return 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq); }
 
+// Called from the sampler thread: the world may be torn down between the two reads.
 int32_t current_day() {
-    uintptr_t world = *reinterpret_cast<const uint32_t*>(hooks::exe_addr(kWorldPtrRva));
-    return world ? static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(world + kWorldDateOffset)) / 24 : -1;
+    __try {
+        uintptr_t world = *reinterpret_cast<const uint32_t*>(hooks::exe_addr(kWorldPtrRva));
+        return world ? static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(world + kWorldDateOffset)) / 24 : -1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
 }
+
+void clear_exports();
 
 void reset(int32_t day) {
     memset(g_stacks, 0, sizeof(StackEntry) * kStackSlots);
     g_stack_count = 0;
     g_pool_used = 0;
     g_dropped = 0;
+    clear_exports();
     g_module_count = 0;
     g_samples = 0;
     g_sampled_ticks = 0;
@@ -161,6 +169,12 @@ struct Export {
 };
 std::vector<Export> g_exports[kMaxModules];
 
+void clear_exports() {
+    for (int i = 0; i < g_module_count; i++) {
+        g_exports[i].clear();
+    }
+}
+
 void load_exports(int index) {
     auto base = reinterpret_cast<const uint8_t*>(g_modules[index]);
     auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
@@ -187,8 +201,8 @@ void load_exports(int index) {
 // kModuleTag | module index << 16 | (export index + 1), 0 in the low half when no export precedes it.
 uint32_t module_leaf(uintptr_t eip) {
     HMODULE h = nullptr;
-    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                            reinterpret_cast<LPCWSTR>(eip), &h) ||
+    // The handle is kept (no UNCHANGED_REFCOUNT): the export names point into the module image.
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(eip), &h) ||
         !h) {
         return kUnknownLeaf;
     }
@@ -270,7 +284,7 @@ void record(uintptr_t eip, uintptr_t esp, uintptr_t ebp, const uint8_t* stack, s
     size_t anchors[kMaxFrames];
     int nanchors = 0;
     // `e - esp` cannot overflow once e >= esp; `e + 8` could (a chain value near 0xFFFFFFFF wrapped
-    // around, passed the bound and wrote anchor[] far out of range: the crash of 2026-10-11).
+    // around, passed the bound and wrote anchor[] far out of range: it crashed).
     for (uintptr_t e = ebp; bytes >= 8 && e >= esp && e - esp <= bytes - 8 && nanchors < kMaxFrames;) {
         size_t slot = (e + 4 - esp) / 4;
         anchor[slot] = true;
@@ -344,7 +358,7 @@ void report(int32_t day) {
             if (k) {
                 fputc(';', out);
             }
-            if (f != kUnknownLeaf && (f & 0xF0000000u) == kOwnTag) {
+            if ((f & 0xF0000000u) == kOwnTag) {
                 fprintf(out, "cp+0x%X", f & 0x0FFFFFFFu);
             } else if (f == kUnknownLeaf) {
                 fputc('?', out);
@@ -423,7 +437,6 @@ DWORD WINAPI sampler_main(void*) {
     }
 }
 
-// First hourly tick: we are on the game thread and outside the loader lock.
 void start_on_game_thread() {
     if (g_started) {
         return;
@@ -467,6 +480,9 @@ void install_sample_profiler(const Config& config) {
         return;
     }
     g_interval_ms = config.sample_profiler > 100 ? 100 : config.sample_profiler;
+    if (g_interval_ms != config.sample_profiler) {
+        logf("sample_profiler: interval capped at 100 ms");
+    }
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
     g_qpc_freq = freq.QuadPart;

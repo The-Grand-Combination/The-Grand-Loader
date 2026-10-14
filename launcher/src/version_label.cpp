@@ -45,10 +45,13 @@ bool patch_version_label(void* exe_base, const char* suffix) {
         return false;  // `push imm8` cannot encode it
     }
 
-    unsigned char length = static_cast<unsigned char>(g_label.size());
+    // One write covering both operands, so the site is never left with the new length and the old string.
+    unsigned char patched[kPointerOffset + sizeof(const char*) - kLengthOffset];
+    std::memcpy(patched, site + kLengthOffset, sizeof(patched));
+    patched[0] = static_cast<unsigned char>(g_label.size());
     const char* pointer = g_label.c_str();
-    return write_bytes(site + kLengthOffset, &length, sizeof(length)) &&
-           write_bytes(site + kPointerOffset, &pointer, sizeof(pointer));
+    std::memcpy(patched + (kPointerOffset - kLengthOffset), &pointer, sizeof(pointer));
+    return write_bytes(site + kLengthOffset, patched, sizeof(patched));
 }
 
 }  // namespace tgl

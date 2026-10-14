@@ -9,6 +9,7 @@
 `tick_profiler` only times calls it can redirect; it cannot see `CALL EAX` / `CALL [reg+n]`, other DLLs or
 the instruction the game is waiting on. A sampling profiler needs no hooks: it looks at the game thread at
 regular intervals and counts where it is.
+The interval is capped at 100 ms.
 
 ## How
 

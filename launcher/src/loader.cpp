@@ -4,7 +4,9 @@
 
 #include <psapi.h>
 
+#include <cwchar>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "tgl/plugin_api.h"
@@ -54,27 +56,32 @@ void plugin_log(const TGL_HostApi* host, const char* message) {
     log::line(host && host->plugin_name ? host->plugin_name : "plugin", message ? message : "");
 }
 
-void load_plugin(const PluginEntry& entry, const std::wstring& game_dir) {
+// True when the plugin's TGL_PluginInit ran and returned 0.
+bool load_plugin(const PluginEntry& entry, const std::wstring& game_dir) {
     std::wstring dll = entry.plugin_dir + L"\\" + entry.name + L".dll";
     if (GetFileAttributesW(dll.c_str()) == INVALID_FILE_ATTRIBUTES) {
         log::linef(kLoaderTag, "%s: no %s, ignoring", narrow(entry.name).c_str(), narrow(dll).c_str());
-        return;
+        return false;
     }
 
     HMODULE module = LoadLibraryW(dll.c_str());
     if (!module) {
         log::linef(kLoaderTag, "failed to load %s (error %lu)", narrow(dll).c_str(), GetLastError());
-        return;
+        return false;
     }
     auto init = reinterpret_cast<TGL_PluginInitFn>(GetProcAddress(module, "TGL_PluginInit"));
     if (!init) {
         log::linef(kLoaderTag, "%s does not export TGL_PluginInit, ignoring", narrow(entry.name).c_str());
         FreeLibrary(module);
-        return;
+        return false;
     }
 
     MODULEINFO info{};
-    GetModuleInformation(GetCurrentProcess(), GetModuleHandleW(nullptr), &info, sizeof(info));
+    if (!GetModuleInformation(GetCurrentProcess(), GetModuleHandleW(nullptr), &info, sizeof(info))) {
+        log::linef(kLoaderTag, "GetModuleInformation failed (error %lu), not loading %s", GetLastError(), narrow(entry.name).c_str());
+        FreeLibrary(module);
+        return false;
+    }
 
     auto* plugin = new LoadedPlugin{};
     plugin->name = narrow(entry.name);
@@ -98,7 +105,9 @@ void load_plugin(const PluginEntry& entry, const std::wstring& game_dir) {
     int rc = init(&plugin->api);
     if (rc != 0) {
         log::linef(kLoaderTag, "%s returned %d from TGL_PluginInit", plugin->name.c_str(), rc);
+        return false;
     }
+    return true;
 }
 
 }  // namespace
@@ -115,12 +124,15 @@ void loader_init() {
 
     std::vector<PluginEntry> entries = discover_plugins(game_dir);
     log::linef(kLoaderTag, "%zu plugin declaration(s) in mod\\*.ini", entries.size());
+    size_t loaded = 0;
     for (const PluginEntry& entry : entries) {
-        load_plugin(entry, game_dir);
+        if (load_plugin(entry, game_dir)) {
+            loaded++;
+        }
     }
-    log::linef(kLoaderTag, "%zu plugin(s) loaded", g_plugins.size());
+    log::linef(kLoaderTag, "%zu plugin(s) loaded", loaded);
 
-    if (!g_plugins.empty()) {
+    if (loaded > 0) {
         bool ok = patch_version_label(GetModuleHandleW(nullptr), " - The Grand Loader");
         log::line(kLoaderTag, ok ? "version label patched" : "version label site not found, label unchanged");
     }

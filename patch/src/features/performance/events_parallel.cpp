@@ -6,6 +6,7 @@
 #include <cstring>
 #include <vector>
 
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 #include "parallel/worker_pool.h"
@@ -41,24 +42,17 @@ constexpr uint32_t kScanRva = 0x4A7CD0;
 constexpr uint32_t kFireRva = 0x4A8120;
 constexpr uint32_t kFireCallRvas[] = {0x4A7EF4, 0x4A80D5};
 constexpr uint32_t kAndVtableRva = 0x9F9994;           // CAndTrigger::vftable
-constexpr uint32_t kWorldPtrRva = 0xE588E8;
-constexpr uint32_t kCountryManagerPtrRva = 0xE587E4;   // +0 count, +4 CCountry* array
 constexpr uint32_t kProvinceSourcePtrRva = 0xE5870C;   // object; vt[0x24] = province count
-constexpr uint32_t kWorldDate = 0xB0C;
 constexpr int32_t kDateBase = 0x029C55C0;
-constexpr uint32_t kWorldProvinces = 0xACC;
-constexpr uint32_t kCountryTag = 0x1C;
-constexpr uint32_t kCountryIndex = 0x20;
 constexpr uint32_t kCountryEvents = 0x08;              // vector<CEvent*>
-constexpr uint32_t kCountryProvincesBegin = 0x9D8;
-constexpr uint32_t kCountryProvincesEnd = 0x9DC;
-constexpr uint32_t kProvinceOwner = 0x12C;
 constexpr uint32_t kProvinceEvents = 0x14;
 constexpr uint32_t kEventTrigger = 0x30;               // embedded CAndTrigger
 constexpr uint32_t kScopeTag = 0x08;
 constexpr uint32_t kScopeCountry = 0x0C;
 constexpr uint32_t kScopeProvince = 0x10;
 constexpr size_t kScopeSize = 0x48;                    // what CEventScope::ctor writes and EventScope_Copy copies
+constexpr size_t kScopeBuffer = 0x60;                  // what the other trigger features allocate for a scope
+constexpr size_t kResyncWindow = 256;                  // entries searched ahead when the scan skipped some
 constexpr uint32_t kVtableEvaluate = 0x18;
 constexpr size_t kVtableSlotsCopied = 16;
 constexpr size_t kChunk = 1024;                        // entries evaluated per batch
@@ -97,7 +91,14 @@ uint64_t g_compared = 0, g_mismatches = 0, g_batch_ticks = 0;
 int g_mismatch_logs = 0;
 int64_t g_qpc_freq = 0;
 
-inline uint32_t read32(uintptr_t at) { return *reinterpret_cast<const uint32_t*>(at); }
+using game::read32;
+using game::kWorldProvinces;
+using game::kCountryTag;
+using game::kCountryIndex;
+using game::kCountryProvincesEnd;
+using game::kProvinceOwner;
+constexpr uint32_t kCountryProvincesBegin = game::kCountryProvinces;
+constexpr uint32_t kWorldDate = game::kWorldDate;
 
 inline int64_t qpc() {
     LARGE_INTEGER t;
@@ -137,7 +138,7 @@ size_t g_chunk_begin = 0, g_chunk_end = 0;
 void evaluate_task(int index, void*) {
     size_t begin = g_chunk_begin + static_cast<size_t>(index) * kPerTask;
     size_t end = begin + kPerTask < g_chunk_end ? begin + kPerTask : g_chunk_end;
-    alignas(16) unsigned char scope[kScopeSize + 16];
+    alignas(16) unsigned char scope[kScopeBuffer];
     for (size_t i = begin; i < end; i++) {
         Entry& e = g_seq[i];
         fill_scope(scope, e);
@@ -165,8 +166,17 @@ char __fastcall evaluate_hook(void* self, void*, void* scope) {
     uintptr_t s = reinterpret_cast<uintptr_t>(self);
     uint32_t key = read32(reinterpret_cast<uintptr_t>(scope) + (g_country_pass ? kScopeCountry : kScopeProvince));
     if (g_next >= g_seq.size() || g_seq[g_next].self != s || g_seq[g_next].key != key) {
-        g_passthrough++;
-        return g_original_evaluate(self, nullptr, scope);
+        // The scan skipped entries (a candidate list changed since it was listed): look a little ahead.
+        size_t limit = g_next + kResyncWindow < g_seq.size() ? g_next + kResyncWindow : g_seq.size();
+        size_t found = g_next;
+        while (found < limit && (g_seq[found].self != s || g_seq[found].key != key)) {
+            found++;
+        }
+        if (found >= limit) {
+            g_passthrough++;
+            return g_original_evaluate(self, nullptr, scope);
+        }
+        g_next = found;  // the entries in between are not used
     }
     if (g_fired) {
         g_fired = 0;
@@ -210,8 +220,8 @@ void __cdecl scan_begin() {
     g_seq.clear();
     g_next = g_ready_end = 0;
     g_fired = 0;
-    uintptr_t world = read32(hooks::exe_addr(kWorldPtrRva));
-    uintptr_t manager = read32(hooks::exe_addr(kCountryManagerPtrRva));
+    uintptr_t world = game::world();
+    uintptr_t manager = game::country_manager();
     if (!world || !manager) {
         return;
     }
@@ -277,6 +287,7 @@ void __cdecl scan_end() {
 }
 
 void __cdecl fire_done() {
+    g_fire_depth--;
     g_fired = 1;
     g_fires++;
 }
@@ -308,7 +319,6 @@ __declspec(naked) void fire_thunk() {
         push dword ptr [esp + 8]
         push dword ptr [esp + 8]
         call dword ptr [g_fire]
-        dec dword ptr [g_fire_depth]
         pushad
         pushfd
         call fire_done

@@ -1,9 +1,8 @@
 #include "features/multiplayer/state_checksum.h"
 
-#include <windows.h>
-
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 
 #include "game/world.h"
 #include "hooks/memory.h"
@@ -12,20 +11,19 @@
 // v2game.exe 3.04 (docs/re/systems/multiplayer.md):
 //
 //   Update_World_and_Advance_Time (0x00682EC0), on every machine, per hourly tick command:
-//     compare world+0xB74 (vector<int>) with the vector the host put in the command  (CALL Vector_Equals at 0x00683036)
+//     compare world+0xB74 (vector<int>) with the vector the host put in the command
 //     clear world+0xB74, push g_rngCalls, push the seed
 //     PUSH ESI (world); CALL DayTick (0x006859C0)                                     at 0x00683AB1
-//     monthly / yearly work, ...
 //   ProcessGameTimeAdvance (0x00682BD0), host only: the next CHourlyTickCommand copies world+0xB74.
 //
-// So whatever is in the vector after DayTick travels with the next tick and is compared on every client
-// against the client's own vector at the same point of its own day. The game's vector is a draw counter
-// only. This feature redirects the CALL DayTick to a thunk that runs DayTick and then appends hashes of
-// the state (the global RNG position after the day, provinces, countries, pops, the date). The game's
-// comparison is limited to its own two elements by sync_check.cpp; ours are compared and logged there.
+// Whatever is in the vector after DayTick travels with the next tick and is compared on every client
+// against the client's own vector at the same point of its own day. The CALL DayTick is redirected to
+// a thunk that runs DayTick and then appends: the global RNG position after the day (the host's
+// position when a client compares, used by fix_rng_resync), hashes of provinces, countries and pops,
+// and the date.
 //
-// The vector is a MSVC std::vector<int>: the game clears it with end = begin (capacity stays), and grows
-// it with its own operator new / delete. Our push_back does the same with the same functions.
+// The vector is a MSVC std::vector<int>: the game clears it with end = begin (capacity stays) and
+// grows it with its own operator new / delete, as push_back here does.
 
 namespace cp::features {
 
@@ -34,7 +32,10 @@ namespace {
 constexpr uint32_t kDayTickCallRva = 0x283AB1;  // CALL DayTick in Update_World_and_Advance_Time
 constexpr uint32_t kDayTickRva = 0x2859C0;
 constexpr size_t kMinCapacity = 16;
-constexpr size_t kMaxDepth = 8;
+constexpr uint32_t kMaxDepth = 8;  // DayTick re-enters through the frames it renders from inside
+
+const char* const kNames[] = {"rng_calls", "rng_seed", "rng_calls_end", "provinces", "countries", "pops", "date"};
+constexpr size_t kAppended = std::size(kNames) - kGameSyncElements;
 
 using AllocFn = void*(__cdecl*)(size_t);
 using FreeFn = void(__cdecl*)(void*);
@@ -45,12 +46,9 @@ uintptr_t g_original_day_tick = 0;
 uintptr_t g_saved_return[kMaxDepth];
 uint32_t g_depth = 0;
 bool g_logged_first = false;
+bool g_logged_depth = false;
 
-const char* const kNames[] = {"rng_calls", "rng_seed", "rng_calls_end", "provinces", "countries", "pops", "date"};
-constexpr uint32_t kRngCallsRva = 0xB20C14;  // g_rngCalls
-
-inline uint32_t fnv(uint32_t h, uint32_t v) {
-    // FNV-1a over the four bytes of v
+inline uint32_t fnv1a(uint32_t h, uint32_t v) {
     for (int i = 0; i < 4; i++) {
         h ^= (v >> (8 * i)) & 0xFF;
         h *= 16777619u;
@@ -60,16 +58,15 @@ inline uint32_t fnv(uint32_t h, uint32_t v) {
 
 uint32_t hash_provinces(uintptr_t world) {
     uint32_t h = 2166136261u;
-    uintptr_t it = game::read32(world + game::kWorldProvinces);
     uintptr_t end = game::read32(world + game::kWorldProvincesEnd);
-    for (; it < end; it += 4) {
+    for (uintptr_t it = game::read32(world + game::kWorldProvinces); it < end; it += 4) {
         uintptr_t p = game::read32(it);
         if (!p) {
-            h = fnv(h, 0xFFFFFFFFu);
+            h = fnv1a(h, 0xFFFFFFFFu);
             continue;
         }
-        h = fnv(h, game::read32(p + game::kProvinceOwner));
-        h = fnv(h, game::read32(p + game::kProvinceController));
+        h = fnv1a(h, game::read32(p + game::kProvinceOwner));
+        h = fnv1a(h, game::read32(p + game::kProvinceController));
     }
     return h;
 }
@@ -87,39 +84,42 @@ uint32_t hash_countries() {
         if (!c) {
             continue;
         }
-        h = fnv(h, i);
-        h = fnv(h, game::read32(c + game::kCountryMoney));
-        h = fnv(h, game::read32(c + game::kCountryMoney + 4));
-        h = fnv(h, (game::read32(c + game::kCountryProvincesEnd) - game::read32(c + game::kCountryProvinces)) / 4);
+        h = fnv1a(h, i);
+        h = fnv1a(h, game::read32(c + game::kCountryMoney));
+        h = fnv1a(h, game::read32(c + game::kCountryMoney + 4));
+        h = fnv1a(h, (game::read32(c + game::kCountryProvincesEnd) - game::read32(c + game::kCountryProvinces)) / 4);
     }
     return h;
 }
 
 uint32_t hash_pops(uintptr_t world) {
     uint32_t h = 2166136261u;
-    uintptr_t it = game::read32(world + game::kWorldProvinces);
     uintptr_t end = game::read32(world + game::kWorldProvincesEnd);
-    for (; it < end; it += 4) {
+    for (uintptr_t it = game::read32(world + game::kWorldProvinces); it < end; it += 4) {
         uintptr_t p = game::read32(it);
         if (!p) {
             continue;
         }
-        uintptr_t list = game::read32(p + game::kProvincePopLists);
         uintptr_t list_end = game::read32(p + game::kProvincePopListsEnd);
-        for (; list < list_end; list += 16) {
-            for (uintptr_t pop = game::read32(list); pop; pop = game::read32(pop + game::kPopNext)) {
-                h = fnv(h, game::read32(pop + game::kPopId));
-                h = fnv(h, game::read32(pop + game::kPopSize));
+        for (uintptr_t list = game::read32(p + game::kProvincePopLists); list < list_end; list += 16) {
+            for (uintptr_t pop = game::read32(list); pop;) {
+                uintptr_t next = game::read32(pop + game::kPopNext);
+                if (next) {
+                    _mm_prefetch(reinterpret_cast<const char*>(next + game::kPopId), _MM_HINT_T0);
+                }
+                h = fnv1a(h, game::read32(pop + game::kPopId));
+                h = fnv1a(h, game::read32(pop + game::kPopSize));
+                pop = next;
             }
         }
     }
     return h;
 }
 
-void push_back(uintptr_t vec, uint32_t value) {
-    uint32_t* begin = reinterpret_cast<uint32_t*>(game::read32(vec));
-    uint32_t* end = reinterpret_cast<uint32_t*>(game::read32(vec + 4));
-    uint32_t* cap = reinterpret_cast<uint32_t*>(game::read32(vec + 8));
+void push_back(game::IntVector& vec, uint32_t value) {
+    uint32_t* begin = vec.data();
+    uint32_t* end = reinterpret_cast<uint32_t*>(vec.end);
+    uint32_t* cap = reinterpret_cast<uint32_t*>(vec.capacity);
     if (end == cap) {
         size_t size = static_cast<size_t>(end - begin);
         size_t capacity = static_cast<size_t>(cap - begin);
@@ -133,22 +133,32 @@ void push_back(uintptr_t vec, uint32_t value) {
         }
         begin = fresh;
         end = fresh + size;
-        cap = fresh + wanted;
-        *reinterpret_cast<uint32_t**>(vec) = begin;
-        *reinterpret_cast<uint32_t**>(vec + 8) = cap;
+        vec.begin = reinterpret_cast<uint32_t>(begin);
+        vec.capacity = reinterpret_cast<uint32_t>(fresh + wanted);
     }
     *end++ = value;
-    *reinterpret_cast<uint32_t**>(vec + 4) = end;
+    vec.end = reinterpret_cast<uint32_t>(end);
+}
+
+// Nobody compares the vector in single player: the hashing is skipped with fewer than two players.
+bool multiplayer(uintptr_t world) {
+    int players = 0;
+    for (uintptr_t p = game::first_player(world); p; p = game::next_player(p)) {
+        if (game::player_id(p) != -1 && ++players > 1) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void after_day_tick() {
     uintptr_t world = game::world();
-    if (!world) {
+    if (!world || !multiplayer(world)) {
         return;
     }
-    uintptr_t vec = world + game::kWorldSyncVector;
-    uint32_t values[5] = {
-        game::read32(hooks::exe_addr(kRngCallsRva)),  // the global RNG position after this day: the host's position when a client compares
+    auto& vec = *reinterpret_cast<game::IntVector*>(world + game::kWorldSyncVector);
+    uint32_t values[kAppended] = {
+        game::rng_calls(),
         hash_provinces(world),
         hash_countries(),
         hash_pops(world),
@@ -159,27 +169,44 @@ void after_day_tick() {
     }
     if (!g_logged_first) {
         g_logged_first = true;
-        size_t n = (game::read32(vec + 4) - game::read32(vec)) / 4;
-        logf("state_checksum: first day hashed, the sync vector now has %u elements", static_cast<unsigned>(n));
+        logf("state_checksum: first day hashed, the sync vector now has %u elements", static_cast<unsigned>(vec.size()));
+    }
+}
+
+void __cdecl depth_exceeded() {
+    if (!g_logged_depth) {
+        g_logged_depth = true;
+        logf("state_checksum: DayTick nested more than %u deep, not hashing this day", kMaxDepth);
     }
 }
 
 // Replaces the CALL DayTick. The site pushes the world and DayTick pops it (RET 4), so the return
 // address is swapped for `after` and saved on a small stack of ours; `after` runs the hashing with
-// every register preserved and returns to the site.
+// every register preserved and returns to the site. Past kMaxDepth the call is passed through untouched.
 __declspec(naked) void day_tick_thunk() {
     __asm {
         // stack: [return to site][world]
         push eax
         push ecx
-        mov eax, [esp + 8]                 // return address
         mov ecx, g_depth
+        cmp ecx, kMaxDepth
+        jae too_deep
+        mov eax, [esp + 8]                 // return address
         mov [g_saved_return + ecx * 4], eax
         inc ecx
         mov g_depth, ecx
         pop ecx
         pop eax
         mov dword ptr [esp], offset after  // DayTick returns here
+        jmp dword ptr [g_original_day_tick]
+    too_deep:
+        pop ecx
+        pop eax
+        pushad
+        pushfd
+        call depth_exceeded
+        popfd
+        popad
         jmp dword ptr [g_original_day_tick]
     after:
         // DayTick's RET 4 popped the world; the site's return address is on our stack
@@ -203,11 +230,11 @@ __declspec(naked) void day_tick_thunk() {
 }  // namespace
 
 const char* sync_element_name(size_t index) {
-    return index < sizeof(kNames) / sizeof(kNames[0]) ? kNames[index] : "extra";
+    return index < std::size(kNames) ? kNames[index] : "extra";
 }
 
 size_t sync_element_index(const char* name) {
-    for (size_t i = 0; i < sizeof(kNames) / sizeof(kNames[0]); i++) {
+    for (size_t i = 0; i < std::size(kNames); i++) {
         if (std::strcmp(kNames[i], name) == 0) {
             return i;
         }
@@ -223,24 +250,14 @@ void install_state_checksum(const Config& config) {
     g_game_new = reinterpret_cast<AllocFn>(hooks::exe_addr(game::kOperatorNewRva));
     g_game_delete = reinterpret_cast<FreeFn>(hooks::exe_addr(game::kOperatorDeleteRva));
     uintptr_t site = hooks::exe_addr(kDayTickCallRva);
-    if (*reinterpret_cast<const unsigned char*>(site) != 0xE8) {
-        logf("state_checksum: no CALL at %08X, feature off", kDayTickCallRva + 0x400000);
+    if (!hooks::chain_call(site, reinterpret_cast<uintptr_t>(&day_tick_thunk), g_original_day_tick)) {
+        logf("state_checksum: could not patch the DayTick call site %08X, off", kDayTickCallRva + 0x400000);
         return;
     }
-    // Chain-friendly: whatever the site calls now (DayTick, or another plugin's hook of it) is what we call.
-    int32_t rel;
-    std::memcpy(&rel, reinterpret_cast<const void*>(site + 1), sizeof(rel));
-    uintptr_t current = site + 5 + static_cast<uintptr_t>(rel);
-    if (current != hooks::exe_addr(kDayTickRva)) {
-        logf("state_checksum: the DayTick call site is already redirected (to %08X); chaining to it",
-             static_cast<unsigned>(current - hooks::exe_base() + 0x400000));
+    if (g_original_day_tick != hooks::exe_addr(kDayTickRva)) {
+        logf("state_checksum: the DayTick call site was already redirected; chaining to it");
     }
-    g_original_day_tick = current;
-    if (!hooks::redirect_call(site, current, reinterpret_cast<uintptr_t>(&day_tick_thunk))) {
-        logf("state_checksum: could not patch the DayTick call site, feature off");
-        return;
-    }
-    logf("state_checksum: active, 5 state hashes appended to the daily sync vector");
+    logf("state_checksum: active, %u state elements appended to the daily sync vector", static_cast<unsigned>(kAppended));
 }
 
 }  // namespace cp::features

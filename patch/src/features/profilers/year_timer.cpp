@@ -66,7 +66,7 @@ void on_tick() {
             double total_ms = ms(now - g_year_start_qpc);
             int32_t days = day - g_year_start_day;
             double active_ms = total_ms - g_paused_ms;
-            logf("year %d: %d.%02d min wall (%d.%02d min active, %.0f ms/day) over %d day(s)%s", g_year,
+            logf("year %d: %d:%02d wall (%d:%02d active, %.0f ms/day) over %d day(s)%s", g_year,
                  static_cast<int>(total_ms / 60000.0), static_cast<int>(total_ms / 1000.0) % 60,
                  static_cast<int>(active_ms / 60000.0), static_cast<int>(active_ms / 1000.0) % 60,
                  days > 0 ? active_ms / days : 0.0, days,

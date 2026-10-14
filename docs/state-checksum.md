@@ -25,8 +25,8 @@ built-in reaction only realigns the random generator.
   elements (`sync_check.cpp`), so it reacts as in vanilla; the appended elements are compared by the
   patch and reported by `oos_log` as a silent divergence. (Letting the game react to them was tried
   first and made things worse: its realign restarts the generator, see `fix_rng_resync`.)
-- The vector is grown with the game's own allocator, once; afterwards the game's daily clear keeps the
-  capacity. Hashing is FNV-1a over ~3 000 provinces, ~700 countries and all pops: well under a
+- Nothing is hashed with fewer than two players in the game (nobody would compare). The vector is
+  grown with the game's own allocator, once; afterwards the game's daily clear keeps the capacity. Hashing is FNV-1a over ~3 000 provinces, ~700 countries and all pops: well under a
   millisecond per day.
 - A host with the option on and a client with it off (or the other way round) is reported by
   `oos_log` as a settings mismatch; the game itself still only sees its two elements.

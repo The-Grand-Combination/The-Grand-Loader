@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "hooks/fpu.h"
 #include "hooks/hourly_tick.h"
 #include "log.h"
 
@@ -31,27 +32,17 @@ uint16_t g_precision = kPrecision24;
 bool g_logged = false;
 
 void pin() {
-    uint16_t cw = 0;
-    uint32_t csr = 0;
-    __asm {
-        fnstcw cw
-        stmxcsr csr
-    }
+    uint16_t cw;
+    uint32_t csr;
+    hooks::read_fpu(cw, csr);
     uint16_t wanted = static_cast<uint16_t>((cw & ~(kPrecisionMask | kRoundingMask)) | g_precision | kExceptionMasks);
-    if (cw != wanted || csr != kMxcsrDefault) {
-        if (!g_logged) {
-            g_logged = true;
-            logf("pin_fpu: first tick: x87 control word %04X -> %04X, MXCSR %08X -> %08X", cw, wanted, csr, kMxcsrDefault);
-        }
-        uint32_t fresh = kMxcsrDefault;
-        __asm {
-            fnclex
-            fldcw wanted
-            ldmxcsr fresh
-        }
-    } else if (!g_logged) {
+    if (!g_logged) {
         g_logged = true;
-        logf("pin_fpu: first tick: x87 control word already %04X, MXCSR %08X, nothing to change", cw, csr);
+        logf("pin_fpu: first tick: x87 control word %04X -> %04X, MXCSR %08X -> %08X", cw, wanted, csr, kMxcsrDefault);
+    }
+    if (cw != wanted || csr != kMxcsrDefault) {
+        __asm fnclex
+        hooks::write_fpu(wanted, kMxcsrDefault);
     }
 }
 
@@ -68,7 +59,7 @@ void install_fpu_pin(const Config& config) {
         return;
     }
     logf("pin_fpu: active, %d-bit x87 precision, round to nearest, MXCSR default, set every tick",
-         config.fpu_precision == 53 ? 53 : 24);
+         g_precision == kPrecision53 ? 53 : 24);
 }
 
 }  // namespace cp::features

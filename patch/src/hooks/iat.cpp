@@ -18,8 +18,11 @@ void* hook_iat(HMODULE module, const char* dll, const char* function, void* repl
         if (_stricmp(reinterpret_cast<const char*>(base + desc->Name), dll) != 0) {
             continue;
         }
-        auto* names = reinterpret_cast<IMAGE_THUNK_DATA*>(base + desc->OriginalFirstThunk);
         auto* thunks = reinterpret_cast<IMAGE_THUNK_DATA*>(base + desc->FirstThunk);
+        if (desc->OriginalFirstThunk == 0) {
+            return nullptr;  // no name table: the import names cannot be resolved
+        }
+        auto* names = reinterpret_cast<IMAGE_THUNK_DATA*>(base + desc->OriginalFirstThunk);
         for (; names->u1.AddressOfData != 0; ++names, ++thunks) {
             if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) {
                 continue;

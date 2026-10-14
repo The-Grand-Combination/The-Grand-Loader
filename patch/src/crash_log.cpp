@@ -7,16 +7,17 @@
 
 #include "log.h"
 
-// Writes one block to the_grand_loader.log when the process is about to die from an unhandled fault, so a crash
-// introduced by a patch can be attributed without a debugger. Continues the search afterwards: the
-// game's own handling (and the Windows error dialog) is unchanged.
-
 namespace cp {
 
 namespace {
 
+constexpr DWORD kCxxException = 0xE06D7363;  // MSVC C++ throw
+constexpr DWORD kFatalAppExit = 0x40000015;  // abort()
+constexpr int kMaxThrowLogs = 12;
+
 CrashContextFn g_context = nullptr;
 LONG g_reported = 0;
+LONG g_throws_logged = 0;
 DWORD g_main_thread = 0;  // the thread that installed the handler: the game's main thread (plugin init)
 
 const char* code_name(DWORD code) {
@@ -27,7 +28,7 @@ const char* code_name(DWORD code) {
         case EXCEPTION_INT_DIVIDE_BY_ZERO: return "integer divide by zero";
         case EXCEPTION_PRIV_INSTRUCTION: return "privileged instruction";
         case EXCEPTION_IN_PAGE_ERROR: return "in-page error";
-        case 0x40000015: return "abort() (STATUS_FATAL_APP_EXIT: terminate() after an uncaught C++ exception, or a CRT assert)";
+        case kFatalAppExit: return "abort() (STATUS_FATAL_APP_EXIT: terminate() after an uncaught C++ exception, or a CRT assert)";
         default: return "exception";
     }
 }
@@ -35,12 +36,8 @@ const char* code_name(DWORD code) {
 bool is_fatal(DWORD code) {
     return code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
            code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
-           code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_IN_PAGE_ERROR || code == 0x40000015;
+           code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_IN_PAGE_ERROR || code == kFatalAppExit;
 }
-
-constexpr DWORD kCxxException = 0xE06D7363;  // MSVC C++ throw
-constexpr int kMaxThrowLogs = 12;
-LONG g_throws_logged = 0;
 
 // MSVC x86 RTTI for a thrown object: ExceptionInformation[2] is the _ThrowInfo.
 struct TypeDescriptor { const void* vftable; void* spare; char name[1]; };
@@ -61,14 +58,30 @@ const char* thrown_type_name(const EXCEPTION_RECORD* r) {
     return ti->catchable->types[0]->type->name;  // e.g. ".?AVbad_alloc@std@@"
 }
 
-// std::exception::what() is vtable slot 1 on MSVC; only tried for types whose name says so.
-const char* thrown_what(const EXCEPTION_RECORD* r, const char* type_name) {
-    if (r->NumberParameters < 3 || !type_name) {
-        return "";
+// The catchable-type array lists every base the object can be caught as.
+bool derives_from_std_exception(const EXCEPTION_RECORD* r) {
+    const ThrowInfo* ti = reinterpret_cast<const ThrowInfo*>(r->ExceptionInformation[2]);
+    if (IsBadReadPtr(ti, sizeof(*ti)) || IsBadReadPtr(ti->catchable, sizeof(CatchableTypeArray))) {
+        return false;
     }
-    bool looks_std = strstr(type_name, "exception") || strstr(type_name, "error") || strstr(type_name, "alloc") ||
-                     strstr(type_name, "failure");
-    if (!looks_std) {
+    int count = ti->catchable->count;
+    if (count < 1 || count > 64 ||
+        IsBadReadPtr(ti->catchable->types, static_cast<UINT_PTR>(count) * sizeof(CatchableType*))) {
+        return false;
+    }
+    for (int i = 0; i < count; i++) {
+        const CatchableType* ct = ti->catchable->types[i];
+        if (!IsBadReadPtr(ct, sizeof(*ct)) && !IsBadReadPtr(ct->type, 32) &&
+            std::strcmp(ct->type->name, ".?AVexception@std@@") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// std::exception::what() is vtable slot 1 on MSVC; called only for objects catchable as std::exception.
+const char* thrown_what(const EXCEPTION_RECORD* r) {
+    if (r->NumberParameters < 3 || !derives_from_std_exception(r)) {
         return "";
     }
     const void* object = reinterpret_cast<const void*>(r->ExceptionInformation[1]);
@@ -109,12 +122,17 @@ LONG CALLBACK handler(EXCEPTION_POINTERS* info) {
         auto base = reinterpret_cast<uintptr_t>(host().exe_base);
         const char* type_name = thrown_type_name(info->ExceptionRecord);
         logf("crash: C++ exception thrown: type %s what \"%s\" (thread %lu%s)", type_name,
-             thrown_what(info->ExceptionRecord, type_name), GetCurrentThreadId(),
+             thrown_what(info->ExceptionRecord), GetCurrentThreadId(),
              GetCurrentThreadId() == g_main_thread ? ", game thread" : "");
         log_stack(info->ContextRecord, base, 12);
         return EXCEPTION_CONTINUE_SEARCH;
     }
     if (!is_fatal(code) || InterlockedCompareExchange(&g_reported, 1, 0) != 0) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    if (code == EXCEPTION_STACK_OVERFLOW) {
+        // The guard page is gone: no formatting buffers on this stack.
+        host().log(&host(), "crash: stack overflow on the faulting thread (no details: the stack is exhausted)");
         return EXCEPTION_CONTINUE_SEARCH;
     }
     const CONTEXT* c = info->ContextRecord;
@@ -149,7 +167,6 @@ LONG CALLBACK handler(EXCEPTION_POINTERS* info) {
     }
     logf("crash:   eax=%08X ebx=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X", c->Eax, c->Ebx, c->Ecx,
          c->Edx, c->Esi, c->Edi, c->Ebp, c->Esp);
-    // Return addresses from the stack, unfiltered: anything inside the exe is a candidate caller.
     log_stack(c, base, 24);
     if (g_context) {
         g_context();

@@ -11,12 +11,13 @@
 // The sync check compares world+0xB74 (written at the start of the previous tick) with the vector the
 // host put in the current tick command (docs/re/systems/multiplayer.md). Flipping the first element of
 // the local vector right before the comparison makes this machine report "out of sync" through the
-// game's own path. On a client only that client goes out of sync; on the host, its own compare still
-// passes (the command was built from the same vector) but every client fails on the next tick.
+// game's own path. The tick command was copied from the vector before the flip, so the machine that
+// pressed it fails its own comparison; when it is the host, every client fails on the next tick too.
 //
 // The button lives in a tiny topmost tool window owned by a thread of ours, moved over the game
-// window's top-right corner four times a second. Exclusive fullscreen hides it; Ctrl+Shift+O works
-// everywhere (polled on the game thread at every tick).
+// window's top-right corner four times a second. Exclusive fullscreen hides it; Ctrl+Shift+O, polled
+// on the game thread at every tick while the game window has the focus, works everywhere. The thread
+// is never stopped: the loader has no unload path, so the plugin lives as long as the process.
 
 namespace cp::features {
 
@@ -117,14 +118,16 @@ DWORD WINAPI overlay_thread(void*) {
 
 void on_tick() {
     if (!g_thread_started) {
-        g_thread_started = true;  // threads cannot be created from TGL_PluginInit (loader lock)
+        g_thread_started = true;  // the first tick: the game window exists by now
         HANDLE h = CreateThread(nullptr, 0, &overlay_thread, nullptr, 0, nullptr);
         if (h) {
             CloseHandle(h);
         }
     }
-    bool down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(VK_SHIFT) & 0x8000) &&
-                (GetAsyncKeyState('O') & 0x8000);
+    DWORD foreground_pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &foreground_pid);
+    bool down = foreground_pid == GetCurrentProcessId() && (GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
+                (GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState('O') & 0x8000);
     if (down && !g_hotkey_down) {
         InterlockedExchange(&g_requested, 1);
     }
@@ -137,15 +140,15 @@ void on_tick() {
     if (!world) {
         return;
     }
-    uint32_t* begin = reinterpret_cast<uint32_t*>(game::read32(world + game::kWorldSyncVector));
-    uint32_t* end = reinterpret_cast<uint32_t*>(game::read32(world + game::kWorldSyncVector + 4));
-    if (!begin || end == begin) {
+    auto& vec = *reinterpret_cast<game::IntVector*>(world + game::kWorldSyncVector);
+    if (vec.size() == 0) {
         logf("oos_test_button: sync vector empty, nothing to corrupt (not in a game yet?)");
         return;
     }
-    begin[0] ^= 1;
-    logf("oos_test_button: forced: local sync element 0 flipped to %08X on day %d; the next comparison fails here (and on every client, when this is the host)", begin[0],
-         static_cast<int>(game::read32(world + game::kWorldDate)) / 24);
+    vec.data()[0] ^= 1;
+    logf("oos_test_button: forced: local sync element 0 flipped to %08X on day %d; the next comparison fails here "
+         "(and on every client, when this is the host)",
+         vec.data()[0], game::day(world));
 }
 
 }  // namespace
