@@ -93,9 +93,9 @@ va,name,conf,area,src,note
 0x0083DB20,AI_EvaluateCommandChance,I,ai,re,"switch over command type; 0..100; inlined copies in 0x006153A0, 0x00820DF0, 0x00942540, 0x00947210, 0x00949C20"
 0x006153A0,AI_GetActionResultTooltip,I,ai,re,
 0x00820DF0,AI_ProcessPendingProposals,I,ai,re,rolls and resolves pending proposals
-0x00942540,Command_CanExecute_A,I,ai,re,
-0x00947210,Command_CanExecute_B,I,ai,re,
-0x00949C20,Command_CanExecute_C,I,ai,re,
+0x00942540,CWarGoalDialog_Update,C,ui,re,"RTTI/vtable update slot +4; local UI, not a command-execution boundary"
+0x00947210,CPeaceDialog_Update,C,ui,re,"RTTI/vtable update slot +4; local UI, not a command-execution boundary"
+0x00949C20,CCrisisBackDownDialog_Update,C,ui,re,"RTTI/vtable update slot +4; local UI, not a command-execution boundary"
 0x00859710,AI_ProcessResearch,C,tech,re,civilization gate at 0x00859755
 0x00859610,AI_UpdateResearch,I,tech,re,
 0x00569920,Tech_IsAvailable,C,tech,re,"date (+0x340), state, prerequisites; no civilization check"
