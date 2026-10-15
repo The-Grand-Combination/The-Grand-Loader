@@ -44,6 +44,9 @@ constexpr Key kKeys[] = {
     {"fix_rng_resync", &Config::fix_rng_resync, nullptr},
     {"sync_world_rng", &Config::sync_world_rng, nullptr},
     {"mp_host_wait_days", nullptr, &Config::mp_host_wait_days},
+    {"background_sleep_ms", nullptr, &Config::background_sleep_ms},
+    {"fix_supply_crash", &Config::fix_supply_crash, nullptr},
+    {"fix_tech_window_crash", &Config::fix_tech_window_crash, nullptr},
 };
 
 std::string_view trim(std::string_view s) {

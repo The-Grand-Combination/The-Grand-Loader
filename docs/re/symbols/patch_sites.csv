@@ -77,3 +77,8 @@ cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,experimental,cp,p
 cp_mp_day_tick,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,state_checksum: CALL DayTick in Update_World_and_Advance_Time; thunk swaps the return address and appends the state hashes to world+0xB74 after DayTick
 cp_mp_vector_equals,0x00683036,E8 05 C3 00 00,call redirect,shipped,cp,oos_log: CALL Vector_Equals in Update_World_and_Advance_Time (EAX = world+0xB74 ECX = command vector); logs differing elements then runs the original
 cp_mp_hourly_tick_fpu,0x00E1242C,F0 EC 72 00,slot replace,shipped,cp,pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick
+cp_supply_guard,0x004D15EB,8B 83 28 01 00 00,jump hook,shipped,cp,fix_supply_crash: MOV EAX,[EBX+0x128] in FUN_004D1560; guard skips to 0x004D1665 when the local-supply source (EBX) is null
+cp_tech_sort_guard,0x007A918A,8B 82 10 03 00 00 8B 91 10 03 00 00,jump hook,shipped,cp,fix_tech_window_crash: status+0x310 loads in FUN_007A9070 mode 0; null -> returns false through the epilogue at 0x007A91A2
+cp_tech_folder_guard,0x007ADE98,8B 89 30 04 00 00 8B 89 10 03 00 00 8B 49 40,jump hook,shipped,cp,fix_tech_window_crash: invention+0x430->+0x310->+0x40 chain in FUN_007ADB70; null -> empty name; resume 0x007ADEA7
+cp_background_sleep_main,0x009DF684,6A 64,imm8,shipped,cp,background_sleep_ms: PUSH 100 before CALL [Sleep] in App_MainLoop (device-lost branch)
+cp_background_sleep_pump,0x009DF2D5,6A 64,imm8,shipped,cp,background_sleep_ms: PUSH 100 before CALL [Sleep] in App_ProcessMessagePumpAndUpdate (device-lost branch)

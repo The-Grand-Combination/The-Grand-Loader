@@ -57,4 +57,16 @@ bool chain_call(uintptr_t site, uintptr_t target, uintptr_t& previous) {
     return redirect_call(site, previous, target);
 }
 
+bool jump_hook(uintptr_t site, const void* expected, size_t size, uintptr_t target) {
+    if (size < 5 || size > 32 || !expect_bytes(site, expected, size)) {
+        return false;
+    }
+    unsigned char patched[32];
+    std::memset(patched, 0x90, size);
+    patched[0] = 0xE9;
+    int32_t rel = static_cast<int32_t>(target - (site + 5));
+    std::memcpy(patched + 1, &rel, sizeof(rel));
+    return write_bytes(site, patched, size);
+}
+
 }  // namespace cp::hooks

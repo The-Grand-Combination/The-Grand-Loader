@@ -18,6 +18,8 @@ without waiting for a real one.
 - On the next hourly tick the first element of the local sync vector (`world+0xB74`, the random draw
   count) is flipped before the game compares it with the host's. The comparison fails and the game
   takes its real out-of-sync path. The tick command was copied from the vector before the flip, so
-  the machine that pressed it fails its own comparison, host or client; when it is the host, every
-  client fails on the following tick as well.
+  only the machine that pressed it fails its own comparison, host or client; the others still match
+  the command. With `fix_rng_resync` the machine is back in sync one day later.
+- The game shows the dialog and sends the pause only once per session (a flag at `world+0xBA8` that
+  it never clears). The button clears it before the flip, so every press gets the full reaction.
 - One line goes to `the_grand_loader.log` with the day and the new value.

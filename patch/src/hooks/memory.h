@@ -30,4 +30,9 @@ bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target);
 // redirected it first) and returns the previous target in `previous`, or 0 when there is no CALL there.
 bool chain_call(uintptr_t site, uintptr_t target, uintptr_t& previous);
 
+// Replaces the `size` bytes at `site` (at least 5, whole instructions, currently `expected`) with a
+// `JMP rel32` to `target` padded with NOPs. The target returns with a jump to the instruction after
+// the replaced ones, or elsewhere in the function.
+bool jump_hook(uintptr_t site, const void* expected, size_t size, uintptr_t target);
+
 }  // namespace cp::hooks

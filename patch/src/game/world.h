@@ -20,11 +20,19 @@ constexpr uint32_t kInGameIdlerVtableRva = 0xA0A34C;  // CInGameIdler::vftable
 
 // CWorld
 constexpr uint32_t kWorldPlayers = 0x18;       // list head: entries +0x1C id (-1 unused), +0x34 date, +0x3C next
+constexpr uint32_t kWorldHumanPlayers = 0xAEC;  // vector<u32> per country index: 0 = AI-controlled
+constexpr uint32_t kWorldHumanPlayersEnd = 0xAF0;
 constexpr uint32_t kWorldProvinces = 0xACC;    // vector<CProvince*> begin
 constexpr uint32_t kWorldProvincesEnd = 0xAD0;
 constexpr uint32_t kWorldDate = 0xB0C;         // hours
 constexpr uint32_t kWorldIdler = 0xB24;        // the active idler; CInGameIdler in a game
+constexpr uint32_t kWorldOosShown = 0xBA8;     // u8: the OOS dialog and pause happened; never reset by the game
+constexpr uint32_t kWorldWars = 0xB3C;         // list of ongoing wars: node {war +0, ?, next +8}
 constexpr uint32_t kWorldSyncVector = 0xB74;   // vector<int> {begin +0, end +4, capacity +8}: the sync check
+
+// CWar: two participant vectors of 8-byte entries, country index at entry+4
+constexpr uint32_t kWarAttackers = 0x2C;  // begin; end at +0x30
+constexpr uint32_t kWarDefenders = 0x3C;  // begin; end at +0x40
 
 // CInGameIdler
 constexpr uint32_t kIdlerSessionManagerSlot = 0x44;  // vt[17]() -> session manager

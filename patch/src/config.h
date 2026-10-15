@@ -28,7 +28,10 @@ struct Config {
     bool oos_test_button = false;       // multiplayer test aid: Force OOS button and Ctrl+Shift+O
     bool fix_rng_resync = false;        // multiplayer: on a sync mismatch, realign the RNG to the host's position, not to the seed
     bool sync_world_rng = false;        // multiplayer: lockstep draws from the world RNG come from the shared, counted generator
-    int mp_host_wait_days = 0;          // multiplayer: host holds its ticks while a player is more than N days behind (0 = off)
+    int mp_host_wait_days = 0;          // multiplayer: host holds its ticks while a player is more than N days behind (0 = off, not during a player's war)
+    int background_sleep_ms = 1;        // per-frame sleep while the render device is lost (vanilla 100; 100 = leave it)
+    bool fix_supply_crash = false;      // crash prevention: factory with no local-supply source in the production view
+    bool fix_tech_window_crash = false; // crash prevention: invention without a status object in the technology window
 };
 
 // Reads the ini at `config_file`; unknown keys are ignored, missing keys keep their defaults.

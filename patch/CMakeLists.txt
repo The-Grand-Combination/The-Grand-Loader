@@ -29,6 +29,9 @@ add_library(performance_patch SHARED
     src/features/multiplayer/sync_check.cpp
     src/features/multiplayer/world_rng.cpp
     src/features/multiplayer/host_wait.cpp
+    src/features/performance/background_sleep.cpp
+    src/features/stability/supply_guard.cpp
+    src/features/stability/tech_window_guard.cpp
     src/parallel/worker_pool.cpp
 )
 

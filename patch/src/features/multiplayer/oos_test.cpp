@@ -11,8 +11,10 @@
 // The sync check compares world+0xB74 (written at the start of the previous tick) with the vector the
 // host put in the current tick command (docs/re/systems/multiplayer.md). Flipping the first element of
 // the local vector right before the comparison makes this machine report "out of sync" through the
-// game's own path. The tick command was copied from the vector before the flip, so the machine that
-// pressed it fails its own comparison; when it is the host, every client fails on the next tick too.
+// game's own path. The tick command was copied from the vector before the flip, so only the machine
+// that pressed it fails its own comparison; the others still match the command. The game shows the
+// dialog and sends the pause only once per session (world+0xBA8), so the flag is cleared before the
+// flip to get the full reaction on every press.
 //
 // The button lives in a tiny topmost tool window owned by a thread of ours, moved over the game
 // window's top-right corner four times a second. Exclusive fullscreen hides it; Ctrl+Shift+O, polled
@@ -145,9 +147,9 @@ void on_tick() {
         logf("oos_test_button: sync vector empty, nothing to corrupt (not in a game yet?)");
         return;
     }
+    *reinterpret_cast<uint8_t*>(world + game::kWorldOosShown) = 0;
     vec.data()[0] ^= 1;
-    logf("oos_test_button: forced: local sync element 0 flipped to %08X on day %d; the next comparison fails here "
-         "(and on every client, when this is the host)",
+    logf("oos_test_button: forced: local sync element 0 flipped to %08X on day %d; the next comparison fails on this machine",
          vec.data()[0], game::day(world));
 }
 

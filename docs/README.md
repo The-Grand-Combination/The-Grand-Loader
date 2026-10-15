@@ -19,6 +19,7 @@ otherwise, an optimisation gives **the same results** as the unpatched game. Tim
 | [`parallel_decisions`](parallel-decisions.md) | evaluates the AI's daily decision checks on worker threads |
 | [`parallel_events`](parallel-events.md) | evaluates the daily event scan's triggers on worker threads |
 | [`engine_worker_threads`](engine-worker-threads.md) | thread count of the game's own TBB scheduler |
+| [`background_sleep_ms`](background-sleep-ms.md) | shortens the 100 ms per-frame sleep of a fullscreen game whose render device is lost (alt-tabbed), so a multiplayer client in the background keeps up |
 
 ## Multiplayer
 
@@ -31,7 +32,16 @@ Every player of a game must use the same values.
 | [`pin_fpu`, `fpu_precision`](pin-fpu.md) | fixes the floating-point control registers at every tick, so all machines compute alike |
 | [`fix_rng_resync`](fix-rng-resync.md) | on a sync mismatch, realigns the random generator to the host's position instead of restarting it |
 | [`sync_world_rng`](sync-world-rng.md) | takes the lockstep draws of the world's clock-seeded generator from the shared one |
-| [`mp_host_wait_days`](mp-host-wait-days.md) | the host waits for the slowest player instead of running ahead until the "lagging behind" warning |
+| [`mp_host_wait_days`](mp-host-wait-days.md) | off by default: the host waits for the slowest player instead of running ahead; suspended while a player is at war |
+
+## Crash prevention
+
+Guards for crashes of the unpatched game; a game that would not have crashed is unchanged.
+
+| option | what it does |
+|---|---|
+| [`fix_supply_crash`](fix-supply-crash.md) | production view of a country with a factory whose production type has no local-supply source |
+| [`fix_tech_window_crash`](fix-tech-window-crash.md) | technology window with an invention that has no status object |
 
 ## Memory
 

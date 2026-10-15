@@ -3,7 +3,7 @@ va,name,kind,conf,src,note
 0x012587E4,g_countryManager,ptr,C,cp,"+0 count of all defined tags, +4 CCountry* array"
 0x0131ACAC,g_cbManager,ptr,C,cp,"+0xC/+0x10 vector<CCasusBelliType*>; getter 0x0090CC40"
 0x01319730,g_decisionManager,ptr,C,cp,"lists +0xC/+0x10 and +0x28/+0x2C; getter 0x00875040"
-0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 has-focus byte; +0x6BC44 mirrors the fog-of-war flag"
+0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag"
 0x01258A48,g_issueManager,ptr,I,re,"issue registry: +0x4/+0x8 string-hash buckets (lookup FUN_00975ED0, hash h = (h + c) * 0x3D), vectors +0x18.. +0x6C per issue category (element+0x30 read per country in FUN_00503020). CIssueGroupTrigger parser FUN_008C4A70 loads it at 0x008C4AD4; miss -> CNullIssue singleton DAT_01258A40 (FUN_00974850). Named g_unitManager until 2026-10-13"
 0x012586DC,g_economyDefines,ptr,?,cp,+0x50 market totals; +0x08 date-like value
 0x0125870C,g_provinceSource,ptr,I,re,vt[0x24] returns the province count

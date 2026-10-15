@@ -13,6 +13,7 @@
 #include "features/multiplayer/sync_check.h"
 #include "features/multiplayer/world_rng.h"
 #include "features/performance/ai_queue.h"
+#include "features/performance/background_sleep.h"
 #include "features/performance/cb_cull.h"
 #include "features/performance/country_prepass.h"
 #include "features/performance/decision_cull.h"
@@ -22,6 +23,8 @@
 #include "features/performance/relations_prefetch.h"
 #include "features/performance/worker_threads.h"
 #include "features/profilers/sample_profiler.h"
+#include "features/stability/supply_guard.h"
+#include "features/stability/tech_window_guard.h"
 #include "features/profilers/tick_profiler.h"
 #include "features/profilers/year_timer.h"
 #include "hooks/memory.h"
@@ -52,6 +55,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_year_timer();
     cp::features::install_sample_profiler(config);
     cp::features::install_network_wait(config);
+    cp::features::install_background_sleep(config);
     cp::features::install_relations_prefetch(config);
     cp::features::install_ai_relations_prefetch(config);
     cp::features::install_pops_prefetch(config);
@@ -67,6 +71,8 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_host_wait(config);
     cp::features::install_fpu_pin(config);
     cp::features::install_oos_test(config);
+    cp::features::install_supply_guard(config);
+    cp::features::install_tech_window_guard(config);
     return 0;
 }
 
