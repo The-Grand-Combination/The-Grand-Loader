@@ -94,3 +94,5 @@ cp_remove_country_modifier_tooltip,0x00E2AC74,B0 26 88 00,slot replace,shipped,c
 cp_remove_country_modifier_execute,0x00E2AC7C,80 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x2C
 cp_state_presence_guard,0x0048F070,55 8B EC 83 EC 24 53 56,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_HasHostilePresence; null state -> returns 0 (RET 8)
 cp_state_tag_guard,0x0048E120,55 8B EC 83 EC 08,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_GetControllerTag; null state (ECX) -> tag "---" index 0
+cp_state_walk_scan,0x00851F51,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: AI_UnitTargetScan walks state+0x14 of another unit's province; null state -> not-found branch 0x00852043
+cp_state_walk_score,0x00853BEF,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: FUN_00853B30 (unit scoring from FUN_00851AD0) same walk; null -> 0x00853C03

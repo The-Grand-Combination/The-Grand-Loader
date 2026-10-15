@@ -19,6 +19,12 @@
 //
 // The guards replace each prologue. A null state makes the first return 0 ("nothing hostile") and
 // the second write the no-owner answer its own code uses (tag "---", index 0).
+//
+// The scan itself, and the unit scoring function FUN_00853B30 (from FUN_00851AD0), also walk the
+// unit list of another province's state in place, `MOV EAX,[EAX+0x14]; TEST EAX,EAX; JZ not_found`,
+// right after `MOV EAX,[province+0xE8]` with only an equality test before: 0x00851F51 (second crash
+// in the user's log, reading 0x14) and 0x00853BEF. Those two get a cave that takes the not-found
+// branch for a null state.
 
 namespace cp::features {
 
@@ -34,9 +40,21 @@ constexpr unsigned char kTagBytes[] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08};  // 
 
 constexpr uint32_t kLogLimit = 20;
 
+// `MOV EAX,[EAX+0x14]; TEST EAX,EAX` with EAX = a state that may be null; the JZ that follows goes to
+// `not_found`.
+struct WalkSite {
+    uint32_t rva;
+    uint32_t resume_rva;     // the JZ after the replaced bytes
+    uint32_t not_found_rva;  // its target
+};
+constexpr unsigned char kWalkBytes[] = {0x8B, 0x40, 0x14, 0x85, 0xC0};
+constexpr WalkSite kWalkSites[] = {{0x451F51, 0x451F56, 0x452043}, {0x453BEF, 0x453BF4, 0x453C03}};
+
 uintptr_t g_presence_resume = 0;
 uintptr_t g_tag_resume = 0;
 uint32_t g_hits = 0;
+uintptr_t g_walk_resume[2];
+uintptr_t g_walk_not_found[2];
 
 void __cdecl report() {
     if (++g_hits <= kLogLimit) {
@@ -78,6 +96,38 @@ __declspec(naked) void tag_guard() {
     }
 }
 
+__declspec(naked) void walk_guard_scan() {
+    __asm {
+        test eax, eax
+        jz none
+        mov eax, [eax + 0x14]
+        test eax, eax
+        jmp dword ptr [g_walk_resume]
+    none:
+        pushad
+        call report
+        popad
+        jmp dword ptr [g_walk_not_found]
+    }
+}
+
+__declspec(naked) void walk_guard_score() {
+    __asm {
+        test eax, eax
+        jz none
+        mov eax, [eax + 0x14]
+        test eax, eax
+        jmp dword ptr [g_walk_resume + 4]
+    none:
+        pushad
+        call report
+        popad
+        jmp dword ptr [g_walk_not_found + 4]
+    }
+}
+
+constexpr void (*kWalkGuards[])() = {&walk_guard_scan, &walk_guard_score};
+
 }  // namespace
 
 void install_state_guard(const Config& config) {
@@ -98,7 +148,16 @@ void install_state_guard(const Config& config) {
     } else {
         logf("fix_missing_state_crash: site %08X not recognised, left alone", kTagRva + 0x400000);
     }
-    logf("fix_missing_state_crash: active on %d of 2 state helpers (a province without a state answers 'none')", sites);
+    for (int i = 0; i < 2; i++) {
+        g_walk_resume[i] = hooks::exe_addr(kWalkSites[i].resume_rva);
+        g_walk_not_found[i] = hooks::exe_addr(kWalkSites[i].not_found_rva);
+        if (hooks::jump_hook(hooks::exe_addr(kWalkSites[i].rva), kWalkBytes, sizeof(kWalkBytes), reinterpret_cast<uintptr_t>(kWalkGuards[i]))) {
+            sites++;
+        } else {
+            logf("fix_missing_state_crash: site %08X not recognised, left alone", kWalkSites[i].rva + 0x400000);
+        }
+    }
+    logf("fix_missing_state_crash: active on %d of 4 sites (a province without a state answers 'none')", sites);
 }
 
 }  // namespace cp::features

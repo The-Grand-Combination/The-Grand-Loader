@@ -22,5 +22,9 @@ the null state. Seen in a user's log: access violation reading `0x0000000C` at `
   prologue and continues in the original. Without one, the presence check returns "nothing
   hostile" and the controller lookup returns the answer the game itself gives for a state without
   an owner (tag `---`, index 0).
+- Two places walk the unit list of another province's state in place, with only an equality test
+  before the read: inside the same scan (the second crash in the log that found this) and in the
+  unit scoring that follows it. Each gets a cave that takes the "not found" branch for a null
+  state.
 - The first twenty occurrences are logged, so a mod that triggers it can be told.
 - Any call with a real state runs the unchanged code.
