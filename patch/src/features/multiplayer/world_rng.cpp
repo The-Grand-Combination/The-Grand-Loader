@@ -65,7 +65,9 @@ struct Mt {
         y ^= y >> 11;
         y ^= (y << 7) & 0x9d2c5680u;
         y ^= (y << 15) & 0xefc60000u;
-        return y ^ (y >> 18);
+        // Native Rng_Next's final SAR/XOR clears the sign bit. Callers use signed IDIV and
+        // expect nonnegative choices; an unsigned MT output violates that contract.
+        return (y ^ (y >> 18)) & 0x7fffffffu;
     }
 };
 Mt g_private;

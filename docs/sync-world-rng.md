@@ -25,6 +25,7 @@ the first day, and hovering a tooltip moves one machine's generator further.
   taken from the global generator and counted like the game's own draws, so the daily check covers it.
   Outside command execution (AI frame jobs, tooltips) the draw comes from a private generator seeded
   from the clock, which no longer matters to anyone else.
+- Private output stays nonnegative, matching native callers' signed-division contract.
 - The world generator itself is left alone; nothing reads it any more.
 - Single-player results change: the AI's daily timing and diplomatic answers now come from the
   global sequence. Every player of a multiplayer game must use the same value.
