@@ -48,6 +48,7 @@ constexpr Key kKeys[] = {
     {"fix_supply_crash", &Config::fix_supply_crash, nullptr},
     {"fix_tech_window_crash", &Config::fix_tech_window_crash, nullptr},
     {"fix_missing_modifier", &Config::fix_missing_modifier, nullptr},
+    {"fix_missing_state_crash", &Config::fix_missing_state_crash, nullptr},
 };
 
 std::string_view trim(std::string_view s) {

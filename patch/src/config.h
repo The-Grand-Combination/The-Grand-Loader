@@ -33,6 +33,7 @@ struct Config {
     bool fix_supply_crash = false;      // crash prevention: factory with no local-supply source in the production view
     bool fix_tech_window_crash = false; // crash prevention: invention without a status object in the technology window
     bool fix_missing_modifier = false;  // crash prevention: add/remove modifier effects naming a modifier that does not exist
+    bool fix_missing_state_crash = false;  // crash prevention: AI scan over a unit in a province without a state (uncolonised)
 };
 
 // Reads the ini at `config_file`; unknown keys are ignored, missing keys keep their defaults.

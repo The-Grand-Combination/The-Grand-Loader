@@ -257,3 +257,6 @@ va,name,conf,area,src,note
 0x008826B0,RemoveCountryModifierEffect_Tooltip,C,effects,cp,"same shape"
 0x008CD650,HasCountryModifierTrigger_Parse,C,triggers,cp,"looks the name up in g_eventModifiers then g_staticModifiers; logs Unknown modifier; null is harmless (never matches)"
 0x008CDE00,HasProvinceModifierTrigger_Parse,C,triggers,cp,"g_eventModifiers only"
+0x0048E120,State_GetControllerTag,I,map,cp,"__fastcall(state in ECX, out[2] in EAX): controller {tag, index} of the state's first province (province+0x130/+0x134, or the first entry of province+0x110->+0x10 vector); state+0xC == 0 -> '---'/0"
+0x0048F070,State_HasHostilePresence,I,ai,cp,"(state, flag) RET 8; walks state+0x14 and state+0x04 lists for units of a country at war with the controller or REB; 13 callers, most test province+0xE8 first"
+0x00851BD0,AI_UnitTargetScan,I,ai,cp,"from AI_TargetScan at 0x0084B51B; walks the country's unit list (ai+0x214; unit+0xDC province index, +0xE8 flag) and calls State_HasHostilePresence(province+0xE8) at 0x00851C6D without a null test"

@@ -24,6 +24,7 @@
 #include "features/performance/worker_threads.h"
 #include "features/profilers/sample_profiler.h"
 #include "features/stability/modifier_guard.h"
+#include "features/stability/state_guard.h"
 #include "features/stability/supply_guard.h"
 #include "features/stability/tech_window_guard.h"
 #include "features/profilers/tick_profiler.h"
@@ -75,6 +76,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_supply_guard(config);
     cp::features::install_tech_window_guard(config);
     cp::features::install_modifier_guard(config);
+    cp::features::install_state_guard(config);
     return 0;
 }
 

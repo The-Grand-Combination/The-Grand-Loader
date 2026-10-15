@@ -92,3 +92,5 @@ cp_remove_province_modifier_tooltip,0x00E2AC3C,C0 22 88 00,slot replace,shipped,
 cp_remove_province_modifier_execute,0x00E2AC44,90 22 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveProvinceModifierEffect vt+0x2C
 cp_remove_country_modifier_tooltip,0x00E2AC74,B0 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x24
 cp_remove_country_modifier_execute,0x00E2AC7C,80 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x2C
+cp_state_presence_guard,0x0048F070,55 8B EC 83 EC 24 53 56,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_HasHostilePresence; null state -> returns 0 (RET 8)
+cp_state_tag_guard,0x0048E120,55 8B EC 83 EC 08,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_GetControllerTag; null state (ECX) -> tag "---" index 0
