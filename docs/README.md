@@ -42,6 +42,7 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 |---|---|
 | [`fix_supply_crash`](fix-supply-crash.md) | production view of a country with a factory whose production type has no local-supply source |
 | [`fix_tech_window_crash`](fix-tech-window-crash.md) | technology window with an invention that has no status object |
+| [`fix_missing_modifier`](fix-missing-modifier.md) | add/remove modifier effects that name a modifier that does not exist: empty tooltip, no effect, name logged |
 
 ## Memory
 

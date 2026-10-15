@@ -82,3 +82,13 @@ cp_tech_sort_guard,0x007A918A,8B 82 10 03 00 00 8B 91 10 03 00 00,jump hook,ship
 cp_tech_folder_guard,0x007ADE98,8B 89 30 04 00 00 8B 89 10 03 00 00 8B 49 40,jump hook,shipped,cp,fix_tech_window_crash: invention+0x430->+0x310->+0x40 chain in FUN_007ADB70; null -> empty name; resume 0x007ADEA7
 cp_background_sleep_main,0x009DF684,6A 64,imm8,shipped,cp,background_sleep_ms: PUSH 100 before CALL [Sleep] in App_MainLoop (device-lost branch)
 cp_background_sleep_pump,0x009DF2D5,6A 64,imm8,shipped,cp,background_sleep_ms: PUSH 100 before CALL [Sleep] in App_ProcessMessagePumpAndUpdate (device-lost branch)
+cp_modifier_find_add,0x00881337,E8 74 4E CE FF,call redirect,shipped,cp,fix_missing_modifier: CALL ModifierRegistry_Find in the add_*_modifier parser (FUN_00881260); wrapper logs a miss
+cp_modifier_find_remove,0x0088217A,E8 31 40 CE FF,call redirect,shipped,cp,fix_missing_modifier: CALL ModifierRegistry_Find in the remove_*_modifier parser (FUN_008820D0); wrapper logs a miss
+cp_add_province_modifier_tooltip,0x00E2ABCC,E0 14 88 00,slot replace,shipped,cp,fix_missing_modifier: CAddProvinceModifierEffect vt+0x24; null modifier -> empty tooltip
+cp_add_province_modifier_execute,0x00E2ABD4,50 14 88 00,slot replace,shipped,cp,fix_missing_modifier: CAddProvinceModifierEffect vt+0x2C; null modifier -> logged and skipped
+cp_add_country_modifier_tooltip,0x00E2AC04,40 1B 88 00,slot replace,shipped,cp,fix_missing_modifier: CAddCountryModifierEffect vt+0x24
+cp_add_country_modifier_execute,0x00E2AC0C,90 1A 88 00,slot replace,shipped,cp,fix_missing_modifier: CAddCountryModifierEffect vt+0x2C
+cp_remove_province_modifier_tooltip,0x00E2AC3C,C0 22 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveProvinceModifierEffect vt+0x24
+cp_remove_province_modifier_execute,0x00E2AC44,90 22 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveProvinceModifierEffect vt+0x2C
+cp_remove_country_modifier_tooltip,0x00E2AC74,B0 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x24
+cp_remove_country_modifier_execute,0x00E2AC7C,80 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x2C

@@ -32,6 +32,7 @@ struct Config {
     int background_sleep_ms = 1;        // per-frame sleep while the render device is lost (vanilla 100; 100 = leave it)
     bool fix_supply_crash = false;      // crash prevention: factory with no local-supply source in the production view
     bool fix_tech_window_crash = false; // crash prevention: invention without a status object in the technology window
+    bool fix_missing_modifier = false;  // crash prevention: add/remove modifier effects naming a modifier that does not exist
 };
 
 // Reads the ini at `config_file`; unknown keys are ignored, missing keys keep their defaults.

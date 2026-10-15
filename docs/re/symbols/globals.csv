@@ -86,3 +86,9 @@ va,name,kind,conf,src,note
 0x01258A65,g_randomLogging,u8,C,cp,"console toggle: log every RNG wrapper draw (random.cpp) and every executed command"
 0x01319B80,g_eventManager,ptr,C,cp,"lazy singleton (0xA08 bytes); own MT at +0x58, seeded from __time64"
 0x01258A8C,g_timer,ptr,I,cp,"vt+0x14 returns seconds as double; used as seed source and for the AI frame budget"
+0x0125A69C,g_eventModifiers,ptr,C,cp,"lazily created registry (0xC4 bytes, FUN_0044EC00) of event_modifiers; ModifierRegistry_Find in EAX"
+0x0125A660,g_staticModifiers,ptr,I,cp,"lazily created registry (0x1C bytes, FUN_0044EC50); second lookup of has_country_modifier"
+0x00E2ABA8,CAddProvinceModifierEffect_vftable,vtable,C,cp,"14 slots: +0x10 parse, +0x24 tooltip, +0x2C execute, +0x30 persist (0x00A31490)"
+0x00E2ABE0,CAddCountryModifierEffect_vftable,vtable,C,cp,same layout
+0x00E2AC18,CRemoveProvinceModifierEffect_vftable,vtable,C,cp,"+0x1C parse name, +0x24 tooltip, +0x2C execute"
+0x00E2AC50,CRemoveCountryModifierEffect_vftable,vtable,C,cp,same layout
