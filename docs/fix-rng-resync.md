@@ -17,6 +17,8 @@ check fails every day, and countries and pops diverge completely within a day. T
 
 ## How
 
+- Host-vector capture is installed whenever `fix_rng_resync` is enabled, even with
+  `state_checksum = 0` and `oos_log = 0`. If capture-hook installation fails, resync stays native.
 - The `CALL Rng_Resync` in the mismatch path is redirected to a thunk that first writes the host's
   draw count into the game's counter, then runs the original realign. The count comes from the host's
   vector that was just compared: the element after `DayTick` (`rng_calls_end`, sent by
