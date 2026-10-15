@@ -16,7 +16,7 @@
 //   written, so two machines never share it (confirmed on a two-instance game: the index differed on
 //   day 2, docs/re/log.md 2026-10-13).
 //
-//   Ten sites draw from it with `MOV EAX,[g_world]; ADD EAX,0xB4; CALL Rng_Next`:
+//   Ten sites draw from it with `MOV EAX,[g_world]; ADD EAX,0xB4; CALL/JMP Rng_Next`:
 //     0x00820D18 FUN_00820760 (AI frame job, host)      0x00421ECF/0x00421F32 FUN_00821DC0
 //     0x0083381E FUN_008336F0                            0x00438955 FUN_008386E0
 //     0x0043C722 FUN_0083B3D0                            0x0044401D FUN_00843B90 (AI accepts a diplomatic
@@ -34,7 +34,8 @@ namespace cp::features {
 namespace {
 
 constexpr uint32_t kSiteRvas[] = {0x420D18, 0x421ECF, 0x421F32, 0x43381E, 0x438955,
-                                  0x43C722, 0x44401D, 0x446408, 0x45CFBF, 0x4687EA};
+                                  0x43C722, 0x44401D, 0x446408, 0x45CFBF};
+constexpr uint32_t kTailSiteRva = 0x4687EA;  // GetAIRand: JMP, not CALL
 
 uintptr_t g_rng_next = 0;
 uintptr_t g_mt_state = 0;
@@ -93,7 +94,7 @@ uint32_t __cdecl draw() {
     return g_private.next();
 }
 
-// Stands in for `CALL Rng_Next` at the ten sites: EAX (the world state) is ignored, the result goes
+// Stands in for CALL/JMP Rng_Next: EAX (the world state) is ignored, the result goes
 // back in EAX, ECX/EDX are preserved in case the caller keeps something there.
 __declspec(naked) void draw_thunk() {
     __asm {
@@ -115,16 +116,26 @@ void install_world_rng(const Config& config) {
     }
     g_rng_next = hooks::exe_addr(game::kRngNextRva);
     g_mt_state = hooks::exe_addr(game::kMtStateRva);
-    int sites = 0;
-    for (uint32_t rva : kSiteRvas) {
-        if (hooks::redirect_call(hooks::exe_addr(rva), g_rng_next, reinterpret_cast<uintptr_t>(&draw_thunk))) {
-            sites++;
-        } else {
-            logf("sync_world_rng: site %08X does not call Rng_Next as expected, left alone", rva + 0x400000);
+    const uintptr_t dispatcher = reinterpret_cast<uintptr_t>(&draw_thunk);
+    // Each patch checks its original target; unwind a partial installation rather than mix routed
+    // and untouched world draws.
+    size_t sites = 0;
+    for (; sites < std::size(kSiteRvas); ++sites) {
+        if (!hooks::redirect_call(hooks::exe_addr(kSiteRvas[sites]), g_rng_next, dispatcher)) {
+            break;
         }
     }
-    logf("sync_world_rng: active on %d of %d world-RNG draw sites (lockstep draws go to the global generator, counted)",
-         sites, static_cast<int>(std::size(kSiteRvas)));
+    if (sites != std::size(kSiteRvas) ||
+        !hooks::redirect_jump(hooks::exe_addr(kTailSiteRva), g_rng_next, dispatcher)) {
+        bool restored = true;
+        while (sites > 0) {
+            restored = hooks::redirect_call(hooks::exe_addr(kSiteRvas[--sites]), dispatcher, g_rng_next) && restored;
+        }
+        logf("sync_world_rng: unexpected/unwritable draw site, %s",
+             restored ? "original routes restored; feature off" : "ROLLBACK FAILED; restart the game");
+        return;
+    }
+    logf("sync_world_rng: active on all 10 draw sites (lockstep draws go to the global generator, counted)");
 }
 
 }  // namespace cp::features

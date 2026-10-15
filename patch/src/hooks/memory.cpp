@@ -33,17 +33,28 @@ bool replace_pointer(uintptr_t slot, uintptr_t expected, uintptr_t replacement) 
     return write_bytes(slot, &replacement, sizeof(replacement));
 }
 
-bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) {
-    unsigned char expected[5] = {0xE8};
+namespace {
+bool redirect_branch(uint8_t opcode, uintptr_t site, uintptr_t expected_target, uintptr_t target) {
+    unsigned char expected[5] = {opcode};
     int32_t rel = static_cast<int32_t>(expected_target - (site + 5));
     std::memcpy(expected + 1, &rel, sizeof(rel));
     if (!expect_bytes(site, expected, sizeof(expected))) {
         return false;
     }
-    unsigned char patched[5] = {0xE8};
+    unsigned char patched[5] = {opcode};
     rel = static_cast<int32_t>(target - (site + 5));
     std::memcpy(patched + 1, &rel, sizeof(rel));
     return write_bytes(site, patched, sizeof(patched));
+}
+
+}  // namespace
+
+bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) {
+    return redirect_branch(0xE8, site, expected_target, target);
+}
+
+bool redirect_jump(uintptr_t site, uintptr_t expected_target, uintptr_t target) {
+    return redirect_branch(0xE9, site, expected_target, target);
 }
 
 bool chain_call(uintptr_t site, uintptr_t target, uintptr_t& previous) {
