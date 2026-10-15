@@ -136,13 +136,19 @@ bool hook(const char* feature, uint32_t site_rva, uint32_t expected_rva, void* t
 SyncVectorView last_host_vector() { return {g_host_copy, g_host_size}; }
 
 void install_sync_check(const Config& config) {
-    if (config.state_checksum || config.oos_log) {
-        if (hook("sync_check", kEqualsCallRva, kEqualsRva, &equals_thunk, g_original_equals)) {
+    bool compare_ready = false;
+    if (config.state_checksum || config.oos_log || config.fix_rng_resync) {
+        compare_ready = hook("sync_check", kEqualsCallRva, kEqualsRva, &equals_thunk, g_original_equals);
+        if (compare_ready) {
             logf("sync_check: the game compares its two elements; the rest is compared and logged here");
         }
     }
     if (!config.fix_rng_resync) {
         logf("fix_rng_resync: disabled");
+        return;
+    }
+    if (!compare_ready) {
+        logf("fix_rng_resync: host-vector capture unavailable, feature off");
         return;
     }
     if (hook("fix_rng_resync", kResyncCallRva, kResyncRva, &resync_thunk, g_original_resync)) {
