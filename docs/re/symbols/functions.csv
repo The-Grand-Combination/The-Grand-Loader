@@ -260,3 +260,6 @@ va,name,conf,area,src,note
 0x0048E120,State_GetControllerTag,I,map,cp,"__fastcall(state in ECX, out[2] in EAX): controller {tag, index} of the state's first province (province+0x130/+0x134, or the first entry of province+0x110->+0x10 vector); state+0xC == 0 -> '---'/0"
 0x0048F070,State_HasHostilePresence,I,ai,cp,"(state, flag) RET 8; walks state+0x14 and state+0x04 lists for units of a country at war with the controller or REB; 13 callers, most test province+0xE8 first"
 0x00851BD0,AI_UnitTargetScan,I,ai,cp,"from AI_TargetScan at 0x0084B51B; walks the country's unit list (ai+0x214; unit+0xDC province index, +0xE8 flag) and calls State_HasHostilePresence(province+0xE8) at 0x00851C6D without a null test"
+0x00519A40,Country_RebuildPossibleVassals,C,diplomacy,cp,"empties and refills country+0xE2C/+0xE30 (8-byte entries, country at +4): dead countries with cores in its controlled provinces whose capital it holds; returns the vector; called by is_possible_vassal, can_create_vassals and two UI/effect functions"
+0x008D8030,IsPossibleVassalTrigger_Evaluate,C,triggers,cp,"searches Country_RebuildPossibleVassals(scope country) for trigger+0x20"
+0x008D7D40,CanCreateVassalsTrigger_Evaluate,C,triggers,cp,"same list"

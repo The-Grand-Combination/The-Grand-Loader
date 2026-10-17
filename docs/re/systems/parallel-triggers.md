@@ -53,6 +53,27 @@ Not covered, to check before building:
 - **writes through pointers** (a lazily computed value cached in a country or province object);
 - **heap traffic**: allocations inside triggers take the CRT heap lock, which would serialise the workers.
 
+### Triggers that write (audit of 2026-10-17, after a crash) **[C]**
+
+A user's crash dump (heap corruption `0xC0000374`, on a `parallel_events` worker inside `CAndTrigger`)
+led to the "writes through pointers" case above. `CIsPossibleVassalTrigger` (`is_possible_vassal`,
+vtable `0x00E30FC8`, Evaluate `0x008D8030`) and `CCanCreateVassalsTrigger` (`can_create_vassals`,
+`0x00E30F90`, `0x008D7D40`) answer from `FUN_00519A40(country)`, which empties the country's vector at
+`+0xE2C/+0xE30` and refills it on every call: dead countries with cores in its controlled provinces
+(`province+0x148`, 8-byte entries, country at `+4`) whose capital (`+0xBE4`) it holds. Two threads on
+the same country resize the same vector.
+
+Audit: all 236 trigger classes (RTTI type descriptors `.?AVC*Trigger@@` -> complete object locators ->
+vtables, Evaluate at slot `0x18`), direct calls three levels deep in the decompilation, functions with
+more than 150 callers (strings, vectors, allocation) skipped, stores through a non-stack pointer at
+offset `0x30` or more flagged. Eight classes were flagged: the two above, and six that only construct
+temporaries or create a lazy singleton at first use (`FUN_00954A40` behind child scopes, the `CIdeology`
+constructor behind `pop_majority_ideology`, a factory helper behind `can_build_factory_in_capital`).
+Virtual calls are not followed.
+
+`parallel/trigger_locks.cpp` points the Evaluate slot of the two classes at a wrapper holding one
+critical section, whenever a parallel trigger feature is on.
+
 ## Requirements for a worker-thread version
 
 - **FPU state.** Worker threads must run with the game thread's x87 control word and MXCSR (Direct3D 9

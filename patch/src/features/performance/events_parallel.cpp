@@ -3,7 +3,9 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <intrin.h>
 #include <vector>
 
 #include "game/world.h"
@@ -41,6 +43,9 @@ constexpr uint32_t kScanCallRva = 0x2861E8;
 constexpr uint32_t kScanRva = 0x4A7CD0;
 constexpr uint32_t kFireRva = 0x4A8120;
 constexpr uint32_t kFireCallRvas[] = {0x4A7EF4, 0x4A80D5};
+constexpr uint32_t kCountryEvaluateReturnRva = 0x4A7DEF;   // after the scan's `CALL EDX` (trigger) in the country pass
+constexpr uint32_t kProvinceEvaluateReturnRva = 0x4A7FD0;  // the same in the province pass
+constexpr uint32_t kEventId = 0x0C;                        // CEvent: (type, id) at +0x08/+0x0C
 constexpr uint32_t kAndVtableRva = 0x9F9994;           // CAndTrigger::vftable
 constexpr uint32_t kProvinceSourcePtrRva = 0xE5870C;   // object; vt[0x24] = province count
 constexpr int32_t kDateBase = 0x029C55C0;
@@ -69,6 +74,8 @@ uintptr_t g_fake_vtable[kVtableSlotsCopied];
 uintptr_t g_and_vtable = 0;
 uintptr_t g_scan = 0;
 uintptr_t g_fire = 0;
+uintptr_t g_country_evaluate_return = 0;
+uintptr_t g_province_evaluate_return = 0;
 
 struct Entry {
     uintptr_t self;  // the event's trigger block
@@ -159,8 +166,12 @@ void compute_chunk(void* live_scope) {
     g_batch_ticks += static_cast<uint64_t>(qpc() - start);
 }
 
+// Only the scan's own trigger call is answered from the batches; any other caller (an effect, a nested
+// evaluation, code reached after an exception left the scan) runs the original code.
 char __fastcall evaluate_hook(void* self, void*, void* scope) {
-    if (!g_in_scan || g_fire_depth > 0) {
+    uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    if (!g_in_scan || g_fire_depth > 0 ||
+        caller != (g_country_pass ? g_country_evaluate_return : g_province_evaluate_return)) {
         return g_original_evaluate(self, nullptr, scope);
     }
     uintptr_t s = reinterpret_cast<uintptr_t>(self);
@@ -193,9 +204,18 @@ char __fastcall evaluate_hook(void* self, void*, void* scope) {
         if (serial != result) {
             g_mismatches++;
             if (g_mismatch_logs++ < kMaxMismatchLogs) {
-                logf("parallel_events: MISMATCH %s pass, %s %u, trigger %08X: serial %d, parallel %d",
-                     g_country_pass ? "country" : "province", g_country_pass ? "country" : "province", key, s,
-                     serial, result);
+                char entity[24];
+                if (g_country_pass) {
+                    char tag[4] = {0};
+                    std::memcpy(tag, &g_seq[g_next - 1].tag, 3);
+                    std::snprintf(entity, sizeof(entity), "country %s", tag);
+                } else {
+                    std::snprintf(entity, sizeof(entity), "province %u", key);
+                }
+                logf("parallel_events: MISMATCH event %u for %s: serial %d, parallel %d (computed %u entries "
+                     "earlier, %llu events fired today)",
+                     read32(s - kEventTrigger + kEventId), entity, serial, result,
+                     static_cast<unsigned>(g_next - 1 - g_chunk_begin), static_cast<unsigned long long>(g_fires));
             }
         }
         return serial;
@@ -341,12 +361,16 @@ void install_events_parallel(const Config& config) {
     g_qpc_freq = freq.QuadPart;
     g_and_vtable = hooks::exe_addr(kAndVtableRva);
     g_scan = hooks::exe_addr(kScanRva);
+    g_country_evaluate_return = hooks::exe_addr(kCountryEvaluateReturnRva);
+    g_province_evaluate_return = hooks::exe_addr(kProvinceEvaluateReturnRva);
     g_fire = hooks::exe_addr(kFireRva);
     std::memcpy(g_fake_vtable, reinterpret_cast<const void*>(g_and_vtable), sizeof(g_fake_vtable));
     g_original_evaluate = reinterpret_cast<EvaluateFn>(g_fake_vtable[kVtableEvaluate / 4]);
     if (!hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_original_evaluate), "\x55\x8B\xEC", 3) ||
-        !hooks::expect_bytes(hooks::exe_addr(kScanCallRva), "\xE8", 1)) {
-        logf("parallel_events: CAndTrigger::Evaluate or the scan call not recognised, feature off");
+        !hooks::expect_bytes(hooks::exe_addr(kScanCallRva), "\xE8", 1) ||
+        !hooks::expect_bytes(g_country_evaluate_return - 2, "\xFF\xD2\x84\xC0", 4) ||  // CALL EDX; TEST AL,AL
+        !hooks::expect_bytes(g_province_evaluate_return - 2, "\xFF\xD2\x84\xC0", 4)) {
+        logf("parallel_events: CAndTrigger::Evaluate, the scan call or its trigger calls not recognised, feature off");
         return;
     }
     for (uint32_t site : kFireCallRvas) {

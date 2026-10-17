@@ -19,12 +19,20 @@ the first day, and hovering a tooltip moves one machine's generator further.
 
 ## How
 
-- The ten call sites that draw from the world generator are redirected to one dispatcher. While the
+- The twenty call sites that draw from the world generator are redirected to one dispatcher. While the
   session manager is executing a command (its "executing" flag covers every command, the hourly tick
   with the whole `DayTick` included) all machines run the same code in the same order, and the draw is
   taken from the global generator and counted like the game's own draws, so the daily check covers it.
   Outside command execution (AI frame jobs, tooltips) the draw comes from a private generator seeded
   from the clock, which no longer matters to anyone else.
-- The world generator itself is left alone; nothing reads it any more.
+- The dispatcher keeps every register the callers rely on, the SSE registers included: the game's
+  optimiser knows the original draw leaves them alone, and some callers keep floating-point values in
+  them across it.
+- The first draw of each site inside a command is logged. In a multiplayer game, a site that
+  appears in the host's log and not in a client's is host-only code drawing in lockstep, which the
+  dispatcher's rule gets wrong; the logs of a test game show whether that ever happens.
+- The world generator itself is left alone; nothing reads it any more. A Lua function the game
+  registers, `GetAIRand`, also draws from it, but no Lua file of the game or of the installed mods
+  calls it.
 - Single-player results change: the AI's daily timing and diplomatic answers now come from the
   global sequence. Every player of a multiplayer game must use the same value.

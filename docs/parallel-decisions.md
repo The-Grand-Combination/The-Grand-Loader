@@ -14,6 +14,10 @@ and its checks can be computed in advance, in parallel.
 
 ## How
 
+- Two triggers write to the game while they are evaluated, `is_possible_vassal` and
+  `can_create_vassals`: each rebuilds a list stored in the country. They are serialised with a lock, so
+  two threads never run them at once; before that, two workers on the same country could corrupt the
+  heap and crash the game.
 - Requires `cull_decision_checks = 1` and `fast_ai_queue = 1`.
 - A worker pool (logical processors − 1, at most 7) runs batches with the game thread's FPU state.
 - At the start of the frame in which `fast_ai_queue` drains the AI queue, the countries waiting in it are

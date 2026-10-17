@@ -88,9 +88,10 @@ Several MT19937 instances, all with the same `Rng_Next` (`0x009B7610`, state in 
 | instance | seeded by | counted in `g_rngCalls`? | used by |
 |---|---|---|---|
 | global `g_mtState` `0x00F0ECF0` | `CSetRandomSeed` (clock at Play, `FUN_0072CB40`), `Rng_Resync` | yes: the wrappers `FUN_009B7950/7AC0/7D30/7D80` and the inlined loops in `DayTick` (1000 draws), `EconomyManager_PrepareUpdate`, `EventManager_DailyScan` all `INC [0x00F20C14]` | the simulation |
-| world `world+0xB4` (index `+0xA74`) | clock in the world constructor (`FUN_0067F790`), or save key token `0x7A4` on load (`FUN_006817F0`); index reset to 0 both times | no | `FUN_0085CF10`: the daily "does this AI country think today" roll, on every machine |
+| world `world+0xB4` (index `+0xA74`) | clock in the world constructor (`FUN_0067F790`), or save key token `0x7A4` on load (`FUN_006817F0`); index reset to 0 both times | no | twenty call sites in the AI code (list in `world_rng.cpp`), among them `FUN_0085CF10`, the daily "does this AI country think today" roll, on every machine; the Lua binding `GetAIRand` (`0x008687E0`, unused) |
 | event manager (`DAT_01319B80`, `+0x58`) | `__time64` at creation (`FUN_008A76A0`) | no | `Event_Fire`'s AI option choice (host only) |
 | AI / unit objects (`FUN_007EC640`, `FUN_008108E0`, `FUN_007810A0`) | various | no | AI (host only) and effects |
+| second global `0x00F0E040` (index `0x00F0EA00`) | the constant 1234, reset at every `EconomyManager_PrepareUpdate` (`0x0068DAE5`) | no | `FUN_009599A0` from the economy update and `Pop_MonthlyUpdate`: deterministic on every machine |
 
 Because every global-MT draw is counted, `(seed, calls)` fully describes its position and the
 built-in resync does restore it. The world MT is the one to watch: seeded from the save but with

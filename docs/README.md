@@ -17,7 +17,7 @@ otherwise, an optimisation gives **the same results** as the unpatched game. Tim
 | [`skip_clean_resets`](skip-clean-resets.md) | skips a daily per-country table reset that would write what is already there |
 | [`fast_ai_queue`](fast-ai-queue.md) | at max speed, finishes the AI's daily work in one frame instead of 20 ms per frame |
 | [`parallel_decisions`](parallel-decisions.md) | evaluates the AI's daily decision checks on worker threads |
-| [`parallel_events`](parallel-events.md) | evaluates the daily event scan's triggers on worker threads |
+| [`parallel_events`](parallel-events.md) | off by default: evaluates the daily event scan's triggers on worker threads |
 | [`engine_worker_threads`](engine-worker-threads.md) | thread count of the game's own TBB scheduler |
 | [`background_sleep_ms`](background-sleep-ms.md) | shortens the 100 ms per-frame sleep of a fullscreen game whose render device is lost (alt-tabbed), so a multiplayer client in the background keeps up |
 

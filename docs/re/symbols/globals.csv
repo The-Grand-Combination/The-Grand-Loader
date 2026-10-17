@@ -92,3 +92,5 @@ va,name,kind,conf,src,note
 0x00E2ABE0,CAddCountryModifierEffect_vftable,vtable,C,cp,same layout
 0x00E2AC18,CRemoveProvinceModifierEffect_vftable,vtable,C,cp,"+0x1C parse name, +0x24 tooltip, +0x2C execute"
 0x00E2AC50,CRemoveCountryModifierEffect_vftable,vtable,C,cp,same layout
+0x00E30FC8,CIsPossibleVassalTrigger_vftable,vtable,C,cp,"is_possible_vassal; Evaluate 0x008D8030 rebuilds country+0xE2C through FUN_00519A40"
+0x00E30F90,CCanCreateVassalsTrigger_vftable,vtable,C,cp,"can_create_vassals; Evaluate 0x008D7D40, same list"

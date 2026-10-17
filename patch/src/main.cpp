@@ -23,14 +23,15 @@
 #include "features/performance/relations_prefetch.h"
 #include "features/performance/worker_threads.h"
 #include "features/profilers/sample_profiler.h"
+#include "features/profilers/tick_profiler.h"
+#include "features/profilers/year_timer.h"
 #include "features/stability/modifier_guard.h"
 #include "features/stability/state_guard.h"
 #include "features/stability/supply_guard.h"
 #include "features/stability/tech_window_guard.h"
-#include "features/profilers/tick_profiler.h"
-#include "features/profilers/year_timer.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "parallel/trigger_locks.h"
 
 namespace {
 const TGL_HostApi* g_host = nullptr;
@@ -62,6 +63,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_ai_relations_prefetch(config);
     cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
+    cp::parallel::install_trigger_locks(config);
     cp::features::install_ai_queue(config);
     cp::features::install_events_parallel(config);
     cp::features::install_country_prepass(config);

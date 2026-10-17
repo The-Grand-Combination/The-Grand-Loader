@@ -35,6 +35,7 @@ add_library(performance_patch SHARED
     src/features/stability/modifier_guard.cpp
     src/features/stability/state_guard.cpp
     src/parallel/worker_pool.cpp
+    src/parallel/trigger_locks.cpp
 )
 
 target_include_directories(performance_patch PRIVATE src)
