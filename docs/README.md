@@ -33,6 +33,7 @@ Every player of a game must use the same values.
 | [`fix_rng_resync`](fix-rng-resync.md) | on a sync mismatch, realigns the random generator to the host's position instead of restarting it |
 | [`sync_world_rng`](sync-world-rng.md) | takes the lockstep draws of the world's clock-seeded generator from the shared one |
 | [`mp_host_wait_days`](mp-host-wait-days.md) | off by default: the host waits for the slowest player instead of running ahead; suspended while a player is at war |
+| [`oos_notice`](oos-notice.md) | a recovered out-of-sync shows a 15-second notice instead of the dialog and pause; a real one says what differs |
 
 ## Crash prevention
 
@@ -44,6 +45,15 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 | [`fix_tech_window_crash`](fix-tech-window-crash.md) | technology window with an invention that has no status object |
 | [`fix_missing_modifier`](fix-missing-modifier.md) | add/remove modifier effects that name a modifier that does not exist: empty tooltip, no effect, name logged |
 | [`fix_missing_state_crash`](fix-missing-state-crash.md) | AI scan over a unit in a province without an owner, which has no state object |
+
+## Interface
+
+| option | what it does |
+|---|---|
+| [`clipboard_paste`](clipboard-paste.md) | Ctrl+V types the clipboard text into text fields, such as the IP in the join dialog |
+| [`save_last_ip`](save-last-ip.md) | saves the join address to `settings.txt`, so the join dialog starts with it next time |
+| [`join_port`](join-port.md) | the join dialog accepts `address:port`, for tunnels like playit whose public port is not 1638 |
+| [`chat_line_seconds`](chat-line-seconds.md) | how long a chat line stays (vanilla 60 s), the "lagging behind" warning included |
 
 ## Memory
 

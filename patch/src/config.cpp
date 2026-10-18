@@ -49,6 +49,12 @@ constexpr Key kKeys[] = {
     {"fix_tech_window_crash", &Config::fix_tech_window_crash, nullptr},
     {"fix_missing_modifier", &Config::fix_missing_modifier, nullptr},
     {"fix_missing_state_crash", &Config::fix_missing_state_crash, nullptr},
+    {"clipboard_paste", &Config::clipboard_paste, nullptr},
+    {"save_last_ip", &Config::save_last_ip, nullptr},
+    {"join_port", &Config::join_port, nullptr},
+    {"network_log", &Config::network_log, nullptr},
+    {"oos_notice", &Config::oos_notice, nullptr},
+    {"chat_line_seconds", nullptr, &Config::chat_line_seconds},
 };
 
 std::string_view trim(std::string_view s) {

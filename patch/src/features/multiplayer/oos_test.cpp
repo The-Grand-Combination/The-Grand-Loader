@@ -4,6 +4,7 @@
 
 #include <cstdint>
 
+#include "game/window.h"
 #include "game/world.h"
 #include "hooks/hourly_tick.h"
 #include "log.h"
@@ -37,28 +38,9 @@ HWND g_game_window = nullptr;
 bool g_thread_started = false;
 bool g_hotkey_down = false;
 
-BOOL CALLBACK find_game_window(HWND hwnd, LPARAM) {
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid != GetCurrentProcessId() || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER) != nullptr) {
-        return TRUE;
-    }
-    if (hwnd == g_overlay) {
-        return TRUE;
-    }
-    RECT r;
-    GetClientRect(hwnd, &r);
-    if (r.right < 400 || r.bottom < 300) {
-        return TRUE;  // not the main window
-    }
-    g_game_window = hwnd;
-    return FALSE;
-}
-
 void reposition() {
     if (!g_game_window || !IsWindow(g_game_window)) {
-        g_game_window = nullptr;
-        EnumWindows(&find_game_window, 0);
+        g_game_window = game::find_main_window();
         if (!g_game_window) {
             ShowWindow(g_overlay, SW_HIDE);
             return;

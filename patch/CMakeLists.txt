@@ -29,11 +29,18 @@ add_library(performance_patch SHARED
     src/features/multiplayer/sync_check.cpp
     src/features/multiplayer/world_rng.cpp
     src/features/multiplayer/host_wait.cpp
+    src/features/multiplayer/net_log.cpp
+    src/features/multiplayer/oos_notice.cpp
+    src/features/interface/chat_lines.cpp
+    src/game/window.cpp
     src/features/performance/background_sleep.cpp
     src/features/stability/supply_guard.cpp
     src/features/stability/tech_window_guard.cpp
     src/features/stability/modifier_guard.cpp
     src/features/stability/state_guard.cpp
+    src/features/interface/clipboard_paste.cpp
+    src/features/interface/last_ip.cpp
+    src/features/interface/join_port.cpp
     src/parallel/worker_pool.cpp
     src/parallel/trigger_locks.cpp
 )

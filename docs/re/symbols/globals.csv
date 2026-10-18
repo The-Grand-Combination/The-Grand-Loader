@@ -94,3 +94,5 @@ va,name,kind,conf,src,note
 0x00E2AC50,CRemoveCountryModifierEffect_vftable,vtable,C,cp,same layout
 0x00E30FC8,CIsPossibleVassalTrigger_vftable,vtable,C,cp,"is_possible_vassal; Evaluate 0x008D8030 rebuilds country+0xE2C through FUN_00519A40"
 0x00E30F90,CCanCreateVassalsTrigger_vftable,vtable,C,cp,"can_create_vassals; Evaluate 0x008D7D40, same list"
+0x0125B5E0,g_settings,ptr,C,cp,"CSettings singleton (Settings_Get); +0x108 lastplayer, +0x124 lasthost, +0x140 serveradress, +0xC0 file name"
+0x00DFB5B4,CSettings_vftable,vtable,C,cp,"7 slots: +0x08 Write(stream), +0x10 ParseToken"

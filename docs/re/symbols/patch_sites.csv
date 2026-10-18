@@ -98,3 +98,8 @@ cp_state_walk_scan,0x00851F51,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_st
 cp_state_walk_score,0x00853BEF,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: FUN_00853B30 (unit scoring from FUN_00851AD0) same walk; null -> 0x00853C03
 cp_lock_is_possible_vassal,0x00E30FE0,30 80 8D 00,slot replace,shipped,cp,trigger_locks: CIsPossibleVassalTrigger vt+0x18 (Evaluate 0x008D8030) -> critical-section wrapper when a parallel trigger feature is on
 cp_lock_can_create_vassals,0x00E30FA8,40 7D 8D 00,slot replace,shipped,cp,trigger_locks: CCanCreateVassalsTrigger vt+0x18 (Evaluate 0x008D7D40) -> same wrapper
+cp_last_ip_assign,0x00767328,E8 A3 1B CA FF,call redirect,shipped,cp,save_last_ip: std::string::assign of settings+0x124 (lasthost) in the join dialog OK handler FUN_00767140; thunk then calls Settings_Save (0x009D7FA0)
+cp_join_port,0x0076729B,E8 E0 0E 29 00,call redirect,shipped,cp,join_port: CALL ConnectRequest_ctor (cdecl) in JoinIpDialog_OnJoin; thunk splits address:port into the host and port arguments
+cp_join_port_lobby,0x0076BE7B,E8 50 D0 C9 FF,call redirect,shipped,cp,join_port: std::string::assign of session+0xF4 into settings+0x124 in FUN_0076BA60 (client lobby); the split host is replaced by the typed address:port
+cp_net_log,0x00A89D00,55 8B EC 83 E4 F8,jump hook,shipped,cp,network_log: entry of enet_host_service -> wrapper that calls a copy of the prologue and logs connect/disconnect/silence
+cp_chat_line_seconds,0x006784FD,83 7D FC 3C,imm8,shipped,cp,chat_line_seconds: CMP [EBP-4],60 in Chat_ExpireLines (seconds since the last removal); the immediate becomes the configured value

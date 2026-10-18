@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "features/multiplayer/oos_log.h"
+#include "features/multiplayer/oos_notice.h"
 #include "features/multiplayer/state_checksum.h"
 #include "game/world.h"
 #include "hooks/memory.h"
@@ -41,6 +42,7 @@ game::IntVector* g_host = nullptr;
 uint32_t g_saved_local_end = 0;
 uint32_t g_saved_host_end = 0;
 bool g_logged_overflow = false;
+int g_restore_oos_flag = -1;  // world+0xBA8 before oos_notice set it for one comparison, or -1
 
 // Before the game's compare: keep a copy of the host vector for the resync and the report, then
 // shorten both vectors to the game's own elements so that Vector_Equals only sees those.
@@ -56,6 +58,17 @@ void __cdecl before_compare(game::IntVector* local, game::IntVector* host) {
     g_host_size = n_host < kHostCopyMax ? n_host : kHostCopyMax;
     std::memcpy(g_host_copy, host->data(), g_host_size * 4);
     report_sync_vectors(local->data(), local->size(), host->data(), n_host);
+    // The game never clears world+0xBA8 (dialog and pause shown); a value set to skip one reaction is put
+    // back at the next comparison so a later divergence still gets it.
+    auto* oos_flag = reinterpret_cast<uint8_t*>(game::world() + game::kWorldOosShown);
+    if (g_restore_oos_flag >= 0) {
+        *oos_flag = static_cast<uint8_t>(g_restore_oos_flag);
+        g_restore_oos_flag = -1;
+    }
+    if (oos_notice_on_compare(local->data(), local->size(), host->data(), n_host)) {
+        g_restore_oos_flag = *oos_flag;
+        *oos_flag = 1;
+    }
     g_saved_local_end = local->end;
     g_saved_host_end = host->end;
     if (local->size() >= kGameSyncElements && n_host >= kGameSyncElements) {

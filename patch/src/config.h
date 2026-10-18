@@ -34,6 +34,12 @@ struct Config {
     bool fix_tech_window_crash = false; // crash prevention: invention without a status object in the technology window
     bool fix_missing_modifier = false;  // crash prevention: add/remove modifier effects naming a modifier that does not exist
     bool fix_missing_state_crash = false;  // crash prevention: AI scan over a unit in a province without a state (uncolonised)
+    bool clipboard_paste = false;       // interface: Ctrl+V types the clipboard text into text fields
+    bool save_last_ip = false;          // interface: write the join address to settings.txt when joining
+    bool join_port = false;             // interface: the join dialog accepts address:port (the game always uses 1638)
+    bool network_log = false;           // multiplayer diagnostics: log ENet connections, disconnections and silences
+    bool oos_notice = false;            // multiplayer: notice instead of dialog and pause when an out-of-sync is recovered
+    int chat_line_seconds = 60;         // interface: seconds before the oldest in-game chat line goes (vanilla 60)
 };
 
 // Reads the ini at `config_file`; unknown keys are ignored, missing keys keep their defaults.

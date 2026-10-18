@@ -4,10 +4,16 @@
 
 #include "config.h"
 #include "crash_log.h"
+#include "features/interface/chat_lines.h"
+#include "features/interface/clipboard_paste.h"
+#include "features/interface/join_port.h"
+#include "features/interface/last_ip.h"
 #include "features/memory/flag_cache.h"
 #include "features/multiplayer/fpu_pin.h"
 #include "features/multiplayer/host_wait.h"
+#include "features/multiplayer/net_log.h"
 #include "features/multiplayer/oos_log.h"
+#include "features/multiplayer/oos_notice.h"
 #include "features/multiplayer/oos_test.h"
 #include "features/multiplayer/state_checksum.h"
 #include "features/multiplayer/sync_check.h"
@@ -79,6 +85,12 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_tech_window_guard(config);
     cp::features::install_modifier_guard(config);
     cp::features::install_state_guard(config);
+    cp::features::install_clipboard_paste(config);
+    cp::features::install_last_ip(config);
+    cp::features::install_join_port(config);
+    cp::features::install_net_log(config);
+    cp::features::install_oos_notice(config);
+    cp::features::install_chat_lines(config);
     return 0;
 }
 
