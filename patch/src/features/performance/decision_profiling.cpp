@@ -20,7 +20,7 @@ namespace cp::features::decisions {
 namespace {
 
 constexpr size_t kVtableSlotsCopied = 16;  // CAndTrigger has 12 used slots; extra entries are never called
-constexpr uint64_t kSample = 16;           // 1 in 16 evaluations is timed (power of two)
+constexpr uint64_t kSample = 16;           // timing sample rate (power of two)
 
 game::EvaluateFn g_original_evaluate = nullptr;
 uintptr_t g_fake_vtable[kVtableSlotsCopied];

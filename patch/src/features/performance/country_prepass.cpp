@@ -12,22 +12,22 @@
 
 // v2game.exe 3.04 (docs/re/systems/performance.md):
 //
-//   Country_PrePass (0x00508590) runs for all 683 tags every day, alive or not. Early on it calls
+//   Country_PrePass (0x00508590) runs for every tag every day, alive or not. Early on it calls
 //   FUN_0051FD10(country) (stdcall 1, RET 4, CALL at 0x0050861B), which resets two per-country tables to
 //   the constant pair at DAT_013F3688/DAT_013F368C:
 //     country+0x1514  vector of `goods` 0x18-byte entries          (goods = count at DAT_012587F0 +0xC/+0x10)
 //     country+0x14F4  vector of `types` 16-byte headers, each a row of `goods` 0x18-byte entries
 //                     (types = count at DAT_0125CE80 +0xC/+0x10, a lazy singleton created by the call)
-//   resizing both first when their sizes do not match. ~30 KB written per tag per day; the samples sit on
-//   the stores (0x0051FEA4..). For a tag whose tables already hold the constant everywhere (a dead tag
-//   nothing has written to since yesterday), the call changes nothing, so it is skipped: same memory, same
-//   results. The check is a sequential read and stops at the first entry that differs.
+//   resizing both first when their sizes do not match. The samples sit on the stores (0x0051FEA4..).
+//   For a tag whose tables already hold the constant everywhere (a dead tag nothing has written to since
+//   yesterday), the call changes nothing, so it is skipped: same memory, same results. The check is a
+//   sequential read and stops at the first entry that differs.
 //
 //   Later in the same function, the loop at 0x00508DA7 reads relation +0x2C/+0x30 of the tag with every
-//   tag (70 % of Country_PrePass's own samples at 0x00508DEE). The relation prefetch before
-//   Country_Recalculate only runs for tags with provinces (its call at 0x005089DB is skipped otherwise),
-//   so dead tags got none: they get it here. FUN_0050B9B0, also called from Country_PrePass, walks the
-//   tag's pops (stall after [pop+0x27C] at 0x0050C089): they are prefetched here too.
+//   tag (stall at 0x00508DEE). The relation prefetch before Country_Recalculate only runs for tags with
+//   provinces (its call at 0x005089DB is skipped otherwise), so dead tags get it here. FUN_0050B9B0, also
+//   called from Country_PrePass, walks the tag's pops (stall after [pop+0x27C] at 0x0050C089): they are
+//   prefetched here too.
 
 namespace cp::features {
 
@@ -81,7 +81,8 @@ bool tables_clean(uintptr_t country) {
     }
     int32_t goods = static_cast<int32_t>((read32(goods_source + 0x10) - read32(goods_source + 0xC)) >> 2);
     int32_t types = static_cast<int32_t>((read32(types_source + 0x10) - read32(types_source + 0xC)) >> 2);
-    if (vector_count(country + kCountryRow, kEntrySize) != goods || vector_count(country + kCountryMatrix, 16) != types) {
+    if (vector_count(country + kCountryRow, kEntrySize) != goods ||
+        vector_count(country + kCountryMatrix, 16) != types) {
         return false;  // the call would resize
     }
     uint32_t lo = read32(g_reset_value), hi = read32(g_reset_value + 4);

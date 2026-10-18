@@ -57,9 +57,8 @@ inline T read(uintptr_t at) {
 }
 
 // The countries the scans visit, split once per game day instead of testing every tag's provinces on
-// every call. A country that
-// gains or loses its provinces during the day is prefetched by yesterday's list until the next day:
-// prefetching never changes results, only which lines are warm.
+// every call. A country that gains or loses its provinces during the day is prefetched by yesterday's
+// list until the next day: prefetching never changes results, only which lines are warm.
 struct CountryLists {
     std::vector<uint32_t> live;  // country index (+0x20) of every tag with provinces
     std::vector<uint32_t> dead;  // index != 0, no provinces
@@ -90,7 +89,8 @@ const CountryLists* country_lists() {
             continue;
         }
         uint32_t index = read<uint32_t>(other + kCountryIndex);
-        bool has_provinces = read<uint32_t>(other + kCountryProvincesEnd) != read<uint32_t>(other + kCountryProvincesBegin);
+        bool has_provinces =
+            read<uint32_t>(other + kCountryProvincesEnd) != read<uint32_t>(other + kCountryProvincesBegin);
         if (i >= 1) {
             g_lists.all.push_back(index);
         }
@@ -105,7 +105,8 @@ const CountryLists* country_lists() {
     return &g_lists;
 }
 
-inline void prefetch_list(uintptr_t relations, const std::vector<uint32_t>& indices, const uint32_t* offsets, int count) {
+inline void prefetch_list(uintptr_t relations, const std::vector<uint32_t>& indices, const uint32_t* offsets,
+                          int count) {
     for (uint32_t index : indices) {
         uintptr_t rel = read<uint32_t>(relations + index * 4);
         for (int k = 0; k < count; k++) {
@@ -202,12 +203,10 @@ __declspec(naked) void purge_thunk() {
     }
 }
 
-
-
 // FUN_0052FCD0 (stdcall 2, RET 8), called once per country from Country_DailyUpdate (CALL at 0x0050B6B9,
 // args: country, 0): for every country of world+0xADC with provinces other than self it reads
-// `other+0x1580[self]` (8 bytes): one miss on the other country's array per pair (48 % of its samples at
-// 0x00530388). Two passes: the array pointers' lines, then the elements.
+// `other+0x1580[self]` (8 bytes): one miss on the other country's array per pair (stall at 0x00530388).
+// Two passes: the array pointers' lines, then the elements.
 constexpr uint32_t kPairCallRva = 0x10B6B9;
 constexpr uint32_t kPairRva = 0x12FCD0;
 constexpr uint32_t kWorldLiving = game::kWorldLiving;  // vector<CCountry*> walked by FUN_0052FCD0 and FUN_00522CF0
@@ -246,7 +245,7 @@ __declspec(naked) void pair_thunk() {
 // AI target scan: FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
 // reached only through vtable slot 0x00E2773C, once per AI country per day from the AI job queue. It loops
 // over every country (index 1..count, provinces or not) and tests `CMP [self+0xBE8[other] + 0x34], 0`;
-// 90 % of its samples sit right after that read (0x0084B29D). Later, rarely, it reads +0x3C.
+// its samples sit right after that read (0x0084B29D). Later, rarely, it reads +0x3C.
 constexpr uint32_t kAiScanSlotRva = 0xA2773C;
 constexpr uint32_t kAiScanRva = 0x44B0F0;
 constexpr uint32_t kAiCountryIndex = game::kAiCountryJobCountry;
@@ -320,7 +319,6 @@ void install_relations_prefetch(const Config& config) {
     logf("prefetch_relations: active on %d of 4 country-pair scans", active);
 }
 
-
 void install_ai_relations_prefetch(const Config& config) {
     if (!config.prefetch_ai_relations) {
         logf("prefetch_ai_relations: disabled");
@@ -328,8 +326,10 @@ void install_ai_relations_prefetch(const Config& config) {
     }
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
     g_ai_scan = hooks::exe_addr(kAiScanRva);
-    if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan, reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
-        logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", hooks::listing_va(kAiScanSlotRva));
+    if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan,
+                                reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
+        logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off",
+             hooks::listing_va(kAiScanSlotRva));
         return;
     }
     logf("prefetch_ai_relations: active, relations prefetched before each AI country's daily target scan");

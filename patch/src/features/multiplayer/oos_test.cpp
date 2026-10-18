@@ -19,9 +19,9 @@
 //
 // The button lives in a tiny topmost tool window owned by a thread of ours, moved over the game
 // window's top-right corner four times a second. Exclusive fullscreen hides it; Ctrl+Shift+O, polled
-// on that thread four times a second while the game window has the focus, works everywhere, paused
-// too; the request is carried out at the next tick. The thread
-// is never stopped: the loader has no unload path, so the plugin lives as long as the process.
+// on the same timer while the game window has the focus, works everywhere, paused too; the request is
+// carried out at the next tick. The thread is never stopped: the loader has no unload path, so the
+// plugin lives as long as the process.
 
 namespace cp::features {
 
@@ -56,8 +56,7 @@ void reposition() {
                  kHeight, SWP_NOACTIVATE | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 }
 
-// Ctrl+Shift+O while the game window has the focus, on its press. Polled on the overlay thread so it
-// also works while the game is paused or slow.
+// Ctrl+Shift+O while the game window has the focus, on its press.
 void poll_hotkey() {
     DWORD foreground_pid = 0;
     GetWindowThreadProcessId(GetForegroundWindow(), &foreground_pid);

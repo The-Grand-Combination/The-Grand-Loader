@@ -124,7 +124,6 @@ __declspec(naked) void update_pops_thunk() {
     }
 }
 
-
 // DayTick (0x006859C0), province loop: for each province (EBX = world, EDI = index, ESI = province),
 // CALL FUN_004B9C60 at 0x00685B09, which walks every pop list of ESI (+0x194..+0x198, 16 bytes per type)
 // and calls FUN_0095EBF0 per pop; its samples sit after `MOV EAX,[EAX+0x27C]` (0x004B9C9B). Every 8th
@@ -180,11 +179,10 @@ __declspec(naked) void province_pops_thunk() {
     }
 }
 
-
 // ProcessMarketAndGoodsDistribution (0x004808D0) has the same province x pop-type list walk inline, with no
 // call per country to hang a batch on; per pop it does `MOV EAX,[EDI+0x27C]` (next), `MOV ESI,EDI` and
-// CALL FUN_0095EB00 at 0x00481860 (pop in ESI), whose samples sit after the pop's first read (90 % at
-// 0x0095EB63). Here the next pop (EAX) is prefetched while the current one is processed.
+// CALL FUN_0095EB00 at 0x00481860 (pop in ESI), whose samples sit after the pop's first read
+// (0x0095EB63). Here the next pop (EAX) is prefetched while the current one is processed.
 constexpr uint32_t kDistributionCallRva = 0x081860;  // CALL FUN_0095EB00
 constexpr uint32_t kPopDistributeRva = 0x55EB00;     // FUN_0095EB00
 
@@ -210,7 +208,6 @@ __declspec(naked) void distribution_thunk() {
         jmp dword ptr [g_pop_distribute]
     }
 }
-
 
 // Every pop of a country: all lists of all its provinces (country+0x9D8 ids, every type entry of
 // province+0x194..+0x198), walked together. Used before Country_DailyUpdate (its monthly pop pass reads
@@ -297,11 +294,14 @@ void install_pops_prefetch(const Config& config) {
         if (hooks::redirect_call(hooks::exe_addr(s.call_rva), s.target, reinterpret_cast<uintptr_t>(s.thunk))) {
             active++;
         } else {
-            logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped", hooks::listing_va(s.call_rva), s.name);
+            logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped",
+                 hooks::listing_va(s.call_rva), s.name);
         }
     }
     g_enabled = true;
-    logf("prefetch_pops: active on %d of 4 pop loops (country market update, DayTick province pass, market distribution, Country_DailyUpdate)", active);
+    logf("prefetch_pops: active on %d of 4 pop loops "
+         "(country market update, DayTick province pass, market distribution, Country_DailyUpdate)",
+         active);
 }
 
 void prefetch_country_pops(uintptr_t country) {

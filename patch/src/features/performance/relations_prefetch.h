@@ -7,12 +7,12 @@
 namespace cp::features {
 
 // `prefetch_relations`: four daily country-pair scans (three over a country's relation objects with
-// every other country, 683 x 683 objects each allocated on its own, and one over the other countries'
+// every other country, each relation object allocated on its own, and one over the other countries'
 // pair arrays) stall on cache misses at the first field they read, as the sampling profiler shows.
 // Before each scan, every line the scan will read is prefetched, so the misses overlap instead of
-// happening one by one. The scans themselves are not
-// changed, except that the relation purge is skipped for relations with nothing to purge, which is
-// exactly what it would have found. See docs/re/systems/performance.md.
+// happening one by one. The scans themselves are not changed, except that the relation purge is skipped
+// for relations with nothing to purge, which is exactly what it would have found.
+// See docs/re/systems/performance.md.
 void install_relations_prefetch(const Config& config);
 
 // `prefetch_ai_relations`: the same for the AI's daily target scan (FUN_0084B0F0, one per AI country),

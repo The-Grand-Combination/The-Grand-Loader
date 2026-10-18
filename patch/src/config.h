@@ -14,7 +14,7 @@ struct Config {
     bool decision_profiling = false;    // per-decision cost table in performance_patch_decisions.log every 30 game days
     int sample_profiler = 0;            // 0 off, N = sample the game thread every N ms
                                         // into performance_patch_samples.tsv
-    bool skip_network_wait = false;     // poll the network every frame without blocking (vanilla blocks 15-35 ms)
+    bool skip_network_wait = false;     // poll the network every frame without blocking (vanilla blocks)
     bool prefetch_relations = false;    // prefetch relation objects before the three daily country x country scans
     bool prefetch_pops = false;         // prefetch each country's pops before its daily market update
     bool prefetch_ai_relations = false; // prefetch relations before the AI's daily target scan

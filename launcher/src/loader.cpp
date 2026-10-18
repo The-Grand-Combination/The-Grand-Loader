@@ -87,7 +87,8 @@ bool load_plugin(const PluginEntry& entry, const std::wstring& game_dir) {
 
     MODULEINFO info{};
     if (!GetModuleInformation(GetCurrentProcess(), GetModuleHandleW(nullptr), &info, sizeof(info))) {
-        log::linef(kLoaderTag, "GetModuleInformation failed (error %lu), not loading %s", GetLastError(), narrow(entry.name).c_str());
+        log::linef(kLoaderTag, "GetModuleInformation failed (error %lu), not loading %s", GetLastError(),
+                   narrow(entry.name).c_str());
         FreeLibrary(module);
         return false;
     }

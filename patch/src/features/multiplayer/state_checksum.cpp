@@ -39,7 +39,6 @@ constexpr uint32_t kMaxDepth = 8;  // DayTick re-enters through the frames it re
 const char* const kNames[] = {"rng_calls", "rng_seed", "rng_calls_end", "provinces", "countries", "pops", "date"};
 constexpr size_t kAppended = std::size(kNames) - kGameSyncElements;
 
-
 uintptr_t g_original_day_tick = 0;
 uintptr_t g_saved_return[kMaxDepth];
 uint32_t g_depth = 0;

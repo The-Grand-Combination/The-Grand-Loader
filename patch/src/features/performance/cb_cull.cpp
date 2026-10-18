@@ -29,7 +29,7 @@
 //           else build two CEventScopes (self; THIS = D) and return T->CanUse(scope)  vtable slot 8
 //       return true at the first usable type
 //
-// So per (attacker, defender) pair the original walks the held list once per type (~100 times) and
+// So per (attacker, defender) pair the original walks the held list once per type and
 // builds two scopes per `always` type. The result is a boolean OR, so order does not matter. This
 // replacement, installed at the two AI call sites, computes per (attacker, day) which `always` types
 // survive their attacker-only conditions (a direct child of `can_use` that never looks at THIS/FROM is
@@ -131,7 +131,8 @@ std::string cb_type_name(uintptr_t type) { return game::string_at(type + kCBType
 bool is_attacker_only(uintptr_t trigger);
 
 bool children_attacker_only(uintptr_t block) {
-    for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd); it < end; it += 4) {
+    for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd);
+         it < end; it += 4) {
         if (!is_attacker_only(read32(it))) {
             return false;
         }
@@ -178,7 +179,8 @@ void refresh_types() {
         info.real = is_real_type(info.type);
         info.always = read8(info.type + kCBTypeAlways) != 0;
         uintptr_t block = info.type + kCBTypeCanUse;
-        for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd); it < end; it += 4) {
+        for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd);
+             it < end; it += 4) {
             uintptr_t child = read32(it);
             if (is_attacker_only(child)) {
                 info.attacker_only.push_back(child);
@@ -190,7 +192,8 @@ void refresh_types() {
     for (AttackerState& a : g_attackers) {
         a.day = -1;
     }
-    logf("cb_cull: %zu CB types, %zu `always`, %zu with attacker-only conditions in can_use", count, always, classified);
+    logf("cb_cull: %zu CB types, %zu `always`, %zu with attacker-only conditions in can_use", count, always,
+         classified);
 }
 
 // --- scopes --------------------------------------------------------------------------------------

@@ -18,7 +18,7 @@
 //   FUN_00519A40(country), which empties the country's vector at +0xE2C/+0xE30 and refills it (dead
 //   countries with cores in its provinces whose capital it holds) on every call. Two threads evaluating
 //   either for the same country resize the same vector: one frees the buffer the other writes to, and
-//   the heap manager stops the game with 0xC0000374 (a user's crash dump, docs/re/log.md 2026-10-17).
+//   the heap manager stops the game with 0xC0000374 (docs/re/log.md, 2026-10-17).
 //
 // Every trigger class (236, from RTTI) was audited for stores into object fields along its Evaluate's
 // direct calls three levels deep; these two are the only ones that write to game objects during a

@@ -10,9 +10,9 @@
 // procedure (0x009DFC70, registered by FUN_009DFA30 through the stub 0x009E07F0) handles WM_CHAR: unless
 // the input manager (DAT_00F20C38+0xE8, vt[0x30]) refuses it, a character above 13 goes to the focused
 // text field (focus = window+0x80, vt[0x34] "takes text", vt[0x28] insert). TranslateMessage turns
-// Ctrl+V into WM_CHAR 0x16, which the field drops. Characters dispatched at once, while Ctrl was still
-// held, did not reach the field in a user's test; the input manager's check most likely refuses
-// characters while Ctrl is down (not confirmed in the code).
+// Ctrl+V into WM_CHAR 0x16, which the field drops. Characters dispatched while Ctrl is still held do
+// not reach the field; the input manager's check most likely refuses characters while Ctrl is down
+// (not confirmed in the code).
 //
 // The exe's import of DispatchMessageA goes to a wrapper. A WM_CHAR 0x16 is swallowed and the clipboard
 // text kept; once Ctrl is up, it is posted to the same window as WM_CHAR messages, which reach the field

@@ -13,11 +13,10 @@
 //
 //   Rng_Next (0x009B7610): MT19937 step on the state whose address is in EAX (index at state+0x9C0).
 //   World_ctor seeds world+0xB4 from the clock; the save key that could reseed it (token 0x7A4) is not
-//   written, so two machines never share it (confirmed on a two-instance game: the index differed on
-//   day 2, docs/re/log.md 2026-10-13).
+//   written, so two machines never share it (docs/re/log.md, 2026-10-13).
 //
 //   Twenty calls of Rng_Next pass world+0xB4 (every call of Rng_Next in the exe, classified by the
-//   state it passes; docs/re/log.md 2026-10-16). The state is loaded in four shapes:
+//   state it passes; docs/re/log.md, 2026-10-16). The state is loaded in four shapes:
 //   `MOV EAX,[g_world]; ADD EAX,0xB4`, the same with other instructions in between,
 //   `MOV ESI,[g_world]; LEA EAX,[ESI+0xB4]`, and `MOV EAX,ESI` / `MOV EAX,[ESP+0x20]` after ESI was
 //   set to world+0xB4.

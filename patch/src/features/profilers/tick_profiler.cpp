@@ -119,7 +119,6 @@ void report() {
         frame = ms(g_targets[g_frame_target].inclusive) / days;
         frames = static_cast<double>(g_targets[g_frame_target].calls) / days;
     }
-    // Year as the game shows it: 365-day years counted from -5000.
     int year = g_window_start_day / 365 - 5000;
     cp::logf("tick_profiler: year %d, days %d-%d, %d days, wall %.1f ms/day; "
              "frame_update %.1f ms/day over %.1f frames/day "
@@ -144,7 +143,8 @@ void report() {
                  static_cast<double>(t.calls) / days);
     }
     if (g_lost_frames) {
-        cp::logf("tick_profiler: frames were lost at least once in this window (exception unwind); exclusive times may be off");
+        cp::logf("tick_profiler: frames were lost at least once in this window (exception unwind); "
+                 "exclusive times may be off");
         g_lost_frames = false;
     }
 }
@@ -154,7 +154,7 @@ void on_day(int32_t day) {
         return;
     }
     // The first window also starts with a reset: until the first game day the counters hold menu and
-    // loading frames, which made the first report claim 24 frames/day and a negative "outside" time.
+    // loading frames.
     bool first = g_window_start_day < 0;
     if (first || day - g_window_start_day >= kReportEveryDays) {
         if (!first) {
@@ -259,9 +259,9 @@ extern "C" uintptr_t __cdecl pp_profiler_leave(uintptr_t esp_now) {
     return f.ret;
 }
 
-// --- thunks (x86 only) ---------------------------------------------------------------------------
-// Entry: stack = [site][ret][args...], registers untouched. Exit: stack = [return_stub][args...],
-// registers untouched, EIP = original target. The stub later restores the original return address.
+// Thunks (x86 only). Entry: stack = [site][ret][args...], registers untouched.
+// Exit: stack = [return_stub][args...], registers untouched, EIP = original target. The stub later
+// restores the original return address.
 
 extern "C" void __declspec(naked) pp_profiler_return_stub() {
     __asm {
@@ -521,7 +521,8 @@ void install_tick_profiler(const Config& config) {
         bool ok = a.slot ? hooks::replace_pointer(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk)
                          : hooks::redirect_call(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk);
         if (!ok) {
-            logf("tick_profiler: could not patch site %08X, its target will show 0 calls", cp::hooks::listing_va(a.rva));
+            logf("tick_profiler: could not patch site %08X, its target will show 0 calls",
+                 cp::hooks::listing_va(a.rva));
             skipped++;
         }
     }

@@ -76,7 +76,7 @@ void install_last_ip(const Config& config) {
     }
     g_assign = hooks::exe_addr(game::kStringAssignRva);
     g_save = hooks::exe_addr(kSettingsSaveRva);
-    if (!hooks::expect_bytes(hooks::exe_addr(kAssignCallRva - 6), "\x8D\x88\x24\x01\x00\x00", 6) ||
+    if (!hooks::expect_bytes(hooks::exe_addr(kAssignCallRva - sizeof(kLeaBytes)), kLeaBytes, sizeof(kLeaBytes)) ||
         !hooks::redirect_call(hooks::exe_addr(kAssignCallRva), g_assign, reinterpret_cast<uintptr_t>(&assign_thunk))) {
         logf("save_last_ip: join dialog site %08X not recognised, off", hooks::listing_va(kAssignCallRva));
         return;

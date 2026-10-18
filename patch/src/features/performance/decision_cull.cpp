@@ -23,7 +23,7 @@
 //   (CInGameIdler::Update -> FUN_006874C0 -> FUN_0081E9E0 -> CALL at 0x0081EA9B, ECX = AI object):
 //     reads DAT_01319730 directly; for every decision d in both lists:
 //       if (d->vt[6]() && d->potential.Evaluate(scope) && d->allow.Evaluate(scope)) { ai_will_do; roll; execute }
-//   This is where the ~529 k potential evaluations a day come from (1651 decisions x ~320 countries).
+//   This is where most potential evaluations come from (every decision x every AI country, daily).
 //   AI_DiplomacyUpdate (0x0085D270) has the same two loops through DecisionManager_Get() (CALL
 //   0x00875040 at 0x0085D34F / 0x0085D459, ESI = AI object, +0x0C index) but runs for a few countries
 //   a day only. The player's alert (FUN_005399C0) and the UI read the global too; they are left alone.

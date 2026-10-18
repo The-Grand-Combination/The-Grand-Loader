@@ -17,8 +17,7 @@
 //   [esp+0x10] the port, always 0x666 = 1638, [esp+0x14] the typed address again, then more. The
 //   request copies the strings (host at +0x40, the other at +0x24) and the port (+0x68); NetClient_ctor
 //   (0x00A635C0) resolves the host with gethostbyname, then inet_addr, so "host:port" resolves to
-//   nothing and the client connects nowhere. The server listens on 1638 as well (UDP; confirmed with
-//   two running instances).
+//   nothing and the client connects nowhere. The server listens on 1638 as well (UDP).
 //
 // The CALL goes to a thunk that, for "host:port" with a port of 1-65535, points both address
 // arguments at a copy holding only the host, sets the port, and jumps to the original.
@@ -141,7 +140,7 @@ void install_join_port(const Config& config) {
         return;
     }
     g_request = hooks::exe_addr(kRequestRva);
-    if (!hooks::expect_bytes(hooks::exe_addr(0x36727B), "\x68\x66\x06\x00\x00", 5) ||  // PUSH 0x666
+    if (!hooks::expect_bytes(hooks::exe_addr(kPortPushRva), kPortPushBytes, sizeof(kPortPushBytes)) ||
         !hooks::redirect_call(hooks::exe_addr(kCallRva), g_request, reinterpret_cast<uintptr_t>(&request_thunk))) {
         logf("join_port: join dialog site %08X not recognised, off", hooks::listing_va(kCallRva));
         return;

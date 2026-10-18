@@ -24,8 +24,8 @@
 //
 // The scan itself, and the unit scoring function FUN_00853B30 (from FUN_00851AD0), also walk the
 // unit list of another province's state in place, `MOV EAX,[EAX+0x14]; TEST EAX,EAX; JZ not_found`,
-// right after `MOV EAX,[province+0xE8]` with only an equality test before: 0x00851F51 (second crash
-// in the user's log, reading 0x14) and 0x00853BEF. Those two get a cave that takes the not-found
+// right after `MOV EAX,[province+0xE8]` with only an equality test before: 0x00851F51 (a null state
+// faults reading 0x14) and 0x00853BEF. Those two get a cave that takes the not-found
 // branch for a null state.
 
 namespace cp::features {
@@ -148,12 +148,14 @@ void install_state_guard(const Config& config) {
     g_presence_resume = hooks::exe_addr(kPresenceResumeRva);
     g_tag_resume = hooks::exe_addr(kTagResumeRva);
     int sites = 0;
-    if (hooks::jump_hook(hooks::exe_addr(kPresenceRva), kPresenceBytes, sizeof(kPresenceBytes), reinterpret_cast<uintptr_t>(&presence_guard))) {
+    if (hooks::jump_hook(hooks::exe_addr(kPresenceRva), kPresenceBytes, sizeof(kPresenceBytes),
+                         reinterpret_cast<uintptr_t>(&presence_guard))) {
         sites++;
     } else {
         logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kPresenceRva));
     }
-    if (hooks::jump_hook(hooks::exe_addr(kTagRva), kTagBytes, sizeof(kTagBytes), reinterpret_cast<uintptr_t>(&tag_guard))) {
+    if (hooks::jump_hook(hooks::exe_addr(kTagRva), kTagBytes, sizeof(kTagBytes),
+                         reinterpret_cast<uintptr_t>(&tag_guard))) {
         sites++;
     } else {
         logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kTagRva));
@@ -161,7 +163,8 @@ void install_state_guard(const Config& config) {
     for (int i = 0; i < kWalkCount; i++) {
         g_walk_resume[i] = hooks::exe_addr(kWalkSites[i].resume_rva);
         g_walk_not_found[i] = hooks::exe_addr(kWalkSites[i].not_found_rva);
-        if (hooks::jump_hook(hooks::exe_addr(kWalkSites[i].rva), kWalkBytes, sizeof(kWalkBytes), reinterpret_cast<uintptr_t>(kWalkGuards[i]))) {
+        if (hooks::jump_hook(hooks::exe_addr(kWalkSites[i].rva), kWalkBytes, sizeof(kWalkBytes),
+                             reinterpret_cast<uintptr_t>(kWalkGuards[i]))) {
             sites++;
         } else {
             logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kWalkSites[i].rva));

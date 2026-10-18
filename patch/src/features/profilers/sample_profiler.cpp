@@ -47,7 +47,8 @@ constexpr int32_t kReportEveryDays = 30;
 constexpr double kPauseGapMs = 2000.0;
 constexpr size_t kStackCopyBytes = 16 * 1024;
 constexpr int kMaxFrames = 96;
-constexpr uint32_t kStackBits = 19;  // 512 k slots (16 MB), used up to 3/4: a 24-year run reached 98 k distinct stacks and dropped 30 % with 2^17
+// 512 k slots (16 MB), used up to 3/4; long runs outgrow 2^17 distinct stacks
+constexpr uint32_t kStackBits = 19;
 constexpr uint32_t kStackSlots = 1u << kStackBits;
 constexpr size_t kPoolWords = 12u << 20;  // 48 MB of frames (~300 k stacks of ~40 frames)
 constexpr int kMaxModules = 64;
@@ -281,8 +282,8 @@ void record(uintptr_t eip, uintptr_t esp, uintptr_t ebp, const uint8_t* stack, s
     static bool anchor[kStackCopyBytes / 4];
     size_t anchors[kMaxFrames];
     int nanchors = 0;
-    // `e - esp` cannot overflow once e >= esp; `e + 8` could (a chain value near 0xFFFFFFFF wrapped
-    // around, passed the bound and wrote anchor[] far out of range: it crashed).
+    // Bound written as `e - esp`, which cannot overflow once e >= esp; `e + 8` wraps for a chain value
+    // near 0xFFFFFFFF and would index anchor[] far out of range.
     for (uintptr_t e = ebp; bytes >= 8 && e >= esp && e - esp <= bytes - 8 && nanchors < kMaxFrames;) {
         size_t slot = (e + 4 - esp) / 4;
         anchor[slot] = true;

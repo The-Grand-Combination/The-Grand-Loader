@@ -36,7 +36,6 @@ constexpr uint32_t kReloadCacheSite = 0x3E6492;
 
 constexpr DWORD kFormatUnknown = 0;
 constexpr DWORD kFormatA8R8G8B8 = 21;
-// DXT1: half of DXT5, 1-bit alpha; the atlases are fully opaque (see the header).
 constexpr DWORD kFormatDxt1 = 0x31545844;  // D3DFMT_DXT1, FOURCC 'DXT1'
 constexpr DWORD kFileFormatTga = 2;  // D3DXIFF_TGA
 constexpr DWORD kFileFormatDds = 4;  // D3DXIFF_DDS

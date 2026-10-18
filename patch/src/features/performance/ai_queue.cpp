@@ -95,7 +95,8 @@ void install_ai_queue(const Config& config) {
              hooks::listing_va(kCallSiteRva));
         return;
     }
-    logf("fast_ai_queue: active, at max speed the AI job queue finishes in one frame (up to %lld ms)", static_cast<long long>(kMaxFrameMs));
+    logf("fast_ai_queue: active, at max speed the AI job queue finishes in one frame (up to %lld ms)",
+         static_cast<long long>(kMaxFrameMs));
 }
 
 }  // namespace cp::features

@@ -50,7 +50,8 @@ void install_supply_guard(const Config& config) {
     }
     g_resume = hooks::exe_addr(kResumeRva);
     g_skip = hooks::exe_addr(kSkipRva);
-    if (!hooks::jump_hook(hooks::exe_addr(kSiteRva), kSiteBytes, sizeof(kSiteBytes), reinterpret_cast<uintptr_t>(&guard))) {
+    if (!hooks::jump_hook(hooks::exe_addr(kSiteRva), kSiteBytes, sizeof(kSiteBytes),
+                          reinterpret_cast<uintptr_t>(&guard))) {
         logf("fix_supply_crash: site %08X not recognised, off", hooks::listing_va(kSiteRva));
         return;
     }
