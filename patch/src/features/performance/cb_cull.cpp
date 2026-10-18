@@ -300,7 +300,9 @@ void roll_stats(int32_t day) {
         g_window_start_day = day;
         g_window_start_qpc = qpc();
     } else if (day - g_window_start_day >= kReportEveryDays) {
-        report_window(g_stats_day);
+        // The AI scans on some days only: the window runs up to the day before this one, not to the last
+        // day that had scans, so the per-day rates and the wall time cover the same days.
+        report_window(day - 1);
         g_stats = Stats{};
         g_window_start_day = day;
         g_window_start_qpc = qpc();

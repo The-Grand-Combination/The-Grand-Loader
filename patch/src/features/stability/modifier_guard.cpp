@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <iterator>
+#include <string>
+#include <vector>
 
 #include "game/string.h"
 #include "game/world.h"
@@ -23,6 +25,11 @@
 //   0x00E2AC18           CRemoveProvinceModifierEffect   0x008822C0      0x00882290      +0x20
 //   0x00E2AC50           CRemoveCountryModifierEffect    0x008826B0      0x00882680      +0x20
 //
+//   Both parsers keep the effect in ESI (`MOV ESI,ECX` in the prologue, `MOV [ESI+0x24/0x20],EAX` after
+//   the lookup). The registry is filled from common/event_modifiers.txt, which the game reads after
+//   common/issues.txt (setup.log: issues, then modifiers), so an effect inside an issue that names an
+//   event modifier gets 0 although the modifier exists.
+//
 //   execute: __thiscall(effect, scope, arg), RET 8. The add executes return when the modifier is
 //   null; the remove executes search the lists for it and find nothing. No crash there.
 //   tooltip: __thiscall(effect, out, scope, std::string by value at [ESP+0xC..0x27], arg), RET 0x28,
@@ -35,24 +42,27 @@ namespace cp::features {
 namespace {
 
 constexpr uint32_t kFindRva = 0x1661B0;
+constexpr uint32_t kEventModifiersPtrRva = 0xE5A69C;  // g_eventModifiers; created by the first lookup
 constexpr uint32_t kAddParseCallRva = 0x481337;
 constexpr uint32_t kRemoveParseCallRva = 0x48217A;
 constexpr uint32_t kTooltipSlot = 0x24;
 constexpr uint32_t kExecuteSlot = 0x2C;
 constexpr uint32_t kLogLimit = 50;
+constexpr size_t kMaxPending = 256;
 
 struct Effect {
     const char* name;
     uint32_t vtable_rva;
     uint32_t tooltip_rva;
     uint32_t execute_rva;
+    uint32_t modifier_offset;
 };
 
 constexpr Effect kEffects[] = {
-    {"add_province_modifier", 0xA2ABA8, 0x4814E0, 0x481450},
-    {"add_country_modifier", 0xA2ABE0, 0x481B40, 0x481A90},
-    {"remove_province_modifier", 0xA2AC18, 0x4822C0, 0x482290},
-    {"remove_country_modifier", 0xA2AC50, 0x4826B0, 0x482680},
+    {"add_province_modifier", 0xA2ABA8, 0x4814E0, 0x481450, 0x24},
+    {"add_country_modifier", 0xA2ABE0, 0x481B40, 0x481A90, 0x24},
+    {"remove_province_modifier", 0xA2AC18, 0x4822C0, 0x482290, 0x20},
+    {"remove_country_modifier", 0xA2AC50, 0x4826B0, 0x482680, 0x20},
 };
 constexpr int kEffectCount = static_cast<int>(std::size(kEffects));
 
@@ -62,24 +72,79 @@ uintptr_t g_original_tooltip[kEffectCount];
 uintptr_t g_original_execute[kEffectCount];
 uint32_t g_logged = 0;
 
-void __cdecl report_lookup(const game::GameString* name, uint32_t result, int remove) {
-    if (result != 0 || ++g_logged > kLogLimit) {
-        return;
+// An effect whose modifier was not found when it was parsed, looked up again when it is first used.
+struct Pending {
+    uintptr_t effect;
+    std::string name;
+    bool done;
+};
+std::vector<Pending> g_pending;
+
+// ModifierRegistry_Find: EAX = registry, [ESP+4] = name (not consumed), RET 4.
+uint32_t find_modifier(const std::string& name) {
+    uint32_t registry = game::read32(hooks::exe_addr(kEventModifiersPtrRva));
+    if (!registry) {
+        return 0;
     }
-    logf("fix_missing_modifier: %s refers to the unknown modifier '%s'; the effect is disabled",
-         remove ? "remove_country_modifier / remove_province_modifier"
-                : "add_country_modifier / add_province_modifier",
-         name->c_str());
+    game::GameString view = game::view_of(name.c_str(), name.size());
+    game::GameString* arg = &view;
+    uintptr_t find = g_find;
+    uint32_t result = 0;
+    __asm {
+        push ebx
+        push esi
+        push edi
+        mov eax, registry
+        push arg
+        call find
+        mov result, eax
+        pop edi
+        pop esi
+        pop ebx
+    }
+    return result;
 }
 
-void __cdecl report_skipped(int effect) {
-    if (++g_logged <= kLogLimit) {
-        logf("fix_missing_modifier: %s with an unknown modifier executed, nothing done", kEffects[effect].name);
+void __cdecl report_lookup(uintptr_t effect, const game::GameString* name, uint32_t result, int remove) {
+    if (result != 0) {
+        return;
     }
+    if (g_pending.size() < kMaxPending) {
+        g_pending.push_back({effect, name->c_str(), false});
+    }
+    if (++g_logged <= kLogLimit) {
+        logf("fix_missing_modifier: %s names '%s', not loaded yet; looked up again when the effect is used",
+             remove ? "remove_country_modifier / remove_province_modifier"
+                    : "add_country_modifier / add_province_modifier",
+             name->c_str());
+    }
+}
+
+// From the guards, for an effect with no modifier: finds it now if it was defined after the effect was
+// parsed and stores it in the effect (the original then runs); 0 when it really does not exist.
+uint32_t __cdecl resolve_pending(uintptr_t effect, int index, int executing) {
+    for (Pending& p : g_pending) {
+        if (p.effect != effect || p.done) {
+            continue;
+        }
+        p.done = true;
+        uint32_t modifier = find_modifier(p.name);
+        if (modifier) {
+            *reinterpret_cast<uint32_t*>(effect + kEffects[index].modifier_offset) = modifier;
+            logf("fix_missing_modifier: '%s' found after loading, %s works", p.name.c_str(), kEffects[index].name);
+            return modifier;
+        }
+        logf("fix_missing_modifier: '%s' does not exist, %s does nothing", p.name.c_str(), kEffects[index].name);
+        break;
+    }
+    if (executing && ++g_logged <= kLogLimit) {
+        logf("fix_missing_modifier: %s with an unknown modifier executed, nothing done", kEffects[index].name);
+    }
+    return 0;
 }
 
 // In place of CALL ModifierRegistry_Find at the two parse sites: same registers in, same result out.
-// After the call the stack holds EDX, ECX, the return address and the name argument.
+// After the call the stack holds EDX, ECX, the return address and the name argument; ESI is the effect.
 #define CP_FIND_THUNK(name, remove)                                                       \
     __declspec(naked) void name() {                                                       \
         __asm push ecx                                                                    \
@@ -90,8 +155,9 @@ void __cdecl report_skipped(int effect) {
         __asm push remove                                                                 \
         __asm push eax                                                                    \
         __asm push dword ptr [esp + CP_SAVED_ALL_BYTES + 12 + 8]                          \
+        __asm push esi                                                                    \
         __asm call report_lookup                                                          \
-        __asm add esp, 12                                                                 \
+        __asm add esp, 16                                                                 \
         CP_RESTORE_ALL                                                                    \
         __asm pop edx                                                                     \
         __asm pop ecx                                                                     \
@@ -106,11 +172,22 @@ CP_FIND_THUNK(find_remove_thunk, 1)
 // Tooltip with a null modifier: `out` ([esp+4]) becomes an empty string (capacity +0x14 = 15, size
 // +0x10 = 0), the by-value string argument ([esp+0xC], capacity at [esp+0x20]) is freed when on the heap,
 // as the game does, and `out` is returned. Execute with a null modifier: logged, and nothing else, as
-// the game does silently.
+// the game does silently. Both first look the modifier up again (resolve_pending); if found, the
+// original runs.
 #define CP_EFFECT_GUARDS(tooltip, execute, offset, index)                                 \
     __declspec(naked) void tooltip() {                                                    \
         __asm cmp dword ptr [ecx + offset], 0                                             \
         __asm jne pass                                                                    \
+        CP_SAVE_ALL                                                                       \
+        __asm push 0                                                                      \
+        __asm push index                                                                  \
+        __asm push ecx                                                                    \
+        __asm call resolve_pending                                                        \
+        __asm add esp, 12                                                                 \
+        __asm mov [esp + CP_SAVED_EAX], eax                                               \
+        CP_RESTORE_ALL                                                                    \
+        __asm test eax, eax                                                               \
+        __asm jnz pass                                                                    \
         __asm mov eax, [esp + 4]                                                          \
         __asm mov dword ptr [eax + 0x14], 15                                              \
         __asm mov dword ptr [eax + 0x10], 0                                               \
@@ -131,15 +208,23 @@ CP_FIND_THUNK(find_remove_thunk, 1)
         __asm cmp dword ptr [ecx + offset], 0                                             \
         __asm jne pass                                                                    \
         CP_SAVE_ALL                                                                       \
+        __asm push 1                                                                      \
         __asm push index                                                                  \
-        __asm call report_skipped                                                         \
-        __asm add esp, 4                                                                  \
+        __asm push ecx                                                                    \
+        __asm call resolve_pending                                                        \
+        __asm add esp, 12                                                                 \
+        __asm mov [esp + CP_SAVED_EAX], eax                                               \
         CP_RESTORE_ALL                                                                    \
+        __asm test eax, eax                                                               \
+        __asm jnz pass                                                                    \
         __asm ret 8                                                                       \
         __asm pass:                                                                       \
         __asm jmp dword ptr [g_original_execute + index * 4]                              \
     }
 
+static_assert(kEffects[0].modifier_offset == 0x24 && kEffects[1].modifier_offset == 0x24 &&
+                  kEffects[2].modifier_offset == 0x20 && kEffects[3].modifier_offset == 0x20,
+              "offsets in the guards");
 CP_EFFECT_GUARDS(tooltip_add_province, execute_add_province, 0x24, 0)
 CP_EFFECT_GUARDS(tooltip_add_country, execute_add_country, 0x24, 1)
 CP_EFFECT_GUARDS(tooltip_remove_province, execute_remove_province, 0x20, 2)
@@ -195,7 +280,7 @@ void install_modifier_guard(const Config& config) {
     int sites = (install_parse_site(kAddParseCallRva, &find_add_thunk, "add") ? 1 : 0) +
                 (install_parse_site(kRemoveParseCallRva, &find_remove_thunk, "remove") ? 1 : 0);
     logf("fix_missing_modifier: active on %d of %d effect slots and %d of 2 parser sites (unknown modifiers: "
-         "empty tooltip, no effect, logged)",
+         "looked up again on first use, else empty tooltip, no effect, logged)",
          slots, kEffectCount * 2, sites);
 }
 

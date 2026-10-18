@@ -6,7 +6,7 @@ How the analysis environment behind the documents in this repository is set up a
 
 | Component | Version | Location used here |
 |---|---|---|
-| Ghidra | 12.1.4 | `C:\Users\joel\Desktop\ghidra_12.1.4_PUBLIC` |
+| Ghidra | 12.1.4 | `C:\Program Files (x86)\ghidra_12.1.4_PUBLIC` |
 | JDK | 21 (Ghidra 12 requires ≥ 21) | portable Temurin zip unpacked to `%USERPROFILE%\.jdks\jdk-21.0.12.1+1` — no installer, no admin |
 | Target | `v2game.exe` 3.04, 12,294,656 bytes, SHA-256 `62D48C204364DD706584777C2E2B3C7AB3C5F1DD0170872554943575D53D6648` | Steam install |
 
@@ -42,6 +42,30 @@ them with `docs/tools/ghidra/V2Symbols.java` (no `-readOnly`, so the renames are
 
 Workflow: name things in the Ghidra GUI while exploring, run `export`, move the rows you trust into the
 CSVs with a confidence and a note, commit. The CSV diff is the record of what was learned.
+
+## 2b. Ghidra Server (shared program)
+
+The analysed `v2game.exe` is also kept on a Ghidra Server, repository `VictoriaII`, so everyone works on
+the same names. The CSVs stay the source of truth; the server is a shared copy synced from them.
+
+- **Repository names must not contain spaces.** `analyzeHeadless` cannot open
+  `ghidra://host/Name%20With%20Space`: the `.bat` launchers expand `%2`, and Ghidra rejects the decoded
+  space. A first repository called "Victoria II" was replaced by `VictoriaII` for that reason.
+- **Sync:** `docs/tools/scripts/ghidra_sync.cmd check|export|import`. It reads the server URL and user
+  from `ghidra_sync.local.cmd` next to it (git-ignored) and the password from `GHIDRA_PW`, or asks for it.
+
+| step | command | writes to the server |
+|---|---|---|
+| before changing the CSVs | `ghidra_sync.cmd export`: names added on the server that the CSVs lack | no |
+| before committing CSV changes | `ghidra_sync.cmd check` | no |
+| after the CSV commit | `ghidra_sync.cmd import`: applies the CSVs, commits `docs/re/symbols @ <sha>` | yes, a new version |
+
+`import` overwrites a function name that differs from its CSV row and leaves every other name alone, so
+run `export` first and move the rows worth keeping into the CSVs. Each call downloads the program (URL
+mode); for many quick `V2Dump` queries use the local project of section 1.
+
+The program on the server was created with the import and auto-analysis of section 1 followed by
+`V2Symbols import`, in one headless run with `-commit`.
 
 ## 3. Full decompilation into `docs/re/decomp/` (local, not committed)
 
