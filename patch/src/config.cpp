@@ -67,43 +67,55 @@ std::string_view trim(std::string_view s) {
     return s;
 }
 
+// A whole number, optionally followed by a `;` or `#` comment.
 bool parse_int(std::string_view value, int& out) {
-    return std::from_chars(value.data(), value.data() + value.size(), out).ec == std::errc{};
+    const char* end = value.data() + value.size();
+    auto result = std::from_chars(value.data(), end, out);
+    if (result.ec != std::errc{}) {
+        return false;
+    }
+    std::string_view rest = trim(std::string_view(result.ptr, static_cast<size_t>(end - result.ptr)));
+    return rest.empty() || rest.front() == ';' || rest.front() == '#';
 }
 
-}  // namespace
-
-Config load_config(const std::wstring& config_file) {
-    Config config;
-    std::ifstream in(config_file);
-    std::string raw;
-    while (std::getline(in, raw)) {
-        std::string_view line = trim(raw);
-        if (line.empty() || line.front() == ';' || line.front() == '#' || line.front() == '[') {
-            continue;
-        }
-        size_t eq = line.find('=');
-        if (eq == std::string_view::npos) {
-            continue;
-        }
-        std::string_view key = trim(line.substr(0, eq));
-        int value = 0;
-        if (!parse_int(trim(line.substr(eq + 1)), value)) {
-            continue;
-        }
-        for (const Key& k : kKeys) {
-            if (key == k.name) {
-                if (k.flag) {
-                    config.*k.flag = value != 0;
-                } else {
-                    config.*k.value = value;
-                }
-                break;
-            }
+const Key* find_key(std::string_view name) {
+    for (const Key& k : kKeys) {
+        if (name == k.name) {
+            return &k;
         }
     }
+    return nullptr;
+}
 
-    char line[1024] = "config:";
+// One `key = value` line; comments, sections and blank lines are skipped, anything else unusable is logged.
+void parse_line(std::string_view line, Config& config) {
+    line = trim(line);
+    if (line.empty() || line.front() == ';' || line.front() == '#' || line.front() == '[') {
+        return;
+    }
+    size_t eq = line.find('=');
+    std::string_view name = trim(line.substr(0, eq));
+    const Key* key = eq == std::string_view::npos ? nullptr : find_key(name);
+    if (!key) {
+        logf("config: unknown key '%.*s' ignored", static_cast<int>(name.size()), name.data());
+        return;
+    }
+    std::string_view text = trim(line.substr(eq + 1));
+    int value = 0;
+    if (!parse_int(text, value)) {
+        logf("config: %s = '%.*s' is not a number, default kept", key->name, static_cast<int>(text.size()),
+             text.data());
+        return;
+    }
+    if (key->flag) {
+        config.*key->flag = value != 0;
+    } else {
+        config.*key->value = value;
+    }
+}
+
+void log_config(const Config& config) {
+    char line[2048] = "config:";
     size_t len = std::strlen(line);
     for (const Key& k : kKeys) {
         int value = k.flag ? (config.*k.flag ? 1 : 0) : config.*k.value;
@@ -114,6 +126,18 @@ Config load_config(const std::wstring& config_file) {
         len += static_cast<size_t>(n);
     }
     logf("%s", line);
+}
+
+}  // namespace
+
+Config load_config(const std::wstring& config_file) {
+    Config config;
+    std::ifstream in(config_file);
+    std::string raw;
+    while (std::getline(in, raw)) {
+        parse_line(raw, config);
+    }
+    log_config(config);
     return config;
 }
 

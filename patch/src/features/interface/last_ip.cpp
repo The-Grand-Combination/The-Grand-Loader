@@ -4,6 +4,7 @@
 
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04:
@@ -26,7 +27,7 @@ namespace cp::features {
 namespace {
 
 constexpr uint32_t kAssignCallRva = 0x367328;
-constexpr uint32_t kAssignRva = 0x8ED0;
+constexpr unsigned char kLeaBytes[] = {0x8D, 0x88, 0x24, 0x01, 0x00, 0x00};  // LEA ECX,[EAX+0x124] before it
 constexpr uint32_t kSettingsPtrRva = 0xE5B5E0;
 constexpr uint32_t kSettingsSaveRva = 0x5D7FA0;
 
@@ -59,13 +60,11 @@ __declspec(naked) void assign_thunk() {
         push dword ptr [esp + 12]
         push dword ptr [esp + 12]
         call dword ptr [g_assign]
-        pushad
-        pushfd
-        call save_settings
-        popfd
-        popad
-        ret 12
     }
+    CP_SAVE_ALL
+    __asm call save_settings
+    CP_RESTORE_ALL
+    __asm ret 12
 }
 
 }  // namespace
@@ -75,11 +74,11 @@ void install_last_ip(const Config& config) {
         logf("save_last_ip: disabled");
         return;
     }
-    g_assign = hooks::exe_addr(kAssignRva);
+    g_assign = hooks::exe_addr(game::kStringAssignRva);
     g_save = hooks::exe_addr(kSettingsSaveRva);
     if (!hooks::expect_bytes(hooks::exe_addr(kAssignCallRva - 6), "\x8D\x88\x24\x01\x00\x00", 6) ||
         !hooks::redirect_call(hooks::exe_addr(kAssignCallRva), g_assign, reinterpret_cast<uintptr_t>(&assign_thunk))) {
-        logf("save_last_ip: join dialog site %08X not recognised, off", kAssignCallRva + 0x400000);
+        logf("save_last_ip: join dialog site %08X not recognised, off", hooks::listing_va(kAssignCallRva));
         return;
     }
     logf("save_last_ip: active, the join address is written to settings.txt when you join");

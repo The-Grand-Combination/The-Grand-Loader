@@ -6,11 +6,15 @@
 #include <cstdint>
 #include <cstdio>
 #include <iterator>
+#include <span>
 #include <vector>
 
+#include "crash_log.h"
 #include "features/profilers/tick_profiler_sites.h"
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "util/clock.h"
 
 // Daily tick of v2game.exe 3.04 (docs/re/systems/tick.md):
 //
@@ -30,15 +34,19 @@
 
 namespace {
 
+constexpr uint32_t kWorldUpdateRva = 0x282EC0;      // Update_World_and_Advance_Time
+constexpr uint32_t kFrameUpdateRva = 0x254D80;      // CInGameIdler::Update
+constexpr uint32_t kFrameUpdateSlotRva = cp::game::kInGameIdlerVtableRva + 4;  // CInGameIdler slot 1
+
 struct Known {
     uint32_t target_rva;
     const char* name;
 };
 constexpr Known kKnown[] = {
-    {0x282EC0, "world_update"},  {0x2859C0, "day_tick"},     {0x0B1A10, "provinces"},    {0x1091A0, "countries"},
+    {kWorldUpdateRva, "world_update"},  {0x2859C0, "day_tick"},     {0x0B1A10, "provinces"},    {0x1091A0, "countries"},
     {0x45CCB0, "ai"},            {0x45CF10, "country_ai2"},  {0x119F80, "country_post"}, {0x4A7CD0, "events"},
     {0x285620, "time_throttle"}, {0x5B7700, "rng_refill"}, {0x089990, "economy_update"},
-    {0x108590, "country_prepass"}, {0x254D80, "frame_update"}, {0x282BD0, "time_advance"},
+    {0x108590, "country_prepass"}, {kFrameUpdateRva, "frame_update"}, {0x282BD0, "time_advance"},
     {0x5DF2B0, "message_pump"}, {0x084060, "world_market"}, {0x0808D0, "goods_distribution"},
     {0x082FF0, "wm_factory_step"}, {0x085E40, "wm_country_step"},
 };
@@ -48,15 +56,13 @@ struct Level1 {
     uint32_t target_rva;
 };
 constexpr Level1 kLevel1[] = {
-    {0x32ECFA, 0x282EC0}, {0x283AB1, 0x2859C0}, {0x285B49, 0x0B1A10}, {0x285ED1, 0x1091A0},
+    {0x32ECFA, kWorldUpdateRva}, {0x283AB1, 0x2859C0}, {0x285B49, 0x0B1A10}, {0x285ED1, 0x1091A0},
     {0x10B0EB, 0x45CCB0}, {0x10B0F0, 0x45CF10}, {0x10B0F6, 0x119F80}, {0x2861E8, 0x4A7CD0},
 };
 
 constexpr int kMaxSites = 600;
 constexpr int kMaxDepth = 64;
 constexpr int32_t kReportEveryDays = 30;
-constexpr uint32_t kWorldPtrRva = 0xE588E8;
-constexpr uint32_t kWorldDateOffset = 0xB0C;
 
 struct Frame {
     int target;
@@ -92,31 +98,19 @@ int g_world_target = -1;
 int g_frame_target = -1;
 uint64_t g_nested_frames = 0;  // frames rendered from inside world_update (UpdateTimeThrottle)
 uint64_t g_nested_frame_ticks = 0;
-int64_t g_qpc_freq = 0;
 int32_t g_window_start_day = -1;
 int32_t g_last_day = -1;
 int64_t g_window_start_qpc = 0;
 int g_days_in_window = 0;
 
-inline int64_t qpc() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t.QuadPart;
-}
-
-int32_t current_day() {
-    uintptr_t world = *reinterpret_cast<const uint32_t*>(cp::hooks::exe_addr(kWorldPtrRva));
-    return world ? static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(world + kWorldDateOffset)) / 24 : -1;
-}
+using cp::util::qpc;
 
 void report() {
     int days = g_days_in_window;
     if (days <= 0) {
         return;
     }
-    auto ms = [](uint64_t ticks) {
-        return g_qpc_freq ? 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq) : 0.0;
-    };
+    auto ms = [](uint64_t ticks) { return cp::util::qpc_ms(static_cast<int64_t>(ticks)); };
     double wall = ms(static_cast<uint64_t>(qpc() - g_window_start_qpc)) / days;
     double inside = g_world_target >= 0 ? ms(g_targets[g_world_target].inclusive) / days : 0.0;
     double frame = 0.0;
@@ -127,7 +121,8 @@ void report() {
     }
     // Year as the game shows it: 365-day years counted from -5000.
     int year = g_window_start_day / 365 - 5000;
-    cp::logf("tick_profiler: year %d, days %d-%d, %d days, wall %.1f ms/day; frame_update %.1f ms/day over %.1f frames/day "
+    cp::logf("tick_profiler: year %d, days %d-%d, %d days, wall %.1f ms/day; "
+             "frame_update %.1f ms/day over %.1f frames/day "
              "(%.1f ms/day of it is world_update); outside frame_update %.1f ms/day (message pump, present, idle)",
              year, g_window_start_day, g_last_day, days, wall, frame, frames, inside,
              wall - frame);
@@ -196,7 +191,7 @@ extern "C" uintptr_t __cdecl pp_profiler_enter(int site, uintptr_t ret, uintptr_
     // world_update runs inside frame_update (and frame_update can run again inside it), so the day is
     // checked on every outermost world_update rather than at depth 0.
     if (target == g_world_target && g_targets[target].active == 0) {
-        int32_t day = current_day();
+        int32_t day = cp::game::current_day();
         if (day >= 0) {
             on_day(day);
         }
@@ -414,7 +409,7 @@ int target_index(uint32_t rva) {
     if (name) {
         snprintf(t.name, sizeof(t.name), "%s", name);
     } else {
-        snprintf(t.name, sizeof(t.name), "f_%08X", rva + 0x400000);
+        snprintf(t.name, sizeof(t.name), "f_%08X", cp::hooks::listing_va(rva));
     }
     g_targets.push_back(t);
     return static_cast<int>(g_targets.size() - 1);
@@ -454,6 +449,29 @@ bool add_slot(uint32_t slot_rva, uint32_t target_rva) {
     g_site_count++;
     return true;
 }
+
+namespace tick_sites = cp::features::tick_sites;
+
+// The sites of one table that do not match (skipped).
+int add_sites(std::span<const tick_sites::Site> sites) {
+    int skipped = 0;
+    for (const tick_sites::Site& s : sites) {
+        skipped += add_site(s.site_rva, s.target_rva) ? 0 : 1;
+    }
+    return skipped;
+}
+
+// tick_profiler = N patches the tables of every level up to N; level 1 is kLevel1 plus the frame slot.
+struct SiteLevel {
+    int level;
+    std::span<const tick_sites::Site> sites;
+};
+constexpr SiteLevel kSiteLevels[] = {
+    {2, tick_sites::kDayTickCalls},
+    {3, tick_sites::kLevel3Calls},
+    {4, tick_sites::kFrameCalls},
+    {5, tick_sites::kLevel5Calls},
+};
 }  // namespace
 
 namespace cp::features {
@@ -463,9 +481,7 @@ void install_tick_profiler(const Config& config) {
         logf("tick_profiler: disabled");
         return;
     }
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    g_qpc_freq = freq.QuadPart;
+    add_crash_context(&tick_profiler_crash_context);
 
     auto fail = [](const char* what) {
         logf("tick_profiler: %s not recognised, feature off", what);
@@ -478,48 +494,25 @@ void install_tick_profiler(const Config& config) {
     for (const Level1& b : kLevel1) {
         if (!add_site(b.site_rva, b.target_rva)) {
             char what[48];
-            snprintf(what, sizeof(what), "call site %08X", b.site_rva + 0x400000);
+            snprintf(what, sizeof(what), "call site %08X", cp::hooks::listing_va(b.site_rva));
             fail(what);
             return;
         }
     }
-    // The per-frame function is reached through its vtable (CInGameIdler slot at 0x00E0A350).
-    if (!add_slot(0xA0A350, 0x254D80)) {
+    // The per-frame function is reached through its vtable.
+    if (!add_slot(kFrameUpdateSlotRva, kFrameUpdateRva)) {
         fail("CInGameIdler::Update slot");
         return;
     }
     int level1 = g_site_count;
     int skipped = 0;
-    if (config.tick_profiler >= 2) {
-        for (const tick_sites::Site& s : tick_sites::kDayTickCalls) {
-            if (!add_site(s.site_rva, s.target_rva)) {
-                skipped++;
-            }
+    for (const SiteLevel& l : kSiteLevels) {
+        if (config.tick_profiler >= l.level) {
+            skipped += add_sites(l.sites);
         }
     }
-    if (config.tick_profiler >= 3) {
-        for (const tick_sites::Site& s : tick_sites::kLevel3Calls) {
-            if (!add_site(s.site_rva, s.target_rva)) {
-                skipped++;
-            }
-        }
-    }
-    if (config.tick_profiler >= 4) {
-        for (const tick_sites::Site& s : tick_sites::kFrameCalls) {
-            if (!add_site(s.site_rva, s.target_rva)) {
-                skipped++;
-            }
-        }
-    }
-    if (config.tick_profiler >= 5) {
-        for (const tick_sites::Site& s : tick_sites::kLevel5Calls) {
-            if (!add_site(s.site_rva, s.target_rva)) {
-                skipped++;
-            }
-        }
-    }
-    g_world_target = target_index(0x282EC0);
-    g_frame_target = target_index(0x254D80);
+    g_world_target = target_index(kWorldUpdateRva);
+    g_frame_target = target_index(kFrameUpdateRva);
 
     // Each redirect is independent; ids follow the order the sites were added.
     for (int site = 0; site < g_site_count; site++) {
@@ -528,11 +521,12 @@ void install_tick_profiler(const Config& config) {
         bool ok = a.slot ? hooks::replace_pointer(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk)
                          : hooks::redirect_call(hooks::exe_addr(a.rva), g_site_target_addr[site], thunk);
         if (!ok) {
-            logf("tick_profiler: could not patch site %08X, its target will show 0 calls", a.rva + 0x400000);
+            logf("tick_profiler: could not patch site %08X, its target will show 0 calls", cp::hooks::listing_va(a.rva));
             skipped++;
         }
     }
-    logf("tick_profiler: active at level %d, %d call sites (%d level-1, %d skipped), %zu targets, report every %d game days",
+    logf("tick_profiler: active at level %d, %d call sites (%d level-1, %d skipped), %zu targets, "
+         "report every %d game days",
          config.tick_profiler, g_site_count, level1, skipped, g_targets.size(), kReportEveryDays);
 }
 
@@ -545,7 +539,7 @@ void tick_profiler_crash_context() {
         const Frame& f = g_shadow[i];
         if (f.target >= 0 && static_cast<size_t>(f.target) < g_targets.size()) {
             logf("crash:   active[%d] %s (%08X), returns to %08X", i, g_targets[f.target].name,
-                 g_targets[f.target].rva + 0x400000, static_cast<unsigned>(f.ret));
+                 cp::hooks::listing_va(g_targets[f.target].rva), static_cast<unsigned>(f.ret));
         }
     }
 }

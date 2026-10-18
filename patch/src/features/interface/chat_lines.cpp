@@ -37,7 +37,7 @@ void install_chat_lines(const Config& config) {
     uintptr_t at = hooks::exe_addr(kCompareRva);
     unsigned char value = static_cast<unsigned char>(seconds);
     if (!hooks::expect_bytes(at, kCompareBytes, sizeof(kCompareBytes)) || !hooks::write_bytes(at + 3, &value, 1)) {
-        logf("chat_line_seconds: site %08X not recognised, off", kCompareRva + 0x400000);
+        logf("chat_line_seconds: site %08X not recognised, off", hooks::listing_va(kCompareRva));
         return;
     }
     logf("chat_line_seconds: active, the oldest chat line goes after %d seconds (vanilla %d)", seconds,

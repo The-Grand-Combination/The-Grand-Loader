@@ -47,7 +47,7 @@ void install_network_wait(const Config& config) {
     g_host_service = reinterpret_cast<HostServiceFn>(hooks::exe_addr(kHostServiceRva));
     if (!hooks::redirect_call(hooks::exe_addr(kServiceCallRva), hooks::exe_addr(kHostServiceRva),
                               reinterpret_cast<uintptr_t>(&non_blocking_host_service))) {
-        logf("skip_network_wait: call site %08X not recognised, feature off", kServiceCallRva + 0x400000);
+        logf("skip_network_wait: call site %08X not recognised, feature off", hooks::listing_va(kServiceCallRva));
         return;
     }
     logf("skip_network_wait: active, the per-frame network poll no longer blocks");

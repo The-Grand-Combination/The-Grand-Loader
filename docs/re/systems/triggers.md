@@ -31,10 +31,15 @@ Sources: this repo's sessions (2026-10-01..04). Raw material: [raw/trigger-class
 | offset | |
 |---|---|
 | `+0x08` / `+0x0C` | country reference (tag, index) |
+| `+0x10` | province index (province scope) |
 | `+0x24` | THIS scope (initialised to self) |
 | `+0x30` / `+0x34` | FROM reference |
 
 The ctor writes up to `+0x48`; the event code copies 0x48 bytes (`EventScope_Copy` `0x008A88D0`).
+
+The patch keeps these offsets, the container vtables and the `Evaluate` slot in one header,
+`patch/src/game/triggers.h`, which `cull_cb_checks`, `cull_decision_checks`/`parallel_decisions` and
+`parallel_events` share.
 
 ## Values
 

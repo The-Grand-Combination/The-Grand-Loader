@@ -5,6 +5,7 @@
 
 #include <cstdint>
 
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -28,15 +29,15 @@ namespace {
 
 constexpr uint32_t kCallSiteRva = 0x08468F;       // CALL Market_UpdateCountryPops in WorldMarketUpdate
 constexpr uint32_t kUpdatePopsRva = 0x085E40;     // Market_UpdateCountryPops
-constexpr uint32_t kWorldPtrRva = 0xE588E8;       // g_world
-constexpr uint32_t kWorldProvinces = 0xACC;
+constexpr uint32_t kWorldPtrRva = game::kWorldPtrRva;
+constexpr uint32_t kWorldProvinces = game::kWorldProvinces;
 constexpr uint32_t kMarketPopTypesBegin = 0x804;
 constexpr uint32_t kMarketPopTypesEnd = 0x808;
-constexpr uint32_t kCountryProvincesBegin = 0x9D8;
-constexpr uint32_t kCountryProvincesEnd = 0x9DC;
-constexpr uint32_t kProvincePopLists = 0x194;     // 16 bytes per pop type, +0 = first pop
-constexpr uint32_t kPopNext = 0x27C;
-constexpr uint32_t kPopSize = 0x280;               // at least: next is the last field read
+constexpr uint32_t kCountryProvincesBegin = game::kCountryProvinces;
+constexpr uint32_t kCountryProvincesEnd = game::kCountryProvincesEnd;
+constexpr uint32_t kProvincePopLists = game::kProvincePopLists;  // 16 bytes per pop type, +0 = first pop
+constexpr uint32_t kPopNext = game::kPopNext;
+constexpr uint32_t kPopObjectBytes = 0x280;        // at least: next is the last field read
 constexpr uint32_t kPopLinked = 0x1D4;             // object read at +0xB0 and +0xE8
 constexpr int kMaxCursors = 4096;
 
@@ -55,7 +56,7 @@ void walk(int count) {
     while (count > 0) {
         for (int i = 0; i < count; i++) {
             const char* pop = reinterpret_cast<const char*>(g_cursors[i]);
-            for (uint32_t off = 0; off < kPopSize; off += 64) {
+            for (uint32_t off = 0; off < kPopObjectBytes; off += 64) {
                 _mm_prefetch(pop + off, _MM_HINT_T0);
             }
         }
@@ -130,8 +131,8 @@ __declspec(naked) void update_pops_thunk() {
 // province, the lists of the next 8 provinces are walked together (a few dozen pops, cache-sized).
 constexpr uint32_t kProvinceCallRva = 0x285B09;   // CALL FUN_004B9C60 in DayTick
 constexpr uint32_t kProvincePopsRva = 0x0B9C60;   // FUN_004B9C60
-constexpr uint32_t kWorldProvincesEnd = 0xAD0;
-constexpr uint32_t kProvincePopListsEnd = 0x198;
+constexpr uint32_t kWorldProvincesEnd = game::kWorldProvincesEnd;
+constexpr uint32_t kProvincePopListsEnd = game::kProvincePopListsEnd;
 constexpr int kProvinceBatch = 8;
 
 uintptr_t g_province_pops = 0;
@@ -193,7 +194,7 @@ void __stdcall prefetch_pop(uintptr_t pop) {
     if (!pop) {
         return;
     }
-    for (uint32_t off = 0; off < kPopSize; off += 64) {
+    for (uint32_t off = 0; off < kPopObjectBytes; off += 64) {
         _mm_prefetch(reinterpret_cast<const char*>(pop + off), _MM_HINT_T0);
     }
 }
@@ -296,7 +297,7 @@ void install_pops_prefetch(const Config& config) {
         if (hooks::redirect_call(hooks::exe_addr(s.call_rva), s.target, reinterpret_cast<uintptr_t>(s.thunk))) {
             active++;
         } else {
-            logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped", s.call_rva + 0x400000, s.name);
+            logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped", hooks::listing_va(s.call_rva), s.name);
         }
     }
     g_enabled = true;

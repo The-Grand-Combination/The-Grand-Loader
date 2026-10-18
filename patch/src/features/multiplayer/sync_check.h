@@ -1,8 +1,5 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 #include "config.h"
 
 namespace cp::features {
@@ -17,12 +14,5 @@ namespace cp::features {
 //     fix_rng_resync the target is the host's count after its DayTick (state_checksum's
 //     `rng_calls_end`), or at least the count the host sent.
 void install_sync_check(const Config& config);
-
-// The host's vector as seen by the last comparison (valid during and after it), for other features.
-struct SyncVectorView {
-    const uint32_t* data;
-    size_t size;
-};
-SyncVectorView last_host_vector();
 
 }  // namespace cp::features

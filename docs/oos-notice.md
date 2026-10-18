@@ -17,12 +17,14 @@ differs, the game keeps playing out of sync, and the dialog says nothing about w
 - Before the game compares its two elements (draw count and seed), the patch compares the state hashes
   `state_checksum` adds (provinces, countries, pops, date) with the host's.
 - Draws differ and the state matches: the game's dialog and pause are skipped for that comparison, and a
-  notice over the top of the game window says the game was out of sync and recovered. It disappears
-  after 15 seconds.
-- Draws differ and the state differs: the game reacts as usual, and the notice names what differs and
+  chat line says the game was out of sync and recovered.
+- Draws differ and the state differs: the game reacts as usual, and the chat line names what differs and
   suggests saving and reloading.
-- Draws match but the state differs (nothing in the game reacts): the notice says so, once until the
+- Draws match but the state differs (nothing in the game reacts): a chat line says so, once until the
   state matches again.
-- Only the machine that detects it sees the notice, since only that machine compares. The game's
-  "dialog already shown" flag is restored at the next comparison, so a later divergence still gets the
-  game's reaction. Exclusive fullscreen hides the notice, as any other window.
+- The line is built and sent exactly like the host's "X is lagging behind" warning: a chat message with
+  the local player as sender and their flag, wrapped in the game's chat command and queued to the
+  session, so it appears in the same chat list on every player's screen and leaves with
+  `chat_line_seconds`.
+- The game's "dialog already shown" flag is restored at the next comparison, so a later divergence
+  still gets the game's reaction.

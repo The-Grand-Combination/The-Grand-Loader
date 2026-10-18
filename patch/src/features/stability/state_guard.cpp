@@ -1,8 +1,10 @@
 #include "features/stability/state_guard.h"
 
 #include <cstdint>
+#include <iterator>
 
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04. province+0xE8 is the province's state object, null without an owner. Two
@@ -32,7 +34,8 @@ namespace {
 
 constexpr uint32_t kPresenceRva = 0x8F070;
 constexpr uint32_t kPresenceResumeRva = 0x8F078;
-constexpr unsigned char kPresenceBytes[] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x24, 0x53, 0x56};  // PUSH EBP; MOV EBP,ESP; SUB ESP,0x24; PUSH EBX; PUSH ESI
+// PUSH EBP; MOV EBP,ESP; SUB ESP,0x24; PUSH EBX; PUSH ESI
+constexpr unsigned char kPresenceBytes[] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x24, 0x53, 0x56};
 
 constexpr uint32_t kTagRva = 0x8E120;
 constexpr uint32_t kTagResumeRva = 0x8E126;
@@ -53,8 +56,9 @@ constexpr WalkSite kWalkSites[] = {{0x451F51, 0x451F56, 0x452043}, {0x453BEF, 0x
 uintptr_t g_presence_resume = 0;
 uintptr_t g_tag_resume = 0;
 uint32_t g_hits = 0;
-uintptr_t g_walk_resume[2];
-uintptr_t g_walk_not_found[2];
+constexpr int kWalkCount = static_cast<int>(std::size(kWalkSites));
+uintptr_t g_walk_resume[kWalkCount];
+uintptr_t g_walk_not_found[kWalkCount];
 
 void __cdecl report() {
     if (++g_hits <= kLogLimit) {
@@ -72,10 +76,12 @@ __declspec(naked) void presence_guard() {
         push ebx
         push esi
         jmp dword ptr [g_presence_resume]
-    none:
-        pushad
-        call report
-        popad
+    }
+    __asm none:
+    CP_SAVE_ALL
+    __asm call report
+    CP_RESTORE_ALL
+    __asm {
         xor eax, eax
         ret 8
     }
@@ -103,10 +109,12 @@ __declspec(naked) void walk_guard_scan() {
         mov eax, [eax + 0x14]
         test eax, eax
         jmp dword ptr [g_walk_resume]
-    none:
-        pushad
-        call report
-        popad
+    }
+    __asm none:
+    CP_SAVE_ALL
+    __asm call report
+    CP_RESTORE_ALL
+    __asm {
         jmp dword ptr [g_walk_not_found]
     }
 }
@@ -118,10 +126,12 @@ __declspec(naked) void walk_guard_score() {
         mov eax, [eax + 0x14]
         test eax, eax
         jmp dword ptr [g_walk_resume + 4]
-    none:
-        pushad
-        call report
-        popad
+    }
+    __asm none:
+    CP_SAVE_ALL
+    __asm call report
+    CP_RESTORE_ALL
+    __asm {
         jmp dword ptr [g_walk_not_found + 4]
     }
 }
@@ -141,23 +151,24 @@ void install_state_guard(const Config& config) {
     if (hooks::jump_hook(hooks::exe_addr(kPresenceRva), kPresenceBytes, sizeof(kPresenceBytes), reinterpret_cast<uintptr_t>(&presence_guard))) {
         sites++;
     } else {
-        logf("fix_missing_state_crash: site %08X not recognised, left alone", kPresenceRva + 0x400000);
+        logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kPresenceRva));
     }
     if (hooks::jump_hook(hooks::exe_addr(kTagRva), kTagBytes, sizeof(kTagBytes), reinterpret_cast<uintptr_t>(&tag_guard))) {
         sites++;
     } else {
-        logf("fix_missing_state_crash: site %08X not recognised, left alone", kTagRva + 0x400000);
+        logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kTagRva));
     }
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < kWalkCount; i++) {
         g_walk_resume[i] = hooks::exe_addr(kWalkSites[i].resume_rva);
         g_walk_not_found[i] = hooks::exe_addr(kWalkSites[i].not_found_rva);
         if (hooks::jump_hook(hooks::exe_addr(kWalkSites[i].rva), kWalkBytes, sizeof(kWalkBytes), reinterpret_cast<uintptr_t>(kWalkGuards[i]))) {
             sites++;
         } else {
-            logf("fix_missing_state_crash: site %08X not recognised, left alone", kWalkSites[i].rva + 0x400000);
+            logf("fix_missing_state_crash: site %08X not recognised, left alone", hooks::listing_va(kWalkSites[i].rva));
         }
     }
-    logf("fix_missing_state_crash: active on %d of 4 sites (a province without a state answers 'none')", sites);
+    logf("fix_missing_state_crash: active on %d of %d sites (a province without a state answers 'none')", sites,
+         2 + kWalkCount);
 }
 
 }  // namespace cp::features

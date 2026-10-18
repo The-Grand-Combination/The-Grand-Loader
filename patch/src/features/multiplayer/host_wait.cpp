@@ -7,6 +7,7 @@
 
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04 (docs/re/systems/multiplayer.md):
@@ -127,7 +128,8 @@ int __cdecl should_wait(uintptr_t world) {
     if (at_war != g_suspended) {
         g_suspended = at_war;
         g_waiting = false;
-        logf(at_war ? "mp_host_wait: a player is at war, the hold is suspended" : "mp_host_wait: no player at war, the hold is back");
+        logf(at_war ? "mp_host_wait: a player is at war, the hold is suspended"
+                    : "mp_host_wait: no player at war, the hold is back");
     }
     if (at_war) {
         return 0;
@@ -149,19 +151,15 @@ int __cdecl should_wait(uintptr_t world) {
 // ProcessGameTimeAdvance is __fastcall with the world in ECX and the frame delta in XMM0; nothing on
 // the stack, so skipping it is a plain return.
 __declspec(naked) void advance_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        sub esp, 16
-        movdqu [esp], xmm0
         push ecx
         call should_wait
         add esp, 4
-        mov [esp + 48], eax          // saved eax of pushad: 16 (xmm0) + 4 (eflags) + 28 (edi..ecx)
-        movdqu xmm0, [esp]
-        add esp, 16
-        popfd
-        popad
+        mov [esp + CP_SAVED_EAX], eax  // comes back in EAX after the restore
+    }
+    CP_RESTORE_ALL
+    __asm {
         test eax, eax
         jnz skip
         jmp dword ptr [g_original]
@@ -180,10 +178,12 @@ void install_host_wait(const Config& config) {
     g_max_days = config.mp_host_wait_days;
     g_original = hooks::exe_addr(kAdvanceRva);
     if (!hooks::redirect_call(hooks::exe_addr(kCallSiteRva), g_original, reinterpret_cast<uintptr_t>(&advance_thunk))) {
-        logf("mp_host_wait: call site %08X not recognised, off", kCallSiteRva + 0x400000);
+        logf("mp_host_wait: call site %08X not recognised, off", hooks::listing_va(kCallSiteRva));
         return;
     }
-    logf("mp_host_wait: active, the host holds its ticks while a player is more than %d day(s) behind (not while a player is at war)", g_max_days);
+    logf("mp_host_wait: active, the host holds its ticks while a player is more than %d day(s) behind "
+         "(not while a player is at war)",
+         g_max_days);
 }
 
 }  // namespace cp::features

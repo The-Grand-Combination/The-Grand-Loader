@@ -3,7 +3,10 @@
 #include <cstdint>
 #include <cstring>
 
+#include "game/string.h"
+#include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04:
@@ -32,36 +35,22 @@ namespace cp::features {
 namespace {
 
 constexpr uint32_t kCallRva = 0x36729B;
+constexpr uint32_t kPortPushRva = 0x36727B;  // PUSH 0x666 before it
+constexpr unsigned char kPortPushBytes[] = {0x68, 0x66, 0x06, 0x00, 0x00};
 constexpr uint32_t kLobbyAssignRva = 0x36BE7B;
-constexpr uint32_t kAssignRva = 0x8ED0;
+constexpr unsigned char kLobbyLeaBytes[] = {0x8D, 0x88, 0x24, 0x01, 0x00, 0x00};  // LEA ECX,[EAX+0x124]
 constexpr uint32_t kRequestRva = 0x5F8180;
 constexpr uint32_t kDefaultPort = 0x666;
 constexpr size_t kMaxHost = 255;
 constexpr size_t kMaxText = 263;  // host, colon, five digits, room to spare
 
-// MSVC 2010 std::string, as the game lays it out.
-struct GameString {
-    union {
-        char buf[16];
-        const char* ptr;
-    };
-    uint32_t size;
-    uint32_t capacity;
-    const char* c_str() const { return capacity >= 16 ? ptr : buf; }
-};
-
 uintptr_t g_request = 0;
 uintptr_t g_assign = 0;
 char g_host_text[kMaxHost + 1];
-GameString g_host;  // read (copied) by the request before the dialog code runs again
+game::GameString g_host;  // read (copied) by the request before the dialog code runs again
 char g_full_text[kMaxText + 1];
-GameString g_full;  // the typed "host:port", for the lobby's copy into "lasthost"
+game::GameString g_full;  // the typed "host:port", for the lobby's copy into "lasthost"
 
-void point_at(GameString& s, const char* text, size_t length) {
-    s.ptr = text;
-    s.size = static_cast<uint32_t>(length);
-    s.capacity = static_cast<uint32_t>(length < 16 ? 16 : length);
-}
 bool g_logged = false;
 
 // Rewrites the address and port arguments in place when the address carries a port.
@@ -69,7 +58,7 @@ void __cdecl split_address(uint32_t* args) {
     if (args[1] != kDefaultPort) {
         return;
     }
-    const auto* typed = reinterpret_cast<const GameString*>(args[0]);
+    const auto* typed = reinterpret_cast<const game::GameString*>(args[0]);
     const char* text = typed->c_str();
     const char* colon = std::strrchr(text, ':');
     if (!colon || colon == text || std::strchr(text, ':') != colon) {
@@ -90,10 +79,10 @@ void __cdecl split_address(uint32_t* args) {
     }
     std::memcpy(g_host_text, text, length);
     g_host_text[length] = '\0';
-    point_at(g_host, g_host_text, length);
+    g_host = game::view_of(g_host_text, length);
     std::memcpy(g_full_text, text, full);
     g_full_text[full] = '\0';
-    point_at(g_full, g_full_text, full);
+    g_full = game::view_of(g_full_text, full);
     uint32_t host = reinterpret_cast<uint32_t>(&g_host);
     if (args[2] == args[0]) {
         args[2] = host;
@@ -108,17 +97,15 @@ void __cdecl split_address(uint32_t* args) {
 
 // [esp] return, [esp+4] request, [esp+8] name, [esp+0xC] address, [esp+0x10] port, [esp+0x14] address.
 __declspec(naked) void request_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        lea eax, [esp + 36 + 12]  // 32 (pushad) + 4 (pushfd): the address argument
+        lea eax, [esp + CP_SAVED_ALL_BYTES + 12]  // the address argument
         push eax
         call split_address
         add esp, 4
-        popfd
-        popad
-        jmp dword ptr [g_request]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_request]
 }
 
 // The lobby's assignment of the session host to "lasthost": the full "host:port" when the host is the
@@ -127,7 +114,7 @@ void __cdecl keep_port(uint32_t* args) {
     if (g_full.size == 0) {
         return;
     }
-    const auto* source = reinterpret_cast<const GameString*>(args[0]);
+    const auto* source = reinterpret_cast<const game::GameString*>(args[0]);
     if (source->size == g_host.size && std::strcmp(source->c_str(), g_host_text) == 0) {
         args[0] = reinterpret_cast<uint32_t>(&g_full);
     }
@@ -135,17 +122,15 @@ void __cdecl keep_port(uint32_t* args) {
 
 // thiscall assign: ECX = settings+0x124, [esp+4] source, [esp+8] position, [esp+0xC] count.
 __declspec(naked) void lobby_assign_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        lea eax, [esp + 36 + 4]  // 32 (pushad) + 4 (pushfd): the source argument
+        lea eax, [esp + CP_SAVED_ALL_BYTES + 4]  // the source argument
         push eax
         call keep_port
         add esp, 4
-        popfd
-        popad
-        jmp dword ptr [g_assign]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_assign]
 }
 
 }  // namespace
@@ -158,14 +143,15 @@ void install_join_port(const Config& config) {
     g_request = hooks::exe_addr(kRequestRva);
     if (!hooks::expect_bytes(hooks::exe_addr(0x36727B), "\x68\x66\x06\x00\x00", 5) ||  // PUSH 0x666
         !hooks::redirect_call(hooks::exe_addr(kCallRva), g_request, reinterpret_cast<uintptr_t>(&request_thunk))) {
-        logf("join_port: join dialog site %08X not recognised, off", kCallRva + 0x400000);
+        logf("join_port: join dialog site %08X not recognised, off", hooks::listing_va(kCallRva));
         return;
     }
-    g_assign = hooks::exe_addr(kAssignRva);
-    if (!hooks::expect_bytes(hooks::exe_addr(kLobbyAssignRva - 6), "\x8D\x88\x24\x01\x00\x00", 6) ||  // LEA ECX,[EAX+0x124]
-        !hooks::redirect_call(hooks::exe_addr(kLobbyAssignRva), g_assign, reinterpret_cast<uintptr_t>(&lobby_assign_thunk))) {
+    g_assign = hooks::exe_addr(game::kStringAssignRva);
+    uintptr_t lobby_site = hooks::exe_addr(kLobbyAssignRva);
+    if (!hooks::expect_bytes(lobby_site - sizeof(kLobbyLeaBytes), kLobbyLeaBytes, sizeof(kLobbyLeaBytes)) ||
+        !hooks::redirect_call(lobby_site, g_assign, reinterpret_cast<uintptr_t>(&lobby_assign_thunk))) {
         logf("join_port: lobby site %08X not recognised, the saved address will lack the port",
-             kLobbyAssignRva + 0x400000);
+             hooks::listing_va(kLobbyAssignRva));
     }
     logf("join_port: active, the join dialog accepts address:port (the game's port is 1638)");
 }

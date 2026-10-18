@@ -189,6 +189,37 @@ unless marked.
   (`pin_fpu`) addresses the cause; the quantisation would additionally hide a divergence from the
   checksum.
 
+## Lag handling and the chat warning (2026-10-17)
+
+- Every tick each machine sends a `CClientPingCommand` with its date. Its execute (`0x0072F1E0`) on the
+  host stores the date in the player's entry (`world+0x18` list, `+0x34`) and compares it with the
+  host's: 6-10 days behind lowers the speed (idler `vt[0x168]`) and announces `LAG_DECREASE_SPEED`;
+  11 or more pauses and announces `LAG_PAUSE` (both `$PLAYER$ is lagging behind, ...`). A day stamp at
+  `0x013F3034`/`0x013F3038` (flags `0x013F303C`) keeps it to once per host day. **[C]**
+- The announcement is an ordinary chat line: `ChatMessage_ctor` (`0x009F3290`) builds a 0x74-byte
+  message (text +0x08, sender name +0x28, flag country +0x54, key text +0x58), `ChatMessageCommand_ctor`
+  (`0x009F4240`) wraps it in the chat command (the one the chat boxes send) addressed to the chat
+  channel (`ObjectRegistry_FindByTypeAndId` of the key at `0x00F0D840`), and it is queued with session
+  manager+0x38 `vt[0x18]`, which sends it to every player. On execute (`0x009F4530`) the channel stores
+  it and notifies its listener (`Chat_OnMessage` `0x00676E80`), which adds a line to the chat list.
+  `Chat_ExpireLines` (`0x006784B0`) removes the oldest line once 60 s passed since the last removal,
+  one at a time, so repeated warnings linger for minutes. **[C]** Details of the classes:
+  [ui-console.md](ui-console.md), "Chat".
+- `mp_host_wait_days` (host holds its ticks for a slow player) and `chat_line_seconds` act on this.
+
+## Out-of-sync reaction with the patch (2026-10-17)
+
+- `fix_rng_resync` realigns the draw count to the host's position instead of zero; `state_checksum`
+  adds hashes of provinces, countries, pops and the date to the vector; the game compares only its two
+  elements and the patch compares the rest (`sync_check.cpp`).
+- `oos_notice`: draws differ and the hashes match means the realign recovered the game: `world+0xBA8`
+  is set for that comparison (no dialog, no `CPauseGame`; restored at the next comparison) and a chat
+  line built exactly like the lag warning, sent by the detecting player, tells everyone. Hashes differ:
+  the game reacts as before and the line names the differing hashes. Only the machine that compares
+  (a client) can detect it; the host never fails its own check.
+- The Force OOS button clears `world+0xBA8` before flipping its element, to get the full reaction on
+  every press.
+
 ## Open questions
 
 1. What the setup list contains for a long-running game, and whether a joiner really ends up at the

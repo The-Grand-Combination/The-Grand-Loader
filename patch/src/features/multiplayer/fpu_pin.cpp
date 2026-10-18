@@ -21,28 +21,23 @@ namespace cp::features {
 
 namespace {
 
-constexpr uint16_t kPrecision24 = 0x0000;
-constexpr uint16_t kPrecision53 = 0x0200;
-constexpr uint16_t kPrecisionMask = 0x0300;
-constexpr uint16_t kRoundingMask = 0x0C00;
-constexpr uint16_t kExceptionMasks = 0x003F;
-constexpr uint32_t kMxcsrDefault = 0x1F80;
-
-uint16_t g_precision = kPrecision24;
+uint16_t g_precision = hooks::kX87Precision24;
 bool g_logged = false;
 
 void pin() {
     uint16_t cw;
     uint32_t csr;
     hooks::read_fpu(cw, csr);
-    uint16_t wanted = static_cast<uint16_t>((cw & ~(kPrecisionMask | kRoundingMask)) | g_precision | kExceptionMasks);
+    constexpr uint16_t kReplaced = hooks::kX87PrecisionMask | hooks::kX87RoundingMask;
+    auto wanted = static_cast<uint16_t>((cw & ~kReplaced) | g_precision | hooks::kX87ExceptionMasks);
     if (!g_logged) {
         g_logged = true;
-        logf("pin_fpu: first tick: x87 control word %04X -> %04X, MXCSR %08X -> %08X", cw, wanted, csr, kMxcsrDefault);
+        logf("pin_fpu: first tick: x87 control word %04X -> %04X, MXCSR %08X -> %08X", cw, wanted, csr,
+             hooks::kMxcsrDefault);
     }
-    if (cw != wanted || csr != kMxcsrDefault) {
+    if (cw != wanted || csr != hooks::kMxcsrDefault) {
         __asm fnclex
-        hooks::write_fpu(wanted, kMxcsrDefault);
+        hooks::write_fpu(wanted, hooks::kMxcsrDefault);
     }
 }
 
@@ -53,13 +48,13 @@ void install_fpu_pin(const Config& config) {
         logf("pin_fpu: disabled");
         return;
     }
-    g_precision = config.fpu_precision == 53 ? kPrecision53 : kPrecision24;
+    g_precision = config.fpu_precision == 53 ? hooks::kX87Precision53 : hooks::kX87Precision24;
     if (!hooks::on_hourly_tick(&pin)) {
         logf("pin_fpu: hourly tick hook unavailable, off");
         return;
     }
     logf("pin_fpu: active, %d-bit x87 precision, round to nearest, MXCSR default, set every tick",
-         g_precision == kPrecision53 ? 53 : 24);
+         g_precision == hooks::kX87Precision53 ? 53 : 24);
 }
 
 }  // namespace cp::features

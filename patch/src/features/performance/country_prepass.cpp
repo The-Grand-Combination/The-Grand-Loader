@@ -6,6 +6,7 @@
 
 #include "features/performance/pops_prefetch.h"
 #include "features/performance/relations_prefetch.h"
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -39,8 +40,8 @@ constexpr uint32_t kGoodsSourceRva = 0xE587F0; // DAT_012587F0: +0xC/+0x10 vecto
 constexpr uint32_t kTypesSourceRva = 0xE5CE80; // DAT_0125CE80: lazy singleton, +0xC/+0x10 vector
 constexpr uint32_t kCountryRow = 0x1514;
 constexpr uint32_t kCountryMatrix = 0x14F4;
-constexpr uint32_t kCountryProvincesBegin = 0x9D8;
-constexpr uint32_t kCountryProvincesEnd = 0x9DC;
+constexpr uint32_t kCountryProvincesBegin = game::kCountryProvinces;
+constexpr uint32_t kCountryProvincesEnd = game::kCountryProvincesEnd;
 constexpr uint32_t kEntrySize = 0x18;
 constexpr uint32_t kDeadTagOffsets[] = {0x2C, 0x30};
 constexpr uint64_t kReportEvery = 683 * 30;    // about every 30 game days
@@ -54,7 +55,7 @@ uint8_t g_skip = 0;
 uint64_t g_calls = 0;
 uint64_t g_skipped = 0;
 
-inline uint32_t read32(uintptr_t at) { return *reinterpret_cast<const uint32_t*>(at); }
+using game::read32;
 
 inline int32_t vector_count(uintptr_t vec, uint32_t element) {
     return static_cast<int32_t>((read32(vec + 4) - read32(vec)) / element);
@@ -150,10 +151,11 @@ void install_country_prepass(const Config& config) {
     g_types_source = hooks::exe_addr(kTypesSourceRva);
     if (!hooks::expect_bytes(g_reset, "\x55\x8B\xEC\x6A\xFF", 5) ||
         !hooks::redirect_call(hooks::exe_addr(kResetCallRva), g_reset, reinterpret_cast<uintptr_t>(&reset_thunk))) {
-        logf("country_prepass: call site %08X not recognised or already hooked, off", kResetCallRva + 0x400000);
+        logf("country_prepass: call site %08X not recognised or already hooked, off", hooks::listing_va(kResetCallRva));
         return;
     }
-    logf("country_prepass: active (skip_clean_resets %s; dead-tag relation prefetch and pop prefetch follow their own options)",
+    logf("country_prepass: active (skip_clean_resets %s; "
+         "dead-tag relation prefetch and pop prefetch follow their own options)",
          g_skip_resets ? "on" : "off");
 }
 

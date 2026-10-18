@@ -31,8 +31,8 @@ void log_fpu_once() {
     uint16_t cw;
     uint32_t csr;
     hooks::read_fpu(cw, csr);
-    const char* precision = (cw & 0x300) == 0x000 ? "24-bit" : (cw & 0x300) == 0x200 ? "53-bit" : "64-bit";
-    logf("oos_log: game thread x87 control word %04X (%s precision), MXCSR %08X", cw, precision, csr);
+    logf("oos_log: game thread x87 control word %04X (%s precision), MXCSR %08X", cw,
+         hooks::x87_precision_name(cw), csr);
 }
 
 }  // namespace

@@ -89,15 +89,15 @@ void run(int count, TaskFn task, void* context) {
     if (g_workers < 0) {
         start();
     }
-    uint16_t x87;
-    uint32_t mxcsr;
-    hooks::read_fpu(x87, mxcsr);
     if (g_workers == 0 || count == 1) {
         for (int i = 0; i < count; i++) {
             task(i, context);
         }
         return;
     }
+    uint16_t x87;
+    uint32_t mxcsr;
+    hooks::read_fpu(x87, mxcsr);
     AcquireSRWLockExclusive(&g_pool.lock);
     g_pool.task = task;
     g_pool.context = context;

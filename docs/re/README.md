@@ -58,12 +58,13 @@ docs/re/
 | [factories.md](systems/factories.md) | factory construction gates |
 | [loading.md](systems/loading.md) | what runs once after a game is loaded |
 | [checksum.md](systems/checksum.md) | file and runtime checksums, the resign/menu bug |
-| [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label |
+| [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label, chat, text input, join dialog and settings |
 | [performance.md](systems/performance.md) | measured budget, lessons, ranked performance candidates |
 | [parallel-triggers.md](systems/parallel-triggers.md) | feasibility of evaluating triggers on worker threads |
-| [network.md](systems/network.md) | ENet session, the 35 ms per-frame network wait |
+| [network.md](systems/network.md) | ENet session, the per-frame network wait, ports 1638/1633, connection requests, tunnels |
 | [multiplayer.md](systems/multiplayer.md) | command flow, what the OOS check compares, the built-in RNG realign, join in progress, RNG instances |
 | [flags.md](systems/flags.md) | flag atlases, the uncompressed managed textures, `compress_flag_cache` |
+| [crashes.md](systems/crashes.md) | crashes of the unpatched game and of the patch, their causes and guards |
 
 ## Conventions
 
@@ -78,6 +79,19 @@ docs/re/
   (`Country_DailyUpdate`), `g_` for globals, `k` for constants, `str_` for strings. English only.
 - **One fact, one place:** an address is defined in `symbols/`; pages refer to it by name and may
   repeat the VA for readability, but never introduce one that is not in the CSVs.
+
+## Compiler and calling conventions
+
+- The exe is 32-bit MSVC 2010 built with link-time code generation **[C]**. Callers may keep values
+  in XMM registers, and in `ECX`/`EDX`, across calls to functions that the optimiser knows leave
+  them alone (`0x0084D866` converts an XMM0 computed before a `Rng_Next` call). Every patch thunk
+  that calls C++ code therefore saves all general registers, the flags and XMM0-7
+  (`CP_SAVE_ALL` / `CP_RESTORE_ALL` in `patch/src/hooks/thunk.h`). Thunks that reach x87 code also save
+  the x87 state.
+- Many internal functions take arguments in registers (`EDI`, `ESI`, `ECX` + `EDX` + stack). Ghidra's
+  signature is a starting point. Read the call site before writing a thunk.
+- `std::string` is the MSVC 2010 layout, 0x1C bytes (`std::string` rows in `symbols/structs.csv`;
+  `game::GameString` in the patch).
 
 ## Adding knowledge
 

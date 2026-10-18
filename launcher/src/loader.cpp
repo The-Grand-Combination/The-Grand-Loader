@@ -39,11 +39,20 @@ std::string narrow(const std::wstring& s) {
     return out;
 }
 
+// The full path of the running exe; the buffer grows until the path fits (paths can exceed MAX_PATH).
 std::wstring exe_path() {
     std::wstring path(MAX_PATH, L'\0');
-    DWORD n = GetModuleFileNameW(nullptr, path.data(), MAX_PATH);
-    path.resize(n);
-    return path;
+    for (;;) {
+        DWORD n = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+        if (n == 0) {
+            return std::wstring();
+        }
+        if (n < path.size()) {
+            path.resize(n);
+            return path;
+        }
+        path.resize(path.size() * 2);
+    }
 }
 
 bool is_target_process(const std::wstring& exe) {

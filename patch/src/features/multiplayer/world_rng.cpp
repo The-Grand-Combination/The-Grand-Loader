@@ -75,7 +75,8 @@ struct Mt {
     uint32_t next() {
         if (index >= 624) {
             if (index == 625) {
-                seed(static_cast<uint32_t>(GetTickCount()) ^ static_cast<uint32_t>(GetCurrentProcessId()) * 2654435761u);
+                seed(static_cast<uint32_t>(GetTickCount()) ^
+                     static_cast<uint32_t>(GetCurrentProcessId()) * 2654435761u);
             }
             for (int i = 0; i < 624; i++) {
                 uint32_t y = (state[i] & 0x80000000u) | (state[(i + 1) % 624] & 0x7fffffffu);
@@ -103,7 +104,7 @@ void note_lockstep_draw(uintptr_t return_address) {
             if (!g_lockstep_logged[i]) {
                 g_lockstep_logged[i] = true;
                 logf("sync_world_rng: site %08X drew inside a command on day %d (lockstep on this machine)",
-                     kSiteRvas[i] + 0x400000, game::day(game::world()));
+                     hooks::listing_va(kSiteRvas[i]), game::day(game::world()));
             }
             return;
         }
@@ -178,7 +179,8 @@ void install_world_rng(const Config& config) {
         if (hooks::redirect_call(site, g_rng_next, reinterpret_cast<uintptr_t>(&draw_thunk))) {
             sites++;
         } else {
-            logf("sync_world_rng: site %08X does not call Rng_Next as expected, left alone", kSiteRvas[i] + 0x400000);
+            logf("sync_world_rng: site %08X does not call Rng_Next as expected, left alone",
+                 hooks::listing_va(kSiteRvas[i]));
         }
     }
     logf("sync_world_rng: active on %d of %d world-RNG draw sites (lockstep draws go to the global generator, counted)",

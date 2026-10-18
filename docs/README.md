@@ -33,7 +33,7 @@ Every player of a game must use the same values.
 | [`fix_rng_resync`](fix-rng-resync.md) | on a sync mismatch, realigns the random generator to the host's position instead of restarting it |
 | [`sync_world_rng`](sync-world-rng.md) | takes the lockstep draws of the world's clock-seeded generator from the shared one |
 | [`mp_host_wait_days`](mp-host-wait-days.md) | off by default: the host waits for the slowest player instead of running ahead; suspended while a player is at war |
-| [`oos_notice`](oos-notice.md) | a recovered out-of-sync shows a 15-second notice instead of the dialog and pause; a real one says what differs |
+| [`oos_notice`](oos-notice.md) | a recovered out-of-sync is announced in the chat, like the lag warning, instead of the dialog and pause; a real one says what differs |
 
 ## Crash prevention
 

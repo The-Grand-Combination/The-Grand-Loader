@@ -100,13 +100,13 @@ void install_tech_window_guard(const Config& config) {
                          reinterpret_cast<uintptr_t>(&sort_guard))) {
         sites++;
     } else {
-        logf("fix_tech_window_crash: sort site %08X not recognised, left alone", kSortSiteRva + 0x400000);
+        logf("fix_tech_window_crash: sort site %08X not recognised, left alone", hooks::listing_va(kSortSiteRva));
     }
     if (hooks::jump_hook(hooks::exe_addr(kFolderSiteRva), kFolderSiteBytes, sizeof(kFolderSiteBytes),
                          reinterpret_cast<uintptr_t>(&folder_guard))) {
         sites++;
     } else {
-        logf("fix_tech_window_crash: folder site %08X not recognised, left alone", kFolderSiteRva + 0x400000);
+        logf("fix_tech_window_crash: folder site %08X not recognised, left alone", hooks::listing_va(kFolderSiteRva));
     }
     logf("fix_tech_window_crash: active on %d of 2 sites (invention status checked before use)", sites);
 }

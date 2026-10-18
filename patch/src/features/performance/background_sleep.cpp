@@ -45,7 +45,7 @@ void install_background_sleep(const Config& config) {
         if (hooks::expect_bytes(at, kSiteBytes, sizeof(kSiteBytes)) && hooks::write_bytes(at + 1, &imm, 1)) {
             sites++;
         } else {
-            logf("background_sleep_ms: %s site %08X not recognised, left alone", site.loop, site.rva + 0x400000);
+            logf("background_sleep_ms: %s site %08X not recognised, left alone", site.loop, hooks::listing_va(site.rva));
         }
     }
     logf("background_sleep_ms: active on %d of %d sites, %d ms per frame while the render device is lost", sites,

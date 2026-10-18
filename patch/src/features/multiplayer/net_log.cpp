@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 
 #include "game/world.h"
 #include "hooks/memory.h"
@@ -18,7 +17,7 @@
 // build uses is decided at the first event by checking where the host pointer is.
 //
 // The function's first six bytes (PUSH EBP; MOV EBP,ESP; AND ESP,-8) are replaced by a jump to a
-// wrapper with the same signature, which calls a copy of them followed by a jump back.
+// wrapper with the same signature, which calls the original through a trampoline (hooks::make_trampoline).
 
 namespace cp::features {
 
@@ -122,17 +121,14 @@ void install_net_log(const Config& config) {
         return;
     }
     uintptr_t service = hooks::exe_addr(kServiceRva);
-    auto* trampoline = static_cast<unsigned char*>(
-        VirtualAlloc(nullptr, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
-    if (!trampoline || !hooks::expect_bytes(service, kPrologue, sizeof(kPrologue))) {
+    uintptr_t trampoline = 0;
+    if (hooks::expect_bytes(service, kPrologue, sizeof(kPrologue))) {
+        trampoline = hooks::make_trampoline(service, sizeof(kPrologue));
+    }
+    if (!trampoline) {
         logf("network_log: enet_host_service not recognised, off");
         return;
     }
-    std::memcpy(trampoline, kPrologue, sizeof(kPrologue));
-    trampoline[6] = 0xE9;
-    int32_t back = static_cast<int32_t>((service + sizeof(kPrologue)) - reinterpret_cast<uintptr_t>(trampoline + 11));
-    std::memcpy(trampoline + 7, &back, 4);
-    FlushInstructionCache(GetCurrentProcess(), trampoline, 16);
     g_original = reinterpret_cast<ServiceFn>(trampoline);
     if (!hooks::jump_hook(service, kPrologue, sizeof(kPrologue), reinterpret_cast<uintptr_t>(&service_hook))) {
         logf("network_log: enet_host_service not patched, off");

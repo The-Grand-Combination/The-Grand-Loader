@@ -101,7 +101,8 @@ HRESULT WINAPI load_cache(void* device, const void* data, UINT size, UINT width,
             }
             return hr;
         }
-        logf("compress_flag_cache: DXT1 load failed (%08lX), loading the atlas unchanged", static_cast<unsigned long>(hr));
+        logf("compress_flag_cache: DXT1 load failed (%08lX), loading the atlas unchanged",
+             static_cast<unsigned long>(hr));
     } else if (format == kFormatUnknown) {
         g_loads++;
     }
@@ -163,13 +164,13 @@ void install_flag_cache(const Config& config) {
         uint8_t expected[6];
         import_call_bytes(s.iat, expected);
         if (!hooks::expect_bytes(hooks::exe_addr(s.site), expected, sizeof(expected))) {
-            logf("compress_flag_cache: call site %08X not recognised, feature off", s.site + 0x400000);
+            logf("compress_flag_cache: call site %08X not recognised, feature off", hooks::listing_va(s.site));
             return;
         }
     }
     for (const Site& s : sites) {
         if (!hook_import_call(s.site, s.iat, s.wrapper)) {
-            logf("compress_flag_cache: could not patch call site %08X, stopping here", s.site + 0x400000);
+            logf("compress_flag_cache: could not patch call site %08X, stopping here", hooks::listing_va(s.site));
             return;
         }
     }

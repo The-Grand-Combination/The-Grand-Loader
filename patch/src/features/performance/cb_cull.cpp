@@ -10,9 +10,12 @@
 #include <vector>
 
 #include "features/performance/cb_cull_triggers.h"
+#include "game/string.h"
+#include "game/triggers.h"
 #include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "util/clock.h"
 
 // Background (docs/re/systems/casus-belli.md, docs/cull-cb-checks.md):
 //
@@ -39,16 +42,12 @@ namespace {
 
 // --- v2game.exe 3.04 (RVA = VA - 0x00400000) ---------------------------------------------------
 constexpr uint32_t kIsAnyCBUsableRva = 0x52EDE0;    // CBManager_IsAnyCBUsable(rel, defRef, attRef), __stdcall
-constexpr uint32_t kScopeCtorRva = 0x4A8650;        // CEventScope::ctor(this, parent = 0)
 constexpr uint32_t kScanCallSites[] = {0x45DCDA,    // in AI_ScoreWarTargets
                                        0x45E5FB};   // in AI_ScoreDiplomaticTargets
 constexpr uint32_t kCBManagerPtrRva = 0xF1ACAC;     // DAT_0131ACAC, +0xC/+0x10 = vector<CCasusBelliType*>
-constexpr uint32_t kAndVtableRva = 0x9F9994;        // CAndTrigger::vftable
-constexpr uint32_t kOrVtableRva = 0xA2FB70;         // COrTrigger::vftable
-constexpr uint32_t kNotVtableRva = 0xA2FBA8;        // CNotTrigger::vftable
 
 constexpr uint32_t kCBTypeCanUse = 0x4C;     // CCasusBelliType::can_use (embedded CAndTrigger)
-constexpr uint32_t kCBTypeName = 0x14;       // std::string (SSO): buffer/pointer +0x14, size +0x24, capacity +0x28
+constexpr uint32_t kCBTypeName = 0x14;       // std::string (game::GameString)
 constexpr uint32_t kCBTypeAlways = 0x132;    // `always = yes`
 constexpr uint32_t kVtableIsRealType = 0x1C; // CCasusBelliType slot 7
 constexpr uint32_t kVtableCanUse = 0x20;     // CCasusBelliType slot 8: bool CanUse(scope) = can_use.Evaluate
@@ -56,14 +55,7 @@ constexpr uint32_t kRelationHeldList = 0x50; // relation object: singly linked l
 constexpr uint32_t kHeldNodeCB = 0x00;       //   node: +0 CCasusBelli*, +8 next
 constexpr uint32_t kHeldNodeNext = 0x08;
 constexpr uint32_t kCBTypeIndex = 0x24;      // CCasusBelli: index of its type in the manager list
-constexpr uint32_t kBlockBegin = 0x08;       // trigger block: vector<CTrigger*> begin
-constexpr uint32_t kBlockEnd = 0x0C;         //                                 end
-constexpr uint32_t kTriggerThisFlag = 0x18;  // value was `THIS`
-constexpr uint32_t kTriggerFromFlag = 0x19;  // value was `FROM`
-constexpr uint32_t kVtableEvaluate = 0x18;   // CTrigger slot 6: bool Evaluate(scope)
-constexpr uint32_t kScopeTag = 0x08;         // CEventScope: country tag
-constexpr uint32_t kScopeThis = 0x24;        //              THIS scope pointer
-constexpr size_t kScopeSize = 0x60;          // ctor writes up to +0x48
+constexpr size_t kNameMax = 64;              // characters of a CB name kept for reports
 
 constexpr int32_t kReportEveryDays = 30;
 constexpr uint64_t kSample = 64;  // timing sample rate (power of two)
@@ -71,12 +63,10 @@ constexpr uint64_t kSample = 64;  // timing sample rate (power of two)
 // 3 stack arguments, callee cleans (`RET 0xC`), no register arguments.
 using IsAnyCBUsableFn = char(__stdcall*)(void* relation, void* defender_ref, void* attacker_ref);
 // __thiscall in the game; __fastcall takes `this` in ecx and ignores edx.
-using EvaluateFn = char(__fastcall*)(void* self, void* edx, void* scope);
 using IsRealTypeFn = char(__fastcall*)(void* self, void* edx);
-using ScopeCtorFn = void*(__fastcall*)(void* self, void* edx, void* parent);
 
 IsAnyCBUsableFn g_is_any_cb_usable = nullptr;
-ScopeCtorFn g_scope_ctor = nullptr;
+game::ScopeCtorFn g_scope_ctor = nullptr;
 bool g_profiling = false;
 
 uintptr_t g_and_vtable = 0;
@@ -115,26 +105,14 @@ Stats g_stats;
 int32_t g_stats_day = -1;
 int32_t g_window_start_day = -1;
 int64_t g_window_start_qpc = 0;
-int64_t g_qpc_freq = 0;
 
 using game::read32;
-inline uint8_t read8(uintptr_t at) { return *reinterpret_cast<const uint8_t*>(at); }
+using game::read8;
+using util::qpc;
 
-inline int64_t qpc() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t.QuadPart;
-}
-inline double ms(uint64_t ticks) {
-    return g_qpc_freq ? 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq) : 0.0;
-}
+inline double ms(uint64_t ticks) { return util::qpc_ms(static_cast<int64_t>(ticks)); }
 
 int32_t current_day() { return game::day(game::world()); }
-
-size_t country_count() {
-    uintptr_t manager = game::country_manager();
-    return manager ? read32(manager) : 0;
-}
 
 uintptr_t cb_types_begin() {
     uintptr_t manager = read32(hooks::exe_addr(kCBManagerPtrRva));
@@ -146,20 +124,14 @@ size_t cb_type_count() {
     return manager ? (read32(manager + 0x10) - read32(manager + 0x0C)) / sizeof(uint32_t) : 0;
 }
 
-std::string cb_type_name(uintptr_t type) {
-    uint32_t size = read32(type + kCBTypeName + 0x10);
-    uint32_t capacity = read32(type + kCBTypeName + 0x14);
-    const char* data = capacity > 15 ? reinterpret_cast<const char*>(read32(type + kCBTypeName))
-                                     : reinterpret_cast<const char*>(type + kCBTypeName);
-    return std::string(data, size > 64 ? 64 : size);
-}
+std::string cb_type_name(uintptr_t type) { return game::string_at(type + kCBTypeName, kNameMax); }
 
 // --- trigger classification ----------------------------------------------------------------------
 
 bool is_attacker_only(uintptr_t trigger);
 
 bool children_attacker_only(uintptr_t block) {
-    for (uintptr_t it = read32(block + kBlockBegin), end = read32(block + kBlockEnd); it < end; it += 4) {
+    for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd); it < end; it += 4) {
         if (!is_attacker_only(read32(it))) {
             return false;
         }
@@ -175,12 +147,7 @@ bool is_attacker_only(uintptr_t trigger) {
     if (!g_attacker_only_classes.contains(vtable)) {
         return false;
     }
-    return read8(trigger + kTriggerThisFlag) == 0 && read8(trigger + kTriggerFromFlag) == 0;
-}
-
-inline bool evaluate(uintptr_t trigger, void* scope) {
-    auto fn = reinterpret_cast<EvaluateFn>(read32(read32(trigger) + kVtableEvaluate));
-    return fn(reinterpret_cast<void*>(trigger), nullptr, scope) != 0;
+    return read8(trigger + game::kTriggerThisFlag) == 0 && read8(trigger + game::kTriggerFromFlag) == 0;
 }
 
 inline bool is_real_type(uintptr_t type) {
@@ -189,7 +156,7 @@ inline bool is_real_type(uintptr_t type) {
 }
 
 inline bool can_use(uintptr_t type, void* scope) {
-    auto fn = reinterpret_cast<EvaluateFn>(read32(read32(type) + kVtableCanUse));
+    auto fn = reinterpret_cast<game::EvaluateFn>(read32(read32(type) + kVtableCanUse));
     return fn(reinterpret_cast<void*>(type), nullptr, scope) != 0;
 }
 
@@ -211,7 +178,7 @@ void refresh_types() {
         info.real = is_real_type(info.type);
         info.always = read8(info.type + kCBTypeAlways) != 0;
         uintptr_t block = info.type + kCBTypeCanUse;
-        for (uintptr_t it = read32(block + kBlockBegin), end = read32(block + kBlockEnd); it < end; it += 4) {
+        for (uintptr_t it = read32(block + game::kTriggerBlockBegin), end = read32(block + game::kTriggerBlockEnd); it < end; it += 4) {
             uintptr_t child = read32(it);
             if (is_attacker_only(child)) {
                 info.attacker_only.push_back(child);
@@ -230,17 +197,17 @@ void refresh_types() {
 
 // Exactly what IsCBUsable builds before CanUse: scope = attacker, scope->THIS = defender, no FROM.
 struct ScopePair {
-    alignas(16) unsigned char main[kScopeSize];
-    alignas(16) unsigned char this_scope[kScopeSize];
+    alignas(16) unsigned char main[game::kScopeBuffer];
+    alignas(16) unsigned char this_scope[game::kScopeBuffer];
 };
 
 void build_scopes(ScopePair& s, void* attacker_ref, void* defender_ref) {
     std::memset(&s, 0, sizeof(s));
     g_scope_ctor(s.main, nullptr, nullptr);
     g_scope_ctor(s.this_scope, nullptr, nullptr);
-    std::memcpy(s.main + kScopeTag, attacker_ref, 8);        // {tag, index}
-    std::memcpy(s.this_scope + kScopeTag, defender_ref, 8);
-    *reinterpret_cast<unsigned char**>(s.main + kScopeThis) = s.this_scope;
+    std::memcpy(s.main + game::kScopeTag, attacker_ref, 8);        // {tag, index}
+    std::memcpy(s.this_scope + game::kScopeTag, defender_ref, 8);
+    *reinterpret_cast<unsigned char**>(s.main + game::kScopeThis) = s.this_scope;
 }
 
 // --- the per-attacker pre-pass -------------------------------------------------------------------
@@ -249,7 +216,7 @@ void build_scopes(ScopePair& s, void* attacker_ref, void* defender_ref) {
 AttackerState* state_for(void* attacker_ref, int32_t day) {
     uint32_t attacker = read32(reinterpret_cast<uintptr_t>(attacker_ref) + 4);
     if (attacker >= g_attackers.size()) {
-        size_t countries = country_count();
+        size_t countries = game::country_count();
         if (attacker >= countries) {
             return nullptr;
         }
@@ -261,10 +228,10 @@ AttackerState* state_for(void* attacker_ref, int32_t day) {
     }
 
     int64_t start = g_profiling ? qpc() : 0;
-    alignas(16) unsigned char scope[kScopeSize];
+    alignas(16) unsigned char scope[game::kScopeBuffer];
     std::memset(scope, 0, sizeof(scope));
     g_scope_ctor(scope, nullptr, nullptr);
-    std::memcpy(scope + kScopeTag, attacker_ref, 8);
+    std::memcpy(scope + game::kScopeTag, attacker_ref, 8);
 
     state.dead.assign(g_types.size(), 0);
     state.live_always.clear();
@@ -275,7 +242,7 @@ AttackerState* state_for(void* attacker_ref, int32_t day) {
             continue;
         }
         for (uintptr_t child : info.attacker_only) {
-            if (!evaluate(child, scope)) {
+            if (!game::evaluate(child, scope)) {
                 state.dead[i] = 1;
                 break;
             }
@@ -302,7 +269,8 @@ void report_window(int32_t last_day) {
     double wall_ms = ms(static_cast<uint64_t>(qpc() - g_window_start_qpc));
     auto ull = [](uint64_t v) { return static_cast<unsigned long long>(v); };
     logf("cb_cull: days %d-%d (%d days, %.1f ms/day wall): %llu AI CB scans/day in %.2f ms/day (%llu hits/day); "
-         "can_use calls/day: %llu for live `always` types, %llu for held types; pre-pass %.2f ms/day over %llu attacker-days",
+         "can_use calls/day: %llu for live `always` types, %llu for held types; "
+         "pre-pass %.2f ms/day over %llu attacker-days",
          g_window_start_day, last_day, days, wall_ms / days, ull(g_stats.scans / days), ms(g_stats.scan_ticks) / days,
          ull(g_stats.hits / days), ull(g_stats.can_use_always / days), ull(g_stats.can_use_held / days),
          ms(g_stats.prepass_ticks) / days, ull(g_stats.prepass));
@@ -425,20 +393,17 @@ void install_cb_cull(const Config& config) {
         return;
     }
     g_profiling = config.cull_cb_profiling;
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    g_qpc_freq = freq.QuadPart;
 
-    g_and_vtable = hooks::exe_addr(kAndVtableRva);
-    g_or_vtable = hooks::exe_addr(kOrVtableRva);
-    g_not_vtable = hooks::exe_addr(kNotVtableRva);
+    g_and_vtable = hooks::exe_addr(game::kAndTriggerVtableRva);
+    g_or_vtable = hooks::exe_addr(game::kOrTriggerVtableRva);
+    g_not_vtable = hooks::exe_addr(game::kNotTriggerVtableRva);
     for (const auto& t : cb_cull_triggers::kCountryRef) {
         g_attacker_only_classes.insert(hooks::exe_addr(t.vtable_rva));
     }
     for (const auto& t : cb_cull_triggers::kScalar) {
         g_attacker_only_classes.insert(hooks::exe_addr(t.vtable_rva));
     }
-    g_scope_ctor = reinterpret_cast<ScopeCtorFn>(hooks::exe_addr(kScopeCtorRva));
+    g_scope_ctor = reinterpret_cast<game::ScopeCtorFn>(hooks::exe_addr(game::kScopeCtorRva));
 
     uintptr_t original_scan = hooks::exe_addr(kIsAnyCBUsableRva);
     if (!hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_scope_ctor), "\x55\x8B\xEC", 3) ||
@@ -448,7 +413,7 @@ void install_cb_cull(const Config& config) {
     }
     for (uint32_t site : kScanCallSites) {
         if (!hooks::expect_bytes(hooks::exe_addr(site), "\xE8", 1)) {
-            logf("cb_cull: AI scan call site %08X not recognised, feature off", site + 0x400000);
+            logf("cb_cull: AI scan call site %08X not recognised, feature off", hooks::listing_va(site));
             return;
         }
     }
@@ -456,7 +421,7 @@ void install_cb_cull(const Config& config) {
     uintptr_t wrapper = reinterpret_cast<uintptr_t>(&is_any_cb_usable_hook);
     for (uint32_t site : kScanCallSites) {
         if (!hooks::redirect_call(hooks::exe_addr(site), original_scan, wrapper)) {
-            logf("cb_cull: AI scan call site %08X does not call IsAnyCBUsable, feature off", site + 0x400000);
+            logf("cb_cull: AI scan call site %08X does not call IsAnyCBUsable, feature off", hooks::listing_va(site));
             return;  // an already redirected site still behaves correctly
         }
     }

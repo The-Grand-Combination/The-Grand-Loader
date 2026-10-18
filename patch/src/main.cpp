@@ -55,8 +55,12 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::hooks::set_exe_base(host->exe_base);
     cp::logf("Victoria II Performance Patch %s", PERFORMANCE_PATCH_VERSION);
 
-    cp::install_crash_log(&cp::features::tick_profiler_crash_context);
+    cp::install_crash_log();
     cp::Config config = cp::load_config(host->config_file);
+
+    // The order matters where two features hook the same call site: tick_profiler after cb_cull and
+    // before decision_cull, events_parallel and state_checksum, which chain to (or refuse) what it put
+    // there. Moving a line means checking the call sites both features touch.
     cp::features::install_worker_threads(config);
     cp::features::install_cb_cull(config);
     cp::features::install_tick_profiler(config);
@@ -69,27 +73,32 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_ai_relations_prefetch(config);
     cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
-    cp::parallel::install_trigger_locks(config);
+    cp::parallel::install_trigger_locks(config);  // before anything evaluates triggers on workers
     cp::features::install_ai_queue(config);
     cp::features::install_events_parallel(config);
     cp::features::install_country_prepass(config);
-    // after tick_profiler: state_checksum chains to whatever the DayTick call site holds
+
+    // Multiplayer. oos_notice is called by sync_check; both, and oos_test, use world+0xBA8.
     cp::features::install_state_checksum(config);
     cp::features::install_oos_log(config);
+    cp::features::install_oos_notice(config);
     cp::features::install_sync_check(config);
     cp::features::install_world_rng(config);
     cp::features::install_host_wait(config);
     cp::features::install_fpu_pin(config);
+    cp::features::install_net_log(config);
     cp::features::install_oos_test(config);
+
+    // Crash prevention.
     cp::features::install_supply_guard(config);
     cp::features::install_tech_window_guard(config);
     cp::features::install_modifier_guard(config);
     cp::features::install_state_guard(config);
+
+    // Interface.
     cp::features::install_clipboard_paste(config);
     cp::features::install_last_ip(config);
     cp::features::install_join_port(config);
-    cp::features::install_net_log(config);
-    cp::features::install_oos_notice(config);
     cp::features::install_chat_lines(config);
     return 0;
 }

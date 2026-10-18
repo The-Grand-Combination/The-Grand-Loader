@@ -135,7 +135,13 @@ immediate effects at once. **[C]**
 - Each hooked call is answered when it is the next entry (same block and entity); anything else runs
   the original code. Both `Event_Fire` calls are wrapped: evaluations during the fire pass through, and
   afterwards the remaining results are dropped and recomputed. Waste per fire: at most one chunk.
-- Shadow (`2`): the original answers every call; the chunk result is compared and mismatches logged.
+- Shadow (`2`): the original answers every call; the chunk result is compared and mismatches logged
+  with the event id (`event+0x0C`), the country tag or province, and how far ahead it was computed.
+- Since 2026-10-17 only calls returning to the scan's own trigger calls (`0x008A7DEF` country pass,
+  `0x008A7FD0` province pass, `CALL EDX; TEST AL,AL`) are answered from the batches; every other caller
+  runs the original. Off by default after a player report of same-day event chains behaving differently,
+  possibly explained by the `is_possible_vassal` race above (the race can also answer false without
+  crashing), which `trigger_locks` fixes **[I]**.
 
 ## Checked and rejected for parallel work
 

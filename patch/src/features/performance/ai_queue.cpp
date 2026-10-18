@@ -5,8 +5,10 @@
 #include <cstdint>
 
 #include "features/performance/decision_cull.h"
+#include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "util/clock.h"
 
 // v2game.exe 3.04 (docs/re/systems/tick.md, docs/re/systems/performance.md):
 //
@@ -26,21 +28,14 @@ namespace {
 
 constexpr uint32_t kCallSiteRva = 0x2557C4;      // CALL AI_FrameUpdate in CInGameIdler_Update
 constexpr uint32_t kAiFrameUpdateRva = 0x2874C0;  // AI_FrameUpdate
-constexpr uint32_t kWorldPtrRva = 0xE588E8;       // DAT_012588E8
-constexpr uint32_t kWorldSpeed = 0xB28;           // 0..4
 constexpr int32_t kMaxSpeed = 4;
 constexpr int64_t kMaxFrameMs = 250;              // keeps the window responsive on a very heavy day
 
 using AiFrameUpdateFn = void(__stdcall*)(void* queue_ref);
 AiFrameUpdateFn g_ai_frame_update = nullptr;
-uintptr_t g_world_slot = 0;
 int64_t g_max_frame_ticks = 0;  // kMaxFrameMs in QPC ticks
 
-inline int64_t qpc() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t.QuadPart;
-}
+using util::qpc;
 
 // `queue_ref` points to a pointer to the bucket array; bucket 0 +8 is its job count.
 inline int32_t pending_jobs(void* queue_ref) {
@@ -50,8 +45,8 @@ inline int32_t pending_jobs(void* queue_ref) {
 
 void __stdcall run_ai_queue(void* queue_ref) {
     int64_t start = qpc();
-    uintptr_t world = *reinterpret_cast<const uint32_t*>(g_world_slot);
-    bool max_speed = world && *reinterpret_cast<const int32_t*>(world + kWorldSpeed) == kMaxSpeed;
+    uintptr_t world = game::world();
+    bool max_speed = world && static_cast<int32_t>(game::read32(world + game::kWorldSpeed)) == kMaxSpeed;
     if (max_speed) {
         decisions_frame_begin(queue_ref);  // parallel_decisions; does nothing when that option is off
     }
@@ -92,14 +87,12 @@ void install_ai_queue(const Config& config) {
         logf("fast_ai_queue: disabled");
         return;
     }
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    g_max_frame_ticks = freq.QuadPart * kMaxFrameMs / 1000;
-    g_world_slot = hooks::exe_addr(kWorldPtrRva);
+    g_max_frame_ticks = util::qpc_frequency() * kMaxFrameMs / 1000;
     g_ai_frame_update = reinterpret_cast<AiFrameUpdateFn>(hooks::exe_addr(kAiFrameUpdateRva));
     if (!hooks::redirect_call(hooks::exe_addr(kCallSiteRva), hooks::exe_addr(kAiFrameUpdateRva),
                               reinterpret_cast<uintptr_t>(&ai_queue_thunk))) {
-        logf("fast_ai_queue: call site %08X not recognised or already hooked, feature off", kCallSiteRva + 0x400000);
+        logf("fast_ai_queue: call site %08X not recognised or already hooked, feature off",
+             hooks::listing_va(kCallSiteRva));
         return;
     }
     logf("fast_ai_queue: active, at max speed the AI job queue finishes in one frame (up to %lld ms)", static_cast<long long>(kMaxFrameMs));

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <cstring>
 #include <string>
 
@@ -13,7 +14,7 @@ namespace {
 //   6A 08              push 8            ; length
 //   BF 0F 00 00 00     mov  edi, 0xF     ; SSO capacity, untouched
 //   68 4C 76 E0 00     push 0x00E0764C   ; "V2 v3.04"
-constexpr uintptr_t kSiteRva = 0x233826;
+constexpr uint32_t kSiteRva = 0x233826;
 constexpr unsigned char kExpected[8] = {0x6A, 0x08, 0xBF, 0x0F, 0x00, 0x00, 0x00, 0x68};
 constexpr size_t kLengthOffset = 1;
 constexpr size_t kPointerOffset = 8;

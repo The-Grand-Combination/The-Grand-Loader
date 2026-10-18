@@ -8,10 +8,12 @@
 #include <intrin.h>
 #include <vector>
 
+#include "game/triggers.h"
 #include "game/world.h"
 #include "hooks/memory.h"
 #include "log.h"
 #include "parallel/worker_pool.h"
+#include "util/clock.h"
 
 // v2game.exe 3.04 (docs/re/systems/events.md, docs/re/systems/parallel-triggers.md):
 //
@@ -46,30 +48,21 @@ constexpr uint32_t kFireCallRvas[] = {0x4A7EF4, 0x4A80D5};
 constexpr uint32_t kCountryEvaluateReturnRva = 0x4A7DEF;   // after the scan's `CALL EDX` (trigger) in the country pass
 constexpr uint32_t kProvinceEvaluateReturnRva = 0x4A7FD0;  // the same in the province pass
 constexpr uint32_t kEventId = 0x0C;                        // CEvent: (type, id) at +0x08/+0x0C
-constexpr uint32_t kAndVtableRva = 0x9F9994;           // CAndTrigger::vftable
 constexpr uint32_t kProvinceSourcePtrRva = 0xE5870C;   // object; vt[0x24] = province count
-constexpr int32_t kDateBase = 0x029C55C0;
 constexpr uint32_t kCountryEvents = 0x08;              // vector<CEvent*>
 constexpr uint32_t kProvinceEvents = 0x14;
 constexpr uint32_t kEventTrigger = 0x30;               // embedded CAndTrigger
-constexpr uint32_t kScopeTag = 0x08;
-constexpr uint32_t kScopeCountry = 0x0C;
-constexpr uint32_t kScopeProvince = 0x10;
-constexpr size_t kScopeSize = 0x48;                    // what CEventScope::ctor writes and EventScope_Copy copies
-constexpr size_t kScopeBuffer = 0x60;                  // what the other trigger features allocate for a scope
 constexpr size_t kResyncWindow = 256;                  // entries searched ahead when the scan skipped some
-constexpr uint32_t kVtableEvaluate = 0x18;
 constexpr size_t kVtableSlotsCopied = 16;
 constexpr size_t kChunk = 1024;                        // entries evaluated per batch
 constexpr int kPerTask = 16;                           // entries per worker task
 constexpr int kReportEveryScans = 30;
 constexpr int kMaxMismatchLogs = 20;
 
-using EvaluateFn = char(__fastcall*)(void* self, void* edx, void* scope);
 using CountFn = int(__fastcall*)(void* self, void* edx);
 
 int g_mode = 0;  // 1 on, 2 shadow
-EvaluateFn g_original_evaluate = nullptr;
+game::EvaluateFn g_original_evaluate = nullptr;
 uintptr_t g_fake_vtable[kVtableSlotsCopied];
 uintptr_t g_and_vtable = 0;
 uintptr_t g_scan = 0;
@@ -88,17 +81,21 @@ size_t g_next = 0;        // next entry the scan should ask for
 size_t g_ready_end = 0;   // results valid for [g_next, g_ready_end)
 bool g_in_scan = false;
 bool g_country_pass = false;
-volatile uint8_t g_fired = 0;     // an event fired since the current results were computed
-volatile int32_t g_fire_depth = 0;
-alignas(16) unsigned char g_template[kScopeSize];
+bool g_fired = false;     // an event fired since the current results were computed
+int32_t g_fire_depth = 0;  // events firing right now (the scan's evaluations inside them pass through)
+alignas(16) unsigned char g_template[game::kScopeBytes];
 
 // statistics since the last report
 uint64_t g_scans = 0, g_entries = 0, g_chunks = 0, g_served = 0, g_passthrough = 0, g_fires = 0;
 uint64_t g_compared = 0, g_mismatches = 0, g_batch_ticks = 0;
 int g_mismatch_logs = 0;
-int64_t g_qpc_freq = 0;
 
 using game::read32;
+using game::kScopeBuffer;
+using game::kScopeBytes;
+using game::kScopeProvince;
+using game::kScopeTag;
+using util::qpc;
 using game::kWorldProvinces;
 using game::kCountryTag;
 using game::kCountryIndex;
@@ -106,12 +103,7 @@ using game::kCountryProvincesEnd;
 using game::kProvinceOwner;
 constexpr uint32_t kCountryProvincesBegin = game::kCountryProvinces;
 constexpr uint32_t kWorldDate = game::kWorldDate;
-
-inline int64_t qpc() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t.QuadPart;
-}
+constexpr uint32_t kScopeCountry = game::kScopeIndex;
 
 inline char evaluate_original(uintptr_t self, void* scope) {
     return g_original_evaluate(reinterpret_cast<void*>(self), nullptr, scope);
@@ -122,12 +114,12 @@ uintptr_t g_template_origin = 0;  // address of the live scope the template was 
 // The scope points into itself (CEventScope::ctor sets +0x24, the THIS scope, to the object), so every
 // field of the template that points inside the live scope is moved to the same place in the copy.
 void fill_scope(unsigned char* scope, const Entry& e) {
-    std::memcpy(scope, g_template, kScopeSize);
+    std::memcpy(scope, g_template, kScopeBytes);
     uintptr_t copy = reinterpret_cast<uintptr_t>(scope);
-    for (size_t off = 0; off < kScopeSize; off += 4) {
+    for (size_t off = 0; off < kScopeBytes; off += 4) {
         uint32_t value;
         std::memcpy(&value, scope + off, 4);
-        if (value >= g_template_origin && value < g_template_origin + kScopeSize) {
+        if (value >= g_template_origin && value < g_template_origin + kScopeBytes) {
             value = static_cast<uint32_t>(value - g_template_origin + copy);
             std::memcpy(scope + off, &value, 4);
         }
@@ -155,7 +147,7 @@ void evaluate_task(int index, void*) {
 
 void compute_chunk(void* live_scope) {
     int64_t start = qpc();
-    std::memcpy(g_template, live_scope, kScopeSize);
+    std::memcpy(g_template, live_scope, kScopeBytes);
     g_template_origin = reinterpret_cast<uintptr_t>(live_scope);
     g_chunk_begin = g_next;
     g_chunk_end = g_next + kChunk < g_seq.size() ? g_next + kChunk : g_seq.size();
@@ -190,7 +182,7 @@ char __fastcall evaluate_hook(void* self, void*, void* scope) {
         g_next = found;  // the entries in between are not used
     }
     if (g_fired) {
-        g_fired = 0;
+        g_fired = false;
         g_ready_end = g_next;  // computed before the event ran its effects
     }
     if (g_next >= g_ready_end) {
@@ -239,13 +231,14 @@ void add_entry(uintptr_t event, uint32_t key, uint32_t tag) {
 void __cdecl scan_begin() {
     g_seq.clear();
     g_next = g_ready_end = 0;
-    g_fired = 0;
+    g_fired = false;
+    g_fire_depth = 0;  // a fire that unwound past fire_done must not turn the next scan off
     uintptr_t world = game::world();
     uintptr_t manager = game::country_manager();
     if (!world || !manager) {
         return;
     }
-    int32_t days = (static_cast<int32_t>(read32(world + kWorldDate)) - kDateBase) / 24;
+    int32_t days = (static_cast<int32_t>(read32(world + kWorldDate)) - game::kDateBaseHours) / game::kHoursPerDay;
     g_country_pass = days % 2 == 1;
     uintptr_t countries = read32(manager + 4);
     if (g_country_pass) {
@@ -295,7 +288,7 @@ void __cdecl scan_end() {
         return;
     }
     auto ull = [](uint64_t v) { return static_cast<unsigned long long>(v); };
-    double ms_day = g_qpc_freq ? 1000.0 * static_cast<double>(g_batch_ticks) / g_qpc_freq / kReportEveryScans : 0.0;
+    double ms_day = util::qpc_ms(static_cast<int64_t>(g_batch_ticks)) / kReportEveryScans;
     logf("parallel_events: last %d scans: %llu triggers/day listed, %llu served, %llu passed through, %llu chunks, "
          "%llu events fired, batches %.2f ms/day (%d workers + game thread)",
          kReportEveryScans, ull(g_entries / kReportEveryScans), ull(g_served / kReportEveryScans),
@@ -308,7 +301,7 @@ void __cdecl scan_end() {
 
 void __cdecl fire_done() {
     g_fire_depth--;
-    g_fired = 1;
+    g_fired = true;
     g_fires++;
 }
 
@@ -356,16 +349,13 @@ void install_events_parallel(const Config& config) {
         logf("parallel_events: disabled");
         return;
     }
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    g_qpc_freq = freq.QuadPart;
-    g_and_vtable = hooks::exe_addr(kAndVtableRva);
+    g_and_vtable = hooks::exe_addr(game::kAndTriggerVtableRva);
     g_scan = hooks::exe_addr(kScanRva);
     g_country_evaluate_return = hooks::exe_addr(kCountryEvaluateReturnRva);
     g_province_evaluate_return = hooks::exe_addr(kProvinceEvaluateReturnRva);
     g_fire = hooks::exe_addr(kFireRva);
     std::memcpy(g_fake_vtable, reinterpret_cast<const void*>(g_and_vtable), sizeof(g_fake_vtable));
-    g_original_evaluate = reinterpret_cast<EvaluateFn>(g_fake_vtable[kVtableEvaluate / 4]);
+    g_original_evaluate = reinterpret_cast<game::EvaluateFn>(g_fake_vtable[game::kTriggerEvaluateSlot / 4]);
     if (!hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_original_evaluate), "\x55\x8B\xEC", 3) ||
         !hooks::expect_bytes(hooks::exe_addr(kScanCallRva), "\xE8", 1) ||
         !hooks::expect_bytes(g_country_evaluate_return - 2, "\xFF\xD2\x84\xC0", 4) ||  // CALL EDX; TEST AL,AL
@@ -375,17 +365,17 @@ void install_events_parallel(const Config& config) {
     }
     for (uint32_t site : kFireCallRvas) {
         if (!hooks::expect_bytes(hooks::exe_addr(site), "\xE8", 1)) {
-            logf("parallel_events: Event_Fire call %08X not recognised, feature off", site + 0x400000);
+            logf("parallel_events: Event_Fire call %08X not recognised, feature off", hooks::listing_va(site));
             return;
         }
     }
-    g_fake_vtable[kVtableEvaluate / 4] = reinterpret_cast<uintptr_t>(&evaluate_hook);
+    g_fake_vtable[game::kTriggerEvaluateSlot / 4] = reinterpret_cast<uintptr_t>(&evaluate_hook);
     g_seq.reserve(1 << 16);
     // Event_Fire first: with the scan hooked but not these, a fired event would leave stale results.
     for (uint32_t site : kFireCallRvas) {
         if (!hooks::redirect_call(hooks::exe_addr(site), g_fire, reinterpret_cast<uintptr_t>(&fire_thunk))) {
             logf("parallel_events: Event_Fire call %08X does not call Event_Fire or is already hooked, feature off",
-                 site + 0x400000);
+                 hooks::listing_va(site));
             return;  // a redirected fire site alone only marks results stale, which nothing reads
         }
     }

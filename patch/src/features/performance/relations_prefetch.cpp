@@ -30,11 +30,11 @@ namespace cp::features {
 
 namespace {
 
-constexpr uint32_t kCountryManagerPtrRva = 0xE587E4;  // DAT_012587E4: +0 count, +4 CCountry* array
-constexpr uint32_t kCountryIndex = 0x20;
-constexpr uint32_t kCountryProvincesBegin = 0x9D8;
-constexpr uint32_t kCountryProvincesEnd = 0x9DC;
-constexpr uint32_t kCountryRelations = 0xBE8;
+constexpr uint32_t kCountryManagerPtrRva = game::kCountryManagerPtrRva;  // +0 count, +4 CCountry* array
+constexpr uint32_t kCountryIndex = game::kCountryIndex;
+constexpr uint32_t kCountryProvincesBegin = game::kCountryProvinces;
+constexpr uint32_t kCountryProvincesEnd = game::kCountryProvincesEnd;
+constexpr uint32_t kCountryRelations = game::kCountryRelations;
 
 constexpr uint32_t kRecalcCallRva = 0x1089DB;
 constexpr uint32_t kRecalcRva = 0x115490;
@@ -210,7 +210,7 @@ __declspec(naked) void purge_thunk() {
 // 0x00530388). Two passes: the array pointers' lines, then the elements.
 constexpr uint32_t kPairCallRva = 0x10B6B9;
 constexpr uint32_t kPairRva = 0x12FCD0;
-constexpr uint32_t kWorldLiving = 0xADC;   // vector<CCountry*> walked by FUN_0052FCD0 and FUN_00522CF0
+constexpr uint32_t kWorldLiving = game::kWorldLiving;  // vector<CCountry*> walked by FUN_0052FCD0 and FUN_00522CF0
 constexpr uint32_t kCountryPairArray = 0x1580;
 
 uintptr_t g_pair = 0;
@@ -249,7 +249,7 @@ __declspec(naked) void pair_thunk() {
 // 90 % of its samples sit right after that read (0x0084B29D). Later, rarely, it reads +0x3C.
 constexpr uint32_t kAiScanSlotRva = 0xA2773C;
 constexpr uint32_t kAiScanRva = 0x44B0F0;
-constexpr uint32_t kAiCountryIndex = 0x38;
+constexpr uint32_t kAiCountryIndex = game::kAiCountryJobCountry;
 
 uintptr_t g_ai_scan = 0;
 
@@ -313,7 +313,7 @@ void install_relations_prefetch(const Config& config) {
             active++;
         } else {
             logf("prefetch_relations: call site %08X (%s) not recognised or already hooked, skipped",
-                 s.call_rva + 0x400000, s.name);
+                 hooks::listing_va(s.call_rva), s.name);
         }
     }
     g_relations_enabled = true;
@@ -329,7 +329,7 @@ void install_ai_relations_prefetch(const Config& config) {
     g_country_manager_slot = hooks::exe_addr(kCountryManagerPtrRva);
     g_ai_scan = hooks::exe_addr(kAiScanRva);
     if (!hooks::replace_pointer(hooks::exe_addr(kAiScanSlotRva), g_ai_scan, reinterpret_cast<uintptr_t>(&ai_scan_thunk))) {
-        logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", kAiScanSlotRva + 0x400000);
+        logf("prefetch_ai_relations: vtable slot %08X not recognised or already hooked, feature off", hooks::listing_va(kAiScanSlotRva));
         return;
     }
     logf("prefetch_ai_relations: active, relations prefetched before each AI country's daily target scan");

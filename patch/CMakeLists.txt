@@ -14,6 +14,8 @@ add_library(performance_patch SHARED
     src/features/performance/cb_cull.cpp
     src/features/profilers/tick_profiler.cpp
     src/features/performance/decision_cull.cpp
+    src/features/performance/decision_parallel.cpp
+    src/features/performance/decision_profiling.cpp
     src/features/profilers/sample_profiler.cpp
     src/features/performance/network_wait.cpp
     src/features/performance/relations_prefetch.cpp

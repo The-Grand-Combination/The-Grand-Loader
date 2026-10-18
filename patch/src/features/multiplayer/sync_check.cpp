@@ -8,6 +8,7 @@
 #include "features/multiplayer/state_checksum.h"
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04, Update_World_and_Advance_Time (docs/re/systems/multiplayer.md):
@@ -84,24 +85,22 @@ void __cdecl after_compare() {
     }
 }
 
+// Vector_Equals takes its vectors in EAX (local) and ECX (host) and returns in AL; with link-time code
+// generation the caller may keep any other register live across it, so everything is saved.
 __declspec(naked) void equals_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
         push ecx
         push eax
         call before_compare
         add esp, 8
-        popfd
-        popad
-        call dword ptr [g_original_equals]
-        pushad
-        pushfd
-        call after_compare
-        popfd
-        popad
-        ret
     }
+    CP_RESTORE_ALL
+    __asm call dword ptr [g_original_equals]
+    CP_SAVE_ALL
+    __asm call after_compare
+    CP_RESTORE_ALL
+    __asm ret
 }
 
 // In the mismatch path, right before Rng_Resync: the game has just set g_rngCalls = 0. Replace it with
@@ -123,34 +122,18 @@ void __cdecl before_resync() {
 }
 
 __declspec(naked) void resync_thunk() {
-    __asm {
-        pushad
-        pushfd
-        call before_resync
-        popfd
-        popad
-        jmp dword ptr [g_original_resync]
-    }
-}
-
-bool hook(const char* feature, uint32_t site_rva, uint32_t expected_rva, void* thunk, uintptr_t& original) {
-    if (!hooks::chain_call(hooks::exe_addr(site_rva), reinterpret_cast<uintptr_t>(thunk), original)) {
-        logf("%s: could not patch the call at %08X, off", feature, site_rva + 0x400000);
-        return false;
-    }
-    if (original != hooks::exe_addr(expected_rva)) {
-        logf("%s: the call at %08X was already redirected; chaining to it", feature, site_rva + 0x400000);
-    }
-    return true;
+    CP_SAVE_ALL
+    __asm call before_resync
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_original_resync]
 }
 
 }  // namespace
 
-SyncVectorView last_host_vector() { return {g_host_copy, g_host_size}; }
-
 void install_sync_check(const Config& config) {
     if (config.state_checksum || config.oos_log) {
-        if (hook("sync_check", kEqualsCallRva, kEqualsRva, &equals_thunk, g_original_equals)) {
+        if (hooks::chain_call_logged("sync_check", kEqualsCallRva, kEqualsRva,
+                                     reinterpret_cast<uintptr_t>(&equals_thunk), g_original_equals)) {
             logf("sync_check: the game compares its two elements; the rest is compared and logged here");
         }
     }
@@ -158,7 +141,8 @@ void install_sync_check(const Config& config) {
         logf("fix_rng_resync: disabled");
         return;
     }
-    if (hook("fix_rng_resync", kResyncCallRva, kResyncRva, &resync_thunk, g_original_resync)) {
+    if (hooks::chain_call_logged("fix_rng_resync", kResyncCallRva, kResyncRva,
+                                 reinterpret_cast<uintptr_t>(&resync_thunk), g_original_resync)) {
         logf("fix_rng_resync: active, a sync mismatch realigns the RNG to the host's position instead of the seed");
     }
 }

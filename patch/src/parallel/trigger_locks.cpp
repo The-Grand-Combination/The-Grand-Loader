@@ -3,6 +3,8 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <iterator>
 
 #include "game/world.h"
@@ -52,12 +54,11 @@ EvaluateFn g_originals[kLockedCount];
 
 char __fastcall locked_evaluate(void* self, void*, void* scope) {
     uintptr_t vtable = game::read32(reinterpret_cast<uintptr_t>(self));
-    EvaluateFn original = g_originals[0];
-    for (int i = 1; i < kLockedCount; i++) {
-        if (g_vtables[i] == vtable) {
-            original = g_originals[i];
-        }
+    int index = 0;
+    while (index + 1 < kLockedCount && g_vtables[index] != vtable) {
+        index++;
     }
+    EvaluateFn original = g_originals[index];  // the slot is only installed in these vtables
     EnterCriticalSection(&g_lock);
     char result = original(self, nullptr, scope);
     LeaveCriticalSection(&g_lock);
@@ -76,15 +77,21 @@ void install_trigger_locks(const Config& config) {
         g_vtables[i] = hooks::exe_addr(kLocked[i].vtable_rva);
         uintptr_t original = hooks::exe_addr(kLocked[i].evaluate_rva);
         g_originals[i] = reinterpret_cast<EvaluateFn>(original);
-        if (hooks::replace_pointer(g_vtables[i] + kEvaluateSlot, original, reinterpret_cast<uintptr_t>(&locked_evaluate))) {
+        auto wrapper = reinterpret_cast<uintptr_t>(&locked_evaluate);
+        if (hooks::replace_pointer(g_vtables[i] + kEvaluateSlot, original, wrapper)) {
             locked++;
         } else {
-            logf("trigger_locks: %s Evaluate slot not recognised; parallel evaluation of it is not safe", kLocked[i].keyword);
+            logf("trigger_locks: %s Evaluate slot not recognised; parallel evaluation of it is not safe",
+                 kLocked[i].keyword);
         }
     }
-    logf("trigger_locks: %d of %d triggers that write while evaluated are serialised (is_possible_vassal, "
-         "can_create_vassals)",
-         locked, kLockedCount);
+    char names[96] = "";
+    for (const Locked& l : kLocked) {
+        size_t used = std::strlen(names);
+        std::snprintf(names + used, sizeof(names) - used, "%s%s", used ? ", " : "", l.keyword);
+    }
+    logf("trigger_locks: %d of %d triggers that write while evaluated are serialised (%s)", locked, kLockedCount,
+         names);
 }
 
 }  // namespace cp::parallel

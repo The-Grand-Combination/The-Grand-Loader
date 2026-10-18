@@ -1,5 +1,7 @@
 #include "features/multiplayer/state_checksum.h"
 
+#include <xmmintrin.h>
+
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -37,10 +39,6 @@ constexpr uint32_t kMaxDepth = 8;  // DayTick re-enters through the frames it re
 const char* const kNames[] = {"rng_calls", "rng_seed", "rng_calls_end", "provinces", "countries", "pops", "date"};
 constexpr size_t kAppended = std::size(kNames) - kGameSyncElements;
 
-using AllocFn = void*(__cdecl*)(size_t);
-using FreeFn = void(__cdecl*)(void*);
-AllocFn g_game_new = nullptr;
-FreeFn g_game_delete = nullptr;
 
 uintptr_t g_original_day_tick = 0;
 uintptr_t g_saved_return[kMaxDepth];
@@ -124,12 +122,12 @@ void push_back(game::IntVector& vec, uint32_t value) {
         size_t size = static_cast<size_t>(end - begin);
         size_t capacity = static_cast<size_t>(cap - begin);
         size_t wanted = capacity * 2 < kMinCapacity ? kMinCapacity : capacity * 2;
-        uint32_t* fresh = static_cast<uint32_t*>(g_game_new(wanted * sizeof(uint32_t)));
+        uint32_t* fresh = static_cast<uint32_t*>(game::allocate(wanted * sizeof(uint32_t)));
         if (size) {
             std::memcpy(fresh, begin, size * sizeof(uint32_t));
         }
         if (begin) {
-            g_game_delete(begin);
+            game::release(begin);
         }
         begin = fresh;
         end = fresh + size;
@@ -157,19 +155,21 @@ void after_day_tick() {
         return;
     }
     auto& vec = *reinterpret_cast<game::IntVector*>(world + game::kWorldSyncVector);
-    uint32_t values[kAppended] = {
+    const uint32_t values[] = {
         game::rng_calls(),
         hash_provinces(world),
         hash_countries(),
         hash_pops(world),
         game::read32(world + game::kWorldDate),
     };
+    static_assert(std::size(values) == kAppended, "one value per appended element name");
     for (uint32_t v : values) {
         push_back(vec, v);
     }
     if (!g_logged_first) {
         g_logged_first = true;
-        logf("state_checksum: first day hashed, the sync vector now has %u elements", static_cast<unsigned>(vec.size()));
+        logf("state_checksum: first day hashed, the sync vector now has %u elements",
+             static_cast<unsigned>(vec.size()));
     }
 }
 
@@ -203,17 +203,14 @@ __declspec(naked) void day_tick_thunk() {
         pop ecx
         pop eax
         pushad
-        pushfd
         call depth_exceeded
-        popfd
         popad
         jmp dword ptr [g_original_day_tick]
     after:
-        // DayTick's RET 4 popped the world; the site's return address is on our stack
+        // DayTick's RET 4 popped the world; the site's return address is on our stack. Flags need no
+        // saving across a call return.
         pushad
-        pushfd
         call after_day_tick
-        popfd
         popad
         push eax
         push ecx
@@ -247,17 +244,12 @@ void install_state_checksum(const Config& config) {
         logf("state_checksum: disabled");
         return;
     }
-    g_game_new = reinterpret_cast<AllocFn>(hooks::exe_addr(game::kOperatorNewRva));
-    g_game_delete = reinterpret_cast<FreeFn>(hooks::exe_addr(game::kOperatorDeleteRva));
-    uintptr_t site = hooks::exe_addr(kDayTickCallRva);
-    if (!hooks::chain_call(site, reinterpret_cast<uintptr_t>(&day_tick_thunk), g_original_day_tick)) {
-        logf("state_checksum: could not patch the DayTick call site %08X, off", kDayTickCallRva + 0x400000);
+    if (!hooks::chain_call_logged("state_checksum", kDayTickCallRva, kDayTickRva,
+                                  reinterpret_cast<uintptr_t>(&day_tick_thunk), g_original_day_tick)) {
         return;
     }
-    if (g_original_day_tick != hooks::exe_addr(kDayTickRva)) {
-        logf("state_checksum: the DayTick call site was already redirected; chaining to it");
-    }
-    logf("state_checksum: active, %u state elements appended to the daily sync vector", static_cast<unsigned>(kAppended));
+    logf("state_checksum: active, %u state elements appended to the daily sync vector",
+         static_cast<unsigned>(kAppended));
 }
 
 }  // namespace cp::features

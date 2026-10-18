@@ -60,7 +60,7 @@ cp_network_wait,0x00A618CC,E8 2F 84 02 00,call redirect,shipped,cp,skip_network_
 cp_prefetch_recalc,0x005089DB,E8 B0 CA 00 00,call redirect,experimental,cp,prefetch_relations: CALL Country_Recalculate in Country_PrePass
 cp_prefetch_market,0x00487483,E8 68 B8 09 00,call redirect,experimental,cp,prefetch_relations: CALL FUN_00522CF0 in Market_AddRealDemand
 cp_prefetch_purge,0x0050AC44,E8 47 36 42 00,call redirect,experimental,cp,prefetch_relations: CALL CountryRelation_DailyPurge in Country_DailyUpdate (skips empty relations)
-cp_flag_cache_copy,0x007E629C,FF 15 1C A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXCreateTexture of the atlas copy (A8R8G8B8 -> DXT5); file bytes, relocated at runtime
+cp_flag_cache_copy,0x007E629C,FF 15 1C A4 C8 00,call wrapper,experimental,cp,"compress_flag_cache: D3DXCreateTexture of the atlas copy (A8R8G8B8 -> DXT5); file bytes, relocated at runtime"
 cp_flag_cache_save,0x007E6367,FF 15 18 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXSaveTextureToFileInMemory (TGA -> DDS)
 cp_flag_cache_load,0x007E6492,FF 15 24 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXCreateTextureFromFileInMemoryEx of the cache file (Format UNKNOWN -> DXT5)
 cp_fast_ai_queue,0x006557C4,E8 F7 1C 03 00,call redirect,experimental,cp,fast_ai_queue: CALL AI_FrameUpdate in CInGameIdler_Update
@@ -77,7 +77,7 @@ cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,experimental,cp,p
 cp_mp_day_tick,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,state_checksum: CALL DayTick in Update_World_and_Advance_Time; thunk swaps the return address and appends the state hashes to world+0xB74 after DayTick
 cp_mp_vector_equals,0x00683036,E8 05 C3 00 00,call redirect,shipped,cp,oos_log: CALL Vector_Equals in Update_World_and_Advance_Time (EAX = world+0xB74 ECX = command vector); logs differing elements then runs the original
 cp_mp_hourly_tick_fpu,0x00E1242C,F0 EC 72 00,slot replace,shipped,cp,pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick
-cp_supply_guard,0x004D15EB,8B 83 28 01 00 00,jump hook,shipped,cp,fix_supply_crash: MOV EAX,[EBX+0x128] in FUN_004D1560; guard skips to 0x004D1665 when the local-supply source (EBX) is null
+cp_supply_guard,0x004D15EB,8B 83 28 01 00 00,jump hook,shipped,cp,"fix_supply_crash: MOV EAX,[EBX+0x128] in FUN_004D1560; guard skips to 0x004D1665 when the local-supply source (EBX) is null"
 cp_tech_sort_guard,0x007A918A,8B 82 10 03 00 00 8B 91 10 03 00 00,jump hook,shipped,cp,fix_tech_window_crash: status+0x310 loads in FUN_007A9070 mode 0; null -> returns false through the epilogue at 0x007A91A2
 cp_tech_folder_guard,0x007ADE98,8B 89 30 04 00 00 8B 89 10 03 00 00 8B 49 40,jump hook,shipped,cp,fix_tech_window_crash: invention+0x430->+0x310->+0x40 chain in FUN_007ADB70; null -> empty name; resume 0x007ADEA7
 cp_background_sleep_main,0x009DF684,6A 64,imm8,shipped,cp,background_sleep_ms: PUSH 100 before CALL [Sleep] in App_MainLoop (device-lost branch)
@@ -102,4 +102,4 @@ cp_last_ip_assign,0x00767328,E8 A3 1B CA FF,call redirect,shipped,cp,save_last_i
 cp_join_port,0x0076729B,E8 E0 0E 29 00,call redirect,shipped,cp,join_port: CALL ConnectRequest_ctor (cdecl) in JoinIpDialog_OnJoin; thunk splits address:port into the host and port arguments
 cp_join_port_lobby,0x0076BE7B,E8 50 D0 C9 FF,call redirect,shipped,cp,join_port: std::string::assign of session+0xF4 into settings+0x124 in FUN_0076BA60 (client lobby); the split host is replaced by the typed address:port
 cp_net_log,0x00A89D00,55 8B EC 83 E4 F8,jump hook,shipped,cp,network_log: entry of enet_host_service -> wrapper that calls a copy of the prologue and logs connect/disconnect/silence
-cp_chat_line_seconds,0x006784FD,83 7D FC 3C,imm8,shipped,cp,chat_line_seconds: CMP [EBP-4],60 in Chat_ExpireLines (seconds since the last removal); the immediate becomes the configured value
+cp_chat_line_seconds,0x006784FD,83 7D FC 3C,imm8,shipped,cp,"chat_line_seconds: CMP [EBP-4],60 in Chat_ExpireLines (seconds since the last removal); the immediate becomes the configured value"

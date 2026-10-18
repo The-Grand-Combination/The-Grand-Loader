@@ -10,9 +10,11 @@
 #include <string>
 #include <vector>
 
+#include "game/world.h"
 #include "hooks/hourly_tick.h"
 #include "hooks/memory.h"
 #include "log.h"
+#include "util/clock.h"
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;  // this DLL's own base (MSVC linker symbol)
 
@@ -38,11 +40,8 @@ namespace cp::features {
 
 namespace {
 
-constexpr uint32_t kWorldPtrRva = 0xE588E8;  // DAT_012588E8
-constexpr uint32_t kWorldDateOffset = 0xB0C;  // hours
 constexpr uint32_t kTextBeginRva = 0x001000;  // .text of v2game.exe 3.04
 constexpr uint32_t kTextEndRva = 0x88911A;
-constexpr uint32_t kListingBase = 0x00400000;
 constexpr uint32_t kMaxFunctionSpan = 0x40000;  // a CALL rel32 target must lie this close below the callee frame
 constexpr int32_t kReportEveryDays = 30;
 constexpr double kPauseGapMs = 2000.0;
@@ -82,7 +81,6 @@ uintptr_t g_text_end = 0;
 std::wstring g_report_path;
 bool g_started = false;
 
-int64_t g_qpc_freq = 0;
 int32_t g_first_day = -1;
 int32_t g_last_day = -1;
 int32_t g_last_report_day = -1;
@@ -91,19 +89,14 @@ int64_t g_last_day_change_qpc = 0;
 uint64_t g_samples = 0;
 uint64_t g_sampled_ticks = 0;
 
-inline int64_t qpc() {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t.QuadPart;
-}
+using util::qpc;
 
-inline double ms(uint64_t ticks) { return 1000.0 * static_cast<double>(ticks) / static_cast<double>(g_qpc_freq); }
+inline double ms(uint64_t ticks) { return util::qpc_ms(static_cast<int64_t>(ticks)); }
 
 // Called from the sampler thread: the world may be torn down between the two reads.
 int32_t current_day() {
     __try {
-        uintptr_t world = *reinterpret_cast<const uint32_t*>(hooks::exe_addr(kWorldPtrRva));
-        return world ? static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(world + kWorldDateOffset)) / 24 : -1;
+        return game::current_day();
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return -1;
     }
@@ -126,7 +119,7 @@ void reset(int32_t day) {
 }
 
 inline bool in_text(uintptr_t v) { return v >= g_text_begin && v < g_text_end; }
-inline uint32_t to_va(uintptr_t runtime) { return static_cast<uint32_t>(runtime - g_exe_base + kListingBase); }
+inline uint32_t to_va(uintptr_t runtime) { return hooks::listing_va_of(runtime); }
 
 // CALL r/m32 (FF /2) ending right before `p`: register / [reg] (2 bytes), [reg+disp8] / SIB (3),
 // disp32 forms (6, 7).
@@ -201,8 +194,10 @@ void load_exports(int index) {
 // kModuleTag | module index << 16 | (export index + 1), 0 in the low half when no export precedes it.
 uint32_t module_leaf(uintptr_t eip) {
     HMODULE h = nullptr;
-    // The handle is kept (no UNCHANGED_REFCOUNT): the export names point into the module image.
-    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(eip), &h) ||
+    // Looked up without a reference; a module is pinned once below, when it is first added, because the
+    // export names point into its image.
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCWSTR>(eip), &h) ||
         !h) {
         return kUnknownLeaf;
     }
@@ -221,6 +216,9 @@ uint32_t module_leaf(uintptr_t eip) {
         if (g_module_count >= kMaxModules) {
             return kUnknownLeaf;
         }
+        HMODULE pinned = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                           reinterpret_cast<LPCWSTR>(eip), &pinned);
         index = g_module_count++;
         g_modules[index] = base;
         load_exports(index);
@@ -333,7 +331,8 @@ void report(int32_t day) {
         logf("sample_profiler: cannot write performance_patch_samples.tsv");
         return;
     }
-    fprintf(out, "# performance_patch sample profile v3, v2game.exe 3.04 (runtime base %08X, written as listing VAs), interval %d ms, "
+    fprintf(out, "# performance_patch sample profile v3, v2game.exe 3.04 "
+                 "(runtime base %08X, written as listing VAs), interval %d ms, "
                  "%d days (day %d to %d, year %d), %llu samples, %.1f ms/day sampled, %u stacks, %llu dropped\n",
             static_cast<unsigned>(g_exe_base), g_interval_ms, days, g_first_day, day, day / 365 - 5000,
             static_cast<unsigned long long>(g_samples), ms(g_sampled_ticks) / days, g_stack_count,
@@ -377,15 +376,16 @@ void report(int32_t day) {
         fputc('\n', out);
     }
     fclose(out);
-    logf("sample_profiler: %d days (year %d), %llu samples, %.1f ms/day sampled, %u stacks -> performance_patch_samples.tsv", days,
-         day / 365 - 5000, static_cast<unsigned long long>(g_samples), ms(g_sampled_ticks) / days, g_stack_count);
+    logf("sample_profiler: %d days (year %d), %llu samples, %.1f ms/day sampled, %u stacks "
+         "-> performance_patch_samples.tsv",
+         days, day / 365 - 5000, static_cast<unsigned long long>(g_samples), ms(g_sampled_ticks) / days, g_stack_count);
 }
 
 DWORD WINAPI sampler_main(void*) {
     timeBeginPeriod(1);
     static uint8_t stack[kStackCopyBytes];
     int64_t last = qpc();
-    int64_t max_weight = g_qpc_freq * 50 / 1000;  // a sample never stands for more than 50 ms
+    int64_t max_weight = util::qpc_frequency() * 50 / 1000;  // a sample never stands for more than 50 ms
     for (;;) {
         Sleep(static_cast<DWORD>(g_interval_ms));
         int64_t now = qpc();
@@ -483,9 +483,6 @@ void install_sample_profiler(const Config& config) {
     if (g_interval_ms != config.sample_profiler) {
         logf("sample_profiler: interval capped at 100 ms");
     }
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    g_qpc_freq = freq.QuadPart;
     g_exe_base = hooks::exe_base();
     g_text_begin = hooks::exe_addr(kTextBeginRva);
     g_text_end = hooks::exe_addr(kTextEndRva);
@@ -494,7 +491,8 @@ void install_sample_profiler(const Config& config) {
         logf("sample_profiler: hourly tick hook unavailable, feature off");
         return;
     }
-    logf("sample_profiler: will start on the first game tick, every %d ms -> performance_patch_samples.tsv every %d game days",
+    logf("sample_profiler: will start on the first game tick, every %d ms "
+         "-> performance_patch_samples.tsv every %d game days",
          g_interval_ms, kReportEveryDays);
 }
 
