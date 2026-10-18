@@ -35,7 +35,7 @@ Every player of a game must use the same values.
 | [`mp_host_wait_days`](mp-host-wait-days.md) | off by default: the host waits for the slowest player instead of running ahead; suspended while a player is at war |
 | [`oos_notice`](oos-notice.md) | a recovered out-of-sync is announced in the chat, like the lag warning, instead of the dialog and pause; a real one says what differs |
 
-## Crash prevention
+## Crash prevention and Stability
 
 Guards for crashes of the unpatched game; a game that would not have crashed is unchanged.
 
@@ -45,6 +45,8 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 | [`fix_tech_window_crash`](fix-tech-window-crash.md) | technology window with an invention that has no status object |
 | [`fix_missing_modifier`](fix-missing-modifier.md) | add/remove modifier effects that name a modifier that does not exist: empty tooltip, no effect, name logged |
 | [`fix_missing_state_crash`](fix-missing-state-crash.md) | AI scan over a unit in a province without an owner, which has no state object |
+| [`borderless_fullscreen`](borderless-fullscreen.md) | borderless window at the monitor's size instead of exclusive fullscreen: no device loss on alt-tab |
+| [`fix_edge_scroll`](fix-edge-scroll.md) | the map edge-scrolls only with the cursor inside the focused game window |
 
 ## Interface
 

@@ -35,6 +35,7 @@
 #include "features/stability/state_guard.h"
 #include "features/stability/supply_guard.h"
 #include "features/stability/tech_window_guard.h"
+#include "features/stability/window_mode.h"
 #include "hooks/memory.h"
 #include "log.h"
 #include "parallel/trigger_locks.h"
@@ -94,6 +95,8 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_tech_window_guard(config);
     cp::features::install_modifier_guard(config);
     cp::features::install_state_guard(config);
+    cp::features::install_borderless_fullscreen(config);
+    cp::features::install_edge_scroll_fix(config);
 
     // Interface.
     cp::features::install_clipboard_paste(config);

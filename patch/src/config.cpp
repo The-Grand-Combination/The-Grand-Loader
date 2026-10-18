@@ -49,6 +49,8 @@ constexpr Key kKeys[] = {
     {"fix_tech_window_crash", &Config::fix_tech_window_crash, nullptr},
     {"fix_missing_modifier", &Config::fix_missing_modifier, nullptr},
     {"fix_missing_state_crash", &Config::fix_missing_state_crash, nullptr},
+    {"borderless_fullscreen", &Config::borderless_fullscreen, nullptr},
+    {"fix_edge_scroll", &Config::fix_edge_scroll, nullptr},
     {"clipboard_paste", &Config::clipboard_paste, nullptr},
     {"save_last_ip", &Config::save_last_ip, nullptr},
     {"join_port", &Config::join_port, nullptr},

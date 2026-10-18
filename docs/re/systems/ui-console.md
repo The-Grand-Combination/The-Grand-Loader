@@ -42,7 +42,13 @@ of the string with `5`, which is why it calls itself v3.05 while targeting this 
 - **Expiry:** `Chat_ExpireLines` (`0x006784B0`, every frame from `CInGameIdler_Update`) drops the oldest
   line when the list is over its size, or when more than 60 s passed since the last removal
   (`CMP [EBP-4],0x3C` at `0x006784FD`; interface clock at this+0x1978 `vt[0x14]`, last removal at
-  this+0xE0). One line per minute at most. Patched by `chat_line_seconds`.
+  this+0xE0, also reset on every frame with an empty list). Lines have no time of their own: one line
+  leaves per period, so lines that arrive together stay one, two, three periods. Called once, at
+  `0x00655477` with EDI = chat window. Patched by `chat_line_seconds` (per-line timing). **[C]**
+- **Line text:** the message's `vt[0x20]` (`ChatMessage` `0x009F3550`, base `0x009F2FF0`) builds the
+  shown text from the sender (+0x28), the text (+0x08), the key (+0x58) and the flag at +0x24 (the
+  ctor's last argument): no sender gives the text alone, sender with flag 1 gives `sender*> text`,
+  flag 0 gives `sender> text`; a key adds ` (key)`. The lag warning passes the host player as sender. **[C]**
 - **Messages:** `ChatMessage_ctor` (`0x009F3290`): ECX parts list, EDX sender name, stack (message,
   flag country, key text, text, 1), `RET 0x14`; base constructor `0x009F2A50` (stdcall 5). The chat
   command: `ChatMessageCommand_ctor` (`0x009F4240`, stdcall (command, message, channel, name), vtable
@@ -79,3 +85,25 @@ V2DLL (an external DLL mod for the same exe) swaps vtable slots of `CTechnologyV
 slot 11 Update), `CBudgetView` (`0x00E059F0`, slot 10 tooltip), `CProductionView` (`0x00E0FECC`, slot
 10), `CPoliticsView` (`0x00E0E458`, slot 10) and `CDecision` (`0x00E29B54`, slot 6). Useful as a list
 of extension points; not reproduced here.
+
+## Window, focus and mouse (2026-10-18)
+
+- **Window:** `App_CreateWindow` (`0x009DFA30`, fastcall ECX = app, called once at `0x009DEEBF`) reads
+  the graphics settings at app+0xEC (+0x40/+0x44 resolution, +0x4C fullScreen, +0x4D borderless):
+  fullScreen gives a WS_POPUP window for an exclusive device; borderless gives a WS_POPUP window at (0,0)
+  of the resolution's size with a windowed device; otherwise WS_OVERLAPPEDWINDOW at (30,30). The app
+  pointer is `DAT_00F20C38`, the HWND at app+0xD8, the active flag at app+0xF2. **[C]**
+- **Focus:** the window procedure (`0x009DFC70`) sets app+0xF2 from WM_ACTIVATE comparing the whole
+  wParam (0 / 1 / 2), so an activation with the minimised bit in the high word leaves it unchanged.
+  WM_ACTIVATEAPP and WM_SETCURSOR only set the cursor. **[C]**
+- **Mouse:** Win32 only (the DirectInput mouse at `0x00A79F20` is never built). Each frame `GetCursorPos`;
+  the client position consumers use (mouse vt[0x4C], `0x00A7A970`) is GetCursorPos minus GetWindowRect,
+  plus a hard-coded frame in bordered windowed mode. No SetCapture, ClipCursor or raw input. **[C]**
+- **Edge scroll:** `Camera_Update` (`0x0063F870`; ESI map view, EDI mouse, fifth stack argument = edge
+  scroll on) scrolls within 6 px of the view's edges, never checking that the cursor is in the window.
+  `CInGameIdler_Update` calls it at `0x00656275` (flag 1, active window) or `0x00656321` (flag 0). **[C]**
+- **Device lost (exclusive fullscreen):** `FUN_0099C370`: TestCooperativeLevel, `Sleep(1000)` at
+  `0x0099C3D5` on the first failure, then on DEVICENOTRESET releases the tracked resource lists, Resets
+  and restores them; a failed Reset retries every frame. **[C]**
+- Patched by `borderless_fullscreen` (settings forced before the window is created) and
+  `fix_edge_scroll` (the flag cleared at `0x00656275` when the cursor is outside the foreground window).

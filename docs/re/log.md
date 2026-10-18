@@ -517,3 +517,16 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Report (user):** `fix_missing_modifier` logged `corrupt_army` as unknown, but TGC defines it in `common/event_modifiers.txt`.
 - **Cause:** the only effect that failed is `remove_country_modifier = corrupt_army` in `common/issues.txt` (the `army_command_principle` reform). `setup.log` shows the issues read (`issues.cpp`, line 188) long before the event modifiers (`modifier.cpp`, ~line 618), and `g_eventModifiers` is filled from that file, so the lookup in the parser returns 0. The same effect in decisions and events, parsed later, resolves. Unpatched, the reform's tooltip would crash and the removal never happens.
 - **Fix:** both parsers keep the effect in ESI (`MOV ESI,ECX`; `MOV [ESI+0x24]`/`[ESI+0x20],EAX` after the call at `0x00881337` / `0x0088217A`). The wrapper records (effect, name) on a miss; the tooltip/execute guards look the name up again on first use and store the modifier, then run the original. Gameplay now differs from an unpatched game for such effects (the modifier is removed), so the option is a per-game setting in multiplayer.
+
+## 2026-10-18 — Chat lines: `*>` prefix and per-line lifetime
+
+- **Report (user):** the out-of-sync chat line reads "Host2*> Out of sync ...", and chat lines stay longer than 15 s.
+- **Prefix:** the line text comes from the message's `vt[0x20]` (`0x009F3550` -> `0x009F2FF0`): with a sender and the ctor's last argument 1 it is `sender*> text` (format strings `*> ` at `0x00E3CFF4`, `> ` at `0x00E3CFF0`, ` (` / `)` / `*: ` for a key); with an empty sender it is the text alone. `oos_notice` now sends an empty sender. Found through the Ghidra Server copy (first use of it as the reference).
+- **Lifetime:** `Chat_ExpireLines` counts from its last removal, not per line, so N lines arriving together leave one per period. `chat_line_seconds` now stamps each line (line count via list `vt[0x28]` before the call at `0x00655477`) and moves `this+0xE0` into the past when the oldest line is due, so the game's own code removes it; the game's period becomes 127 s.
+
+## 2026-10-18 — Alt-tab and the mouse: `borderless_fullscreen`, `fix_edge_scroll`
+
+- **Report (user):** alt-tab is slow, often hangs or shows a black screen; the map scrolls by itself (two monitors); players use external mouse tools.
+- **Found (decompilation, call bytes checked in the exe):** exclusive fullscreen loses the device on every alt-tab (1 s sleep, full Reset, retries on failure); the game already has a borderless mode with a windowed device, selected by `fullScreen=no, borderless=yes`; the mouse is Win32 `GetCursorPos` with no capture or clipping; edge scroll never checks that the cursor is inside the window. Details in `systems/ui-console.md`, "Window, focus and mouse".
+- **Built:** `borderless_fullscreen` forces the game's borderless mode at the primary monitor's size before the window is created; `fix_edge_scroll` clears the edge-scroll flag of the active-window camera call when the game is not in the foreground or the cursor is outside its client area.
+- **Open:** the WM_ACTIVATE wParam check (focus flag after a restore), stuck mouse buttons without capture, the activation click reaching the map, the bordered-window cursor offset; not patched yet.

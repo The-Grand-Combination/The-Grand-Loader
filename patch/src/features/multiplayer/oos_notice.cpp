@@ -27,8 +27,9 @@
 //   ChatMessage_ctor (0x009F3290): ECX = parts list, EDX = sender name (std::string*), stack (message,
 //     flag country, key string*, text string*, 1), RET 0x14. Text at +0x08, sender name at +0x28, flag
 //     country at +0x54 (indexes the country list unchecked: must be valid), key text at +0x58.
-//   The sender: UI_GetState (0x0068B610, stdcall (world)) returns the local player, a std::string name
-//     first. The flag country: the local player's country, world+0xB60.
+//   The sender is empty: the line text (vt[0x20], 0x009F3550 -> 0x009F2FF0) is then the text alone; with
+//     a sender and the last argument 1 it reads "sender*> text". The flag country: the local player's
+//     country, world+0xB60.
 //   ChatMessageCommand_ctor (0x009F4240, stdcall (command, message, channel, name string*), RET 0x10);
 //     channel = ObjectRegistry_FindByTypeAndId (0x009C16D0, cdecl) of the chat channel key at
 //     0x00F0D840/0x00F0D844; name = session manager + 0xBC.
@@ -42,7 +43,6 @@ namespace {
 
 constexpr uint32_t kMessageCtorRva = 0x5F3290;
 constexpr uint32_t kCommandCtorRva = 0x5F4240;
-constexpr uint32_t kUiStateRva = 0x28B610;
 constexpr uint32_t kFindByKeyRva = 0x5C16D0;
 constexpr uint32_t kChatChannelKeyRva = 0xB0D840;  // (type, id)
 constexpr uint32_t kSessionManagerName = 0xBC;
@@ -57,30 +57,25 @@ bool g_enabled = false;
 size_t g_draws_end_index = static_cast<size_t>(-1);  // "rng_calls_end": a draw count, not state
 bool g_diverged = false;                              // the last comparison found the state different
 
-// Sends `text` as a chat line from the local player to every player, like the lag warning.
+// Sends `text` as a chat line to every player, like the lag warning.
 bool send_chat_line(const char* text) {
     uintptr_t world = game::world();
     uintptr_t manager = game::session_manager(world);
     if (!manager) {
         return false;
     }
-    uintptr_t ui_state = hooks::exe_addr(kUiStateRva);
-    uintptr_t sender = 0;
-    __asm {
-        push world
-        call ui_state
-        mov sender, eax
-    }
     auto find = reinterpret_cast<uintptr_t(__cdecl*)(uint32_t, uint32_t)>(hooks::exe_addr(kFindByKeyRva));
     uintptr_t channel = find(game::read32(hooks::exe_addr(kChatChannelKeyRva)),
                              game::read32(hooks::exe_addr(kChatChannelKeyRva + 4)));
-    if (!sender || !channel) {
+    if (!channel) {
         return false;
     }
 
     void* message = game::allocate(kMessageSize);
     game::GameString text_string = game::view_of(text);
     game::GameString key_string = game::view_of("");
+    game::GameString sender_string = game::view_of("");  // no sender: the line is the text alone
+    game::GameString* sender = &sender_string;
     uint32_t parts[4] = {0, 0, 0, 0};  // empty list: head, tail, count, flag
     uint32_t country = game::read32(world + game::kWorldPlayerCountry);
     uintptr_t message_ctor = hooks::exe_addr(kMessageCtorRva);
@@ -140,12 +135,12 @@ void announce(SyncResult result, const char* date, const char* differing) {
     switch (result) {
         case SyncResult::kRecovered:
             std::snprintf(text, sizeof(text),
-                          "Out of sync on %s, recovered: random numbers realigned, game state matches the host.",
+                          "Out of sync on %s, but resynced automatically.",
                           date);
             break;
         case SyncResult::kDiverged:
             std::snprintf(text, sizeof(text),
-                          "Out of sync on %s: game state differs from the host (%s). Save and reload to resync.",
+                          "Out of sync on %s: game state differs from the host (%s). Auto sync failed, save and reload to resync.",
                           date, differing[0] ? differing : "not checked");
             break;
         case SyncResult::kSilentDivergence:

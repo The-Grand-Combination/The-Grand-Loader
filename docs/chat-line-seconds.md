@@ -13,7 +13,9 @@ line at a time, so a few repeated warnings stay on screen for minutes.
 
 ## How
 
-- The per-frame routine that trims the chat list compares the seconds since its last removal with 60.
-  That constant is replaced by the configured value (at most 127; 60 or 0 leaves the game as it is).
-- It applies to every chat line, the players' messages included. Lines still leave one at a time, so
-  three queued lines take about three times the value.
+- Chat lines carry no time of their own: the game counts from its last removal. The patch records when
+  each line appeared, from the line count before the per-frame routine that trims the list runs.
+- When the oldest line is older than the configured value, the patch makes that routine remove it on
+  the same frame. Every line, the players' messages included, stays the configured time, also when
+  several arrive together. 60 or 0 leaves the game as it is.
+- The game's own one-minute rule is raised to 127 seconds, so it never removes a line early.

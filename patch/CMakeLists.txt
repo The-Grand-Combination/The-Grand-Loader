@@ -38,6 +38,7 @@ add_library(performance_patch SHARED
     src/features/performance/background_sleep.cpp
     src/features/stability/supply_guard.cpp
     src/features/stability/tech_window_guard.cpp
+    src/features/stability/window_mode.cpp
     src/features/stability/modifier_guard.cpp
     src/features/stability/state_guard.cpp
     src/features/interface/clipboard_paste.cpp

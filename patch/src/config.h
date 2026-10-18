@@ -42,6 +42,8 @@ struct Config {
                                         // that does not exist
     bool fix_missing_state_crash = false;  // crash prevention: AI scan over a unit in a province without a state
                                            // (uncolonised)
+    bool borderless_fullscreen = false;  // stability: borderless window at the monitor's size (no device loss on alt-tab)
+    bool fix_edge_scroll = false;       // stability: edge scroll only with the cursor inside the focused window
     bool clipboard_paste = false;       // interface: Ctrl+V types the clipboard text into text fields
     bool save_last_ip = false;          // interface: write the join address to settings.txt when joining
     bool join_port = false;             // interface: the join dialog accepts address:port (the game always uses 1638)
