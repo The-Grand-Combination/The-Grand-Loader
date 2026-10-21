@@ -83,11 +83,14 @@ struct Mt {
             }
             index = 0;
         }
+        // Rng_Next's tempering, not the reference one: its two right shifts are arithmetic, so bit 31
+        // always cancels and every draw is in 0..2^31-1. The callers use the value as a signed int
+        // (`r % 3 + 1` as an AI module's countdown, `r % n < chance`), so a draw must never be negative.
         uint32_t y = state[index++];
-        y ^= y >> 11;
+        y ^= static_cast<uint32_t>(static_cast<int32_t>(y) >> 11);
         y ^= (y << 7) & 0x9d2c5680u;
         y ^= (y << 15) & 0xefc60000u;
-        return y ^ (y >> 18);
+        return y ^ static_cast<uint32_t>(static_cast<int32_t>(y) >> 18);
     }
 };
 Mt g_private;
