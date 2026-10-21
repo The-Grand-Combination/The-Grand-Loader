@@ -1,4 +1,4 @@
-# The Grand Loader & Victoria II Performance Patch
+# The Grand Loader & Victoria II Performance and Stability Patch
 
 Runtime patches for Victoria II 3.04.
 
