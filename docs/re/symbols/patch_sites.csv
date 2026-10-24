@@ -111,3 +111,16 @@ se_infra_button_handler,0x0064B152,F0 C9 66 00,imm32,shipped,cp,"Script Extender
 se_infra_color_call,0x0066CABE,E8 0D 4A 19 00,call redirect,shipped,cp,Script Extender building_map_mode: CALL MapColor_Infrastructure in MapModeButton_Infrastructure -> the plugin's colour function (same stdcall signature)
 se_mapmode_tooltip_localize,0x0070C5C8,E8 13 C9 29 00,call redirect,shipped,cp,"Script Extender building_map_mode: CALL Localize in CInGameIdler_BuildTooltip; for MAPMODE_6 the key becomes ""<MAPMODE_6> - <building>"" (texts from the CSVs), shown verbatim"
 se_set_mapmode_buttons,0x0066C180,55 8B EC 64 A1 00 00 00 00,jump hook,shipped,cp,"Script Extender building_map_mode: entry of MenuBar_SetMapModeButtons, 9-byte detour + trampoline; swaps the stripes texture-manager entry to thick stripes while button 6 is shown"
+
+se_event_ontoken,0x00E2C844,80 62 8A 00,vtable slot,experimental,cp,"Script Extender event_background: CEvent vt slot 4 (Event_OnToken, relocated) -> keeps background (token 0x99) values, the rest goes to the original"
+se_event_window_fire,0x008A8476,E8 B5 0A 00 00,call redirect,experimental,cp,Script Extender event_background: CALL EventWindow_ctor in Event_Fire -> wrapper that sets the Background sprite after the original
+se_event_window_console,0x0041F54E,E8 DD 99 48 00,call redirect,experimental,cp,Script Extender event_background: CALL EventWindow_ctor in Console_Event
+se_vassal_color_political_owner,0x007FCAD7,E8 E4 EA CF FF,call redirect,experimental,cp,"Script Extender vassal_map_color: CALL Country_GetMapColor (owner) in MapColor_Political -> original, then a substate/puppet gets a blend with its overlord colour; XMM1 kept"
+se_vassal_color_political_controller,0x007FCB22,E8 99 EA CF FF,call redirect,experimental,cp,Script Extender vassal_map_color: controller in MapColor_Political
+se_vassal_color_plain_owner,0x007FCC36,E8 85 E9 CF FF,call redirect,experimental,cp,Script Extender vassal_map_color: owner in MapColor_PoliticalPlain
+se_vassal_color_plain_controller,0x007FCC76,E8 45 E9 CF FF,call redirect,experimental,cp,Script Extender vassal_map_color: controller in MapColor_PoliticalPlain
+se_demand_province_load,0x0063DCD2,E8 E9 F0 2C 00,call redirect,experimental,cp,Script Extender demand_province: CALL CBManager_Load -> registers po_demand_province (Token_AddDynamic) first
+se_demand_province_keyword,0x00E33734,E0 A1 90 00,vtable slot,experimental,cp,"Script Extender demand_province: CCasusBelliType vt slot 4 (OnKeyword, relocated) -> po_demand_province = yes adds po_demand_state once and marks the CB"
+se_demand_province_transfer,0x0094E844,E8 47 72 B6 FF,call redirect,experimental,cp,"Script Extender demand_province: CALL TransferProvinces in WarGoal_Execute -> marked CB: only the war goal province"
+se_demand_province_annex,0x0094E77B,83 BA 4C 0E 00 00 01,CALL thunk + 90 90,experimental,cp,"Script Extender demand_province: CMP [owner+0xE4C],1 in WarGoal_Execute -> marked CB: annex only a one-province country"
+se_demand_province_cost,0x009519AD,8B 70 48 89 44 24 14,JMP thunk + 90 90,experimental,cp,"Script Extender demand_province: start of the po_demand_state cost loop in WarGoal_PeaceCost -> marked CB: that province only"

@@ -49,15 +49,15 @@ docs/re/
 | [economy.md](systems/economy.md) | world market, prices (fixed-point clamp), stockpiles, loans |
 | [threads.md](systems/threads.md) | TBB, the worker-thread class, why the economy is serial |
 | [triggers.md](systems/triggers.md) | trigger containers, scopes, values, effects, keywords |
-| [casus-belli.md](systems/casus-belli.md) | `cb_types.txt`, `can_use`, the AI's daily CB scans |
+| [casus-belli.md](systems/casus-belli.md) | `cb_types.txt`, `can_use`, the AI's daily CB scans; peace options, war-goal execution and cost, lexer tokens, `po_demand_province` |
 | [decisions.md](systems/decisions.md) | where decisions are evaluated and how often |
-| [events.md](systems/events.md) | loading, daily MTTH scan, firing, delayed events |
+| [events.md](systems/events.md) | loading, body keywords, daily MTTH scan, firing, the event window (picture, background, GUI sprite swap), delayed events |
 | [ai-diplomacy.md](systems/ai-diplomacy.md) | opinion score, acceptance chance |
 | [ai-national-focus.md](systems/ai-national-focus.md) | national focus scoring |
 | [technology.md](systems/technology.md) | research availability and the civilization gates |
 | [factories.md](systems/factories.md) | factory construction gates |
 | [buildings.md](systems/buildings.md) | building database, province buildings, the expand check, `CConstructBuildingCommand`, AI builders, bulk upgrade |
-| [map-modes.md](systems/map-modes.md) | the 22 map modes, buttons and their observer glue, per-province colours, GPU upload, redraw, infrastructure mode, stripes texture, menubar tooltip, the Script Extender's building map mode |
+| [map-modes.md](systems/map-modes.md) | the 22 map modes, buttons and their observer glue, per-province colours, political colours and Country_GetMapColor, overlord / substate / puppet / sphere fields, GPU upload, redraw, infrastructure mode, stripes texture, menubar tooltip, the Script Extender's building map mode and vassal colours |
 | [loading.md](systems/loading.md) | what runs once after a game is loaded |
 | [checksum.md](systems/checksum.md) | file and runtime checksums, the resign/menu bug |
 | [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label, localisation storage and `Localize`, chat, text input, join dialog and settings |

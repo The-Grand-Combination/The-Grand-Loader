@@ -31,16 +31,16 @@ CCountry,0xBCC,technology,ptr,C,re,"+0x2B8 tech state array indexed by tech+0x2E
 CCountry,0xBD4,leaders,list,I,re,daily roll for leader deaths
 CCountry,0xBE4,capitalProvinceId,u32,C,re,
 CCountry,0xBE8,relations,Relation**,C,cp,indexed by the other country
-CCountry,0xCF4,hasOverlord,u8,I,cp,
-CCountry,0xCF5,isOverlord,u8,I,cp,
-CCountry,0xCFC,overlordIndex,u32,I,re,
+CCountry,0xCF4,isSubstate,u8,C,cp,is_substate; substate_of and vassal_of also accept it
+CCountry,0xCF5,isVassal,u8,C,cp,a vassal (puppet) that is not a substate; is_vassal = +0xCF5 or +0xCF4
+CCountry,0xCFC,overlordIndex,u32,C,cp,with +0xCF8; compared by substate_of / vassal_of
 CCountry,0xD08,neighbours,u8[],C,cp,byte per country
 CCountry,0xDA8,vassals,vector,I,re,"+0xDA8/+0xDAC"
-CCountry,0xE44,states,list,I,cp,world market iterates states then +0x18 factories
-CCountry,0xE4C,aiScore,u32,?,cp,AI war-target gate (self <= other * 5)
+CCountry,0xE44,states,list,C,cp,"head; tail +0xE48, count +0xE4C; world market iterates states then +0x18 factories"
+CCountry,0xE4C,stateCount,u32,C,cp,"count of the states list; WarGoal_Execute annexes when it is 1; AI war-target gate (self <= other * 5)"
 CCountry,0xE64,primaryCulture,u32,I,re,
 CCountry,0x12D0,civilized,u8,C,cp,
-CCountry,0x142C,overlord,ptr,I,re,
+CCountry,0x142C,sphereLeaderIndex,u32,C,cp,has_sphere_leader (!= 0) and in_sphere; was mislabelled overlord
 CCountry,0x1404,rank,u32,I,cp,
 CCountry,0x1430,infamyX1000,u32,C,cp,
 CCountry,0x156C,sphere,ptr,I,re,
@@ -58,7 +58,7 @@ CMapProvince,0x194,popLists,ptr,C,re,per-pop-type lists
 CMapProvince,0x1A8,totalPops,u32,C,re,
 CMapProvince,0x1BC,clergy,u32,I,re,
 CMapProvince,0x384,delayedEvents,vector,C,re,"+0x384/+0x388"
-CState,0x48,provinceIds,vector,I,re,
+CState,0x48,provinceIds,vector<int>,C,re,"province ids; passed to TransferProvinces by po_demand_state"
 CState,0x60,buildings,ptr,I,re,
 CState,0x68,factoryCount,u32,C,re,< 8 to build
 CState,0x84,colonyStatus,u32,C,re,> 0 = colonial
@@ -127,10 +127,10 @@ CEvent,0x30,trigger,TriggerBlock,C,re,
 CEvent,0x74,immediate,CEffect,C,re,slot 0x2C executed on every fire
 CEvent,0xB0,options,vector,C,re,option +0x08 = AI-chance block
 CEvent,0xC0,mtth,MtthBlock,C,re,"+0x08 base, +0x0C/+0x10 modifiers, scale 1000"
-CEvent,0x1A1,flag1A1,u8,C,re,0 -> window may be suppressed by the UI manager
-CEvent,0x1A2,flag1A2,u8,C,re,window variant
-CEvent,0x1A3,fireOnlyOnce,u8,I,re,behaviour confirmed; name inferred
-CEvent,0x1A4,flag1A4,u8,C,re,full-window variant
+CEvent,0x1A1,allowMultipleInstances,u8,C,cp,allow_multiple_instances (0x9A2); 0 -> the window may be suppressed
+CEvent,0x1A2,major,u8,C,cp,major (0x793): Event_Major_Window
+CEvent,0x1A3,fireOnlyOnce,u8,C,cp,fire_only_once (0x651)
+CEvent,0x1A4,election,u8,C,cp,election (0x7BD): Event_Election_Window
 World,0xA4,aiObjects,vector<AiObject*>,C,cp,"+0xA4/+0xA8/+0xAC; filled on the host only; walked by the AI bucket fill at the end of DayTick"
 World,0xB4,worldRng,u32[624],C,cp,"embedded MT19937; index +0xA74; seeded from the clock in World_ctor or from save token 0x7A4; read by AI_DailyRoll and AI frame code"
 World,0xA74,worldRngIndex,u32,C,cp,
@@ -234,3 +234,37 @@ LocalisationPair,0x1C,owner,ptr,C,cp,start of the value Localize returns
 LocalisationPair,0x20,variants,vector<LocalisationVariant*>,C,cp,+0x20/+0x24/+0x28 (value +4/+8/+0xC)
 LocalisationVariant,0x00,selector,i32[4],C,cp,0x34 bytes; matched by Localisation_SelectVariant
 LocalisationVariant,0x10,text,RichText,C,cp,"parsed segments (RichText_Parse), not a std::string: reading it as one crashed the game (2026-10-23)"
+
+CEvent,0xDC,title,std::string,C,cp,title (0x3E2)
+CEvent,0xF8,newsTitle,std::string,C,cp,news_title (0xA25)
+CEvent,0x114,desc,std::string,C,cp,desc (0x3E3)
+CEvent,0x130,newsDescLong,std::string,C,cp,news_desc_long (0x9EE)
+CEvent,0x14C,newsDescMedium,std::string,C,cp,news_desc_medium (0x9EF)
+CEvent,0x168,newsDescShort,std::string,C,cp,news_desc_short (0x9F0)
+CEvent,0x184,picture,std::string,C,cp,"picture (0x7DF): file name under gfx/pictures/events, .tga added"
+CEvent,0x1A0,isTriggeredOnly,u8,C,cp,is_triggered_only (0x713)
+CEvent,0x1A5,news,u8,C,cp,news (0xA21)
+CEvent,0x1A8,issueGroup,std::string,C,cp,"issue_group (0x935); last field, ends at 0x1C4"
+ScriptParser,0x0C,errorCount,i32,C,cp,Persistent_ReadBlock calls vt slot 5 only when 0
+ScriptParser,0x14,errorFlag,u8,C,cp,set by Parser_UnexpectedToken
+ScriptParser,0x20,keyToken,u32,C,cp,token id of the key just read (raw/script-tokens.tsv)
+ScriptParser,0x24,keyText,char[],C,cp,key as written
+ScriptParser,0x228,valueType,u32,C,cp,"0x29F = yes, 3 = {"
+ScriptParser,0x22C,valueText,char[],C,cp,"value as written, NUL-terminated"
+CEventWindow,0x04,window,ptr,C,cp,GUI window instance (Event_<Kind>_Window)
+CEventWindow,0x08,guiOwner,ptr,I,cp,"*(country + 0xCDC); vt[0x34] factory, vt[0x3C] parent"
+CEventWindow,0x0C,event,CEvent*,C,cp,
+CEventWindow,0x10,scope,CEventScope,C,cp,0x48-byte copy; object size 0xD0
+GuiButton,0xA0,sprite,ptr,C,cp,replaced by Button_SetSprite (vt 0xE0)
+GuiIcon,0x94,sprite,ptr,C,cp,replaced by Icon_SetSprite (vt 0xE0)
+CCountry,0xCF8,overlordTag,char[4],C,cp,"with +0xCFC: the overlord {tag, index}"
+CCountry,0xDE0,substateCount,i32,C,cp,num_of_substates
+CCountry,0x1418,sphereMembers,vector,C,cp,"+0x1418/+0x141C, 8-byte entries {?, country index}; MapColor_Sphere"
+CCountry,0x1428,sphereLeaderTag,char[4],C,cp,"with +0x142C: the sphere leader {tag, index}"
+CCountry,0x924,color,CColor,I,cp,base map colour (color = { } of common/countries); floats r/g/b/a at +0x92C.. (CColor +8)
+CCountry,0x15CC,governmentColors,vector,C,cp,"+0x15CC/+0x15D0, 0x20-byte entries {key, CColor}; key matched with [country+0xBD0]+0x40; per-government colours (I)"
+CState,0x5C,ownerIndex,u32,I,cp,"with the tag at +0x58; WarGoal_Execute"
+CCasusBelliType,0x120,peaceOptions,list,C,cp,"nodes {po token, prev, next, u8} (0x10 bytes); tail +0x124, count +0x128"
+CWarGoal,0x0C,cb,CCasusBelliType*,C,cp,vtable 0x00E35DDC
+CWarGoal,0x18,receiver,CountryRef,I,cp,"{tag, index}; receives the provinces of po_demand_state"
+CWarGoal,0x28,province,u32,C,cp,province id: the target of a state war goal

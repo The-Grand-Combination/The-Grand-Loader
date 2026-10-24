@@ -11,7 +11,7 @@ va,name,kind,conf,src,note
 0x01258A94,g_registryHigh,ptr,C,re,object registry for type > 0x1268
 0x01268FEC,g_parsingKeyType,u32,I,re,copied into event+0x08 while parsing
 0x01268FF0,g_parsingKeyId,u32,I,re,copied into event+0x0C while parsing
-0x012586E0,g_searchPaths,ptr,I,re,"+0x48 skip-mod-root flag"
+0x012586E0,g_searchPaths,ptr,I,re,"+0x48 skip-mod-root flag; +0x4C mode (1 mod only, 2 mod then game: SearchPaths_PickExisting); game folders std::string[] at +0x84, mod folders at +0x244 (0x1C each); folder 2 = gfx (event pictures)"
 0x0131BB34,g_popTypeDb,ptr,I,re,lazily created 0x188-byte database (ctor 0x0041A160)
 0x012587F4,g_goodsCount,u32,C,re,number of goods
 0x012588E6,g_timeState0,?,I,re,written by ProcessGameTimeAdvance
@@ -126,3 +126,16 @@ va,name,kind,conf,src,note
 0x00E45598,k0_2_f64,const,C,cp,0.2; MapColor_Infrastructure red and gradient
 0x00E456D8,k0_1_f64,const,C,cp,0.1; MapColor_Infrastructure gradient
 0x00E45650,k0_999_f64,const,C,cp,0.999; MapColor_Infrastructure
+
+0x00E2C844,CEvent_vftable_OnToken,vtable,C,cp,"slot 4 of CEvent_vftable, holds Event_OnToken 0x008A6280; hook point for new event body keywords"
+0x00E08BEC,CEU3Button_vftable,vtable,C,cp,RTTI; slot 0xE0 = Button_SetSprite
+0x00E3CE50,GuiButton_vftable,vtable,I,cp,base button vtable (no RTTI name); slot 0xE0 = Button_SetSprite
+0x00E08D2C,CEU3ButtonType_vftable,vtable,C,cp,RTTI; guiButtonType definition of the EU3 layer
+0x00E3A930,Icon_vftable,vtable,I,cp,icon vtable (no RTTI name); slot 0xE0 = Icon_SetSprite; same slot at 0x00E0A834
+0x00E2CB18,str_GFX_event_no_image,char[],C,cp,template sprite type of the event picture
+0x00E2CB04,str_pictures_events,char[],C,cp,"""/pictures/events/""; event picture folder"
+0x01268FF8,g_staticTokens,array,C,cp,"2744 x {int id; char name[0x100]} (stride 0x104) up to 0x013172D8; filled by Tokens_RegisterKeywords"
+0x00F0EC04,g_lexerTable,object,C,cp,"word -> token id table; 0x00F0EC08 is 0 until Lexer_BuildTable"
+0x01258A64,g_lexerReady,u8,C,cp,"1 once Lexer_BuildTable has run"
+0x01258A60,g_lexerNextId,u32,C,cp,"highest static token id + 1"
+0x0131C8DC,g_dynamicTokens,vector,C,cp,"entries {int id; char name[0x100]}* added by Token_AddDynamic; end at 0x0131C8E0"

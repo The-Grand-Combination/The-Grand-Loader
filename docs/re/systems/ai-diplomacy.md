@@ -25,7 +25,7 @@ Static reading, not re-verified here; confidence as given by the source (mostly 
 |---|---|---|
 | 1 | overlord/vassal relation and it is `other` (`+0xCF4/+0xCF5`, `+0xCFC == other.index`) | `= 1000` (`AIREASON_OVERLORD`) |
 | 2 | same, but not `other` | `= -1000` |
-| 3 | `self` has another overlord (`+0x142C`) and `other` is a GP | `= -1000` |
+| 3 | `self` has another sphere leader (`+0x142C`; earlier read as "overlord", see map-modes.md) and `other` is a GP | `= -1000` |
 | 4 | `self` in `other`'s vassal list (`+0xDA8`) | `= -1000` |
 | 5 | rival spheres (`+0x156C`) | `-1000` |
 | 6 | colonial rank below `COLONIAL_RANK` | `= -1000` |

@@ -149,6 +149,98 @@ Constants: 0.7 `0x00E45978`, 0.4 `0x00E45918`, 0.8 `0x00E45770`, 0.2 `0x00E45598
 The handler `MapModeButton_Infrastructure` is the colour function's only caller (`CALL` at `0x0066CABE`,
 `E8 0D 4A 19 00`). **[C]**
 
+### Political colours (2026-10-24)
+
+Researched for the Script Extender's `vassal_map_color` (substates and puppets in a shade of their overlord).
+
+The province record's owner is `CProvince+0x128/+0x12C` and its controller `+0x130/+0x134`, each a country
+reference {tag, index}. Index 0 means no country. **[C]**
+
+`MapColor_Political` (`0x007FCA30`, mode 1) does the following for each province:
+
+- With no owner: white (1, 1, 1, 1) in both colours.
+- Otherwise:
+  - primary = `Country_GetMapColor(owner)` scaled by the dim factor `k`, the same as for infrastructure;
+  - secondary = the controller's colour when the controller differs from the owner (occupation
+    stripes), else the primary.
+
+**[C]**
+
+`MapColor_PoliticalPlain` (`0x007FCBD0`) is the same without `k`, and paints a province with no owner
+grey (`0x99999999`). **[C]** Seven sites call it, with `CProvinceManager*` as the only stack argument:
+
+- `CSetHistoryDate_Execute`;
+- the thunk `MapView_ColorPolitical` (`0x00645D90`, EAX = map view);
+- `0x00756170`, `0x0076B930`, `0x0076D340` (two sites) and `0x00777470`.
+
+Which screens those last four functions are is **[?]**.
+
+The terrain mode (`0x007FC980`) writes the same constant colour to every province. No other mode reads
+country colours, except the sphere mode. **[C]**
+
+`Country_GetMapColor` (`0x004FB5C0`) takes **ESI = country** and **EAX = the output `CColor`** (0x1C
+bytes). It returns EAX unchanged, uses only ECX, EDX and XMM0, and ends with a plain `RET`. **[C]**
+
+1. When `country+0xBD0` (the government, **[I]**) has an entry in the vector `country+0x15CC/+0x15D0`, it
+   copies that colour. The entries are 0x20 bytes: a key compared with `[country+0xBD0]+0x40`, then a
+   `CColor`. **[C]**
+2. Otherwise it copies the base colour `country+0x924`, a `CColor` that is `color = { r g b }` of
+   `common/countries/<name>.txt`. **[I]**
+3. The vector holds the per-government lines of the same files, such as
+   `democracy = { 155 78 75 }` in TGC's `Austria.txt`. **[I]**
+
+The function has 19 call sites:
+
+| site | function | what |
+|---|---|---|
+| `0x007FCAD7`, `0x007FCB22` | `MapColor_Political` | owner, controller |
+| `0x007FCC36`, `0x007FCC76` | `MapColor_PoliticalPlain` | owner, controller |
+| `0x007FFABF`, `0x007FFB05`, `0x007FFB74`, `0x007FFBB7` | `MapColor_Sphere` (`0x007FF880`) | a GP's own colour; a sphere member gets its leader's (`country+0x142C`) |
+| `0x0051BB10`, `0x0051BB4F`, `0x0051BB8E` | `0x0051B870` | copies a text file and rewrites its `color` lines with the country's colour (r, g, b × 255) |
+| `0x0060CEB5` | `0x0060CA30` | colours of the `debt_listbox` chart |
+| `0x00653379`, `0x00653446`, `0x0065349C` | `0x00652A10` | game start/load **[?]** |
+| `0x00688985`, `0x00688992` | `0x006881D0` | **[?]** |
+| `0x0078636B`, `0x007867C7` | `0x00785400`, `0x00786780` | UI **[?]** |
+
+A change confined to the map must therefore redirect the map sites, not the function itself: the file
+rewrite at `0x0051B870` would otherwise write the changed colour.
+
+`CColor_Scale` (`0x007EBB80`) takes ECX = source, EAX = output and XMM1 = factor. It returns r, g, b × factor,
+clamped to 1, with the alpha copied. `+0x18` is set when all three components are above 0.999.
+`CColor_ToARGB` does not read `+0x18`. **[C]**
+
+**XMM1.** `MapColor_Political` keeps `k` in XMM1 across the owner's `Country_GetMapColor` call and passes
+it straight to `CColor_Scale` (`0x007FCAE2`). A replacement for that call must keep XMM1. **[C]**
+
+### Overlords, substates, puppets and spheres
+
+The fields below are read from the triggers. Each is **[C]**.
+
+| field | meaning | read by |
+|---|---|---|
+| `country+0xCF4` (u8) | is a substate | `is_substate` (`0x008D7760`) reads only this; `substate_of` requires it |
+| `country+0xCF5` (u8) | is a vassal (puppet) that is not a substate | `is_vassal` (`0x008D7A40`) and `vassal_of` take `+0xCF5` or `+0xCF4` |
+| `country+0xCF8/+0xCFC` | overlord {tag, index} | `substate_of` / `vassal_of` compare `+0xCFC` with the target's index |
+| `country+0xDE0` (i32) | number of substates | `num_of_substates` (`0x008C1150`) |
+| `country+0x1428/+0x142C` | sphere leader {tag, index} | `has_sphere_leader` (`+0x142C != 0`), `in_sphere` (`0x008F9C70`) |
+| `country+0x1418/+0x141C` | a GP's sphere members, 8-byte entries {?, index} | `MapColor_Sphere` |
+
+`structs.csv` used to call `+0xCF4`/`+0xCF5` `hasOverlord`/`isOverlord` and `+0x142C` `overlord`. Those
+names were wrong and have been corrected.
+
+**Built (2026-10-24).** The Script Extender's `vassal_map_color` redirects the four owner and controller
+calls of the two political functions (`se_vassal_color_*` in `patch_sites.csv`) to a thunk:
+
+1. The thunk runs `Country_GetMapColor`.
+2. When `+0xCF4` or `+0xCF5` is set and `+0xCFC` names another country, it takes the overlord's colour from
+   the same function. r, g and b become `overlord × (1 − own) + vassal × own`, where `own` is
+   `vassal_map_color_own` / 100 (default 0.3).
+3. It saves every register and XMM0-7 (`SE_SAVE_ALL`) around the C++ code, so XMM1 survives.
+
+Because the overlord's colour comes from the same function, a per-government colour is included.
+Occupation stripes take the same shade. The sphere mode, the file rewrite and the UI keep the real colour.
+Not tested in game yet.
+
 ### Upload and redraw
 
 `MapRenderer_UploadProvinceColors` (`0x00819830`, ECX = renderer, EAX = map view `+0x20D8`) calls
@@ -264,3 +356,5 @@ What has been tested in game is in `log.md` (2026-10-23, "Script Extender: build
    and whether one of them is a right click (a selector on right click instead of cycling).
 6. The tooltip `out` object beyond its string, and what `ctx` is.
 7. Whether the minimap reads the same textures.
+8. Whether the political mode recolours when a country becomes or stops being a vassal (the daily dirty flags), or only on the next mode change.
+9. Which screens the other callers of `MapColor_PoliticalPlain` (`0x00756170`, `0x0076B930`, `0x0076D340`, `0x00777470`) are.

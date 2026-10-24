@@ -22,6 +22,10 @@ struct Key {
 constexpr Key kKeys[] = {
     {"building_map_mode", &Config::building_map_mode, nullptr},
     {"country_upgrade", &Config::country_upgrade, nullptr},
+    {"demand_province", &Config::demand_province, nullptr},
+    {"event_background", &Config::event_background, nullptr},
+    {"vassal_map_color", &Config::vassal_map_color, nullptr},
+    {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own},
 };
 
 std::string_view trim(std::string_view s) {

@@ -369,3 +369,52 @@ va,name,conf,area,src,note
 0x009AB9F0,Localisation_SelectVariant,I,ui,cp,matches the four selector ints of each variant when a value has several
 0x00679D30,ButtonObserverGlue_ctor,C,ui,cp,"EAX = glue, ECX = object (stored at +4), stack 9 pairs {handler, this-adjust} -> +0x08..+0x4C; vtable CButtonObserverGlue_CInGameIdler_vftable; 63 callers (CInGameIdler_ctor)"
 0x009C7290,Sound_Get,I,ui,cp,returns the sound object; vt[0x60](std::string* name) plays a UI sound (str_click in the map-mode handlers)
+
+0x008A6280,Event_OnToken,C,events,cp,"CEvent vt slot 4 (+0x10); thiscall (ECX = event; parser, key token), RET 8; one switch over the body keywords, unknown keys -> Parser_UnexpectedToken"
+0x009A2A90,Persistent_ReadBlock,C,engine,cp,"generic vt slot 3 of script objects: loops key = value (FUN_009A1440) until } or EOF, calls vt slot 4 (parser, key token); slot 5 when the block had no error, else logs ""Error: ... in file ... near line""; 68 callers"
+0x009A0F40,Parser_UnexpectedToken,C,engine,cp,"EDI = parser: appends the error ""Unexpected <key text>"" (parser+0x24), sets parser+0x14, then Parser_SkipValue; default branch of the OnToken handlers (73 callers)"
+0x009A0E90,Parser_SkipValue,C,engine,cp,skips the current value; a { } block (value type 3) recursively
+0x004012F0,String_AssignFromParser,I,util,cp,"EDX = const char* (parser+0x22C), push std::string* destination"
+0x0041F170,Console_Event,C,ui,cp,"console ""event <id> [tag]"": looks the event up, builds the scope, EventWindow_ctor at 0x0041F54E, Window_Show"
+0x00466DE0,Event_GetPicture,C,events,cp,ESI = std::string out; copies event+0x184 (picture)
+0x009C4B50,TexturedSprite_ctor,C,ui,cp,"0x1AC-byte sprite with a texture from a file: (this, packed size, const std::string* path, sprite-type template, device); event pictures, news pictures, leader portraits, tech images (19 callers)"
+0x005C2AD0,SpriteTypes_Find,C,ui,cp,"EAX = table (g_renderDevice+0xA0), push const std::string* name; hash (h + c) * 61, chained buckets; returns the sprite type or 0. type->vt[0x48]() makes a sprite of it"
+0x009EF5B0,Button_SetSprite,C,ui,cp,"vt slot 0xE0 of CEU3Button / the base button; replaces +0xA0, deletes the old sprite (FUN_009963D0), copies position/frame/alpha and the element size to the new one"
+0x009C48D0,Icon_SetSprite,C,ui,cp,vt slot 0xE0 of the icon; as Button_SetSprite with the sprite at +0x94; used for the event picture
+0x009963D0,RenderList_RemoveAndDelete,I,ui,cp,ESI = list; removes the sprite from +0xB8 and +0xD8 and calls its vt[0x24](1)
+0x009A41C0,GuiTypes_CreateType,C,ui,cp,"OnToken of guiTypes: 0x7C guiButtonType 0x29C bytes, 0xB3 iconType 0xB0, 0x98 windowType 0x2A4, 0x147 instantTextBoxType 0xE4, ..."
+0x00646220,EU3GuiTypes_CreateType,C,ui,cp,"EU3 layer over GuiTypes_CreateType: 0x7C/0xC0 -> CEU3ButtonType, 0xB2, 0x26C -> CEU3DialogGuiType"
+0x009F1D30,GuiButtonType_ctor,C,ui,cp,0x29C-byte guiButtonType definition
+0x009ECA80,IconType_ctor,C,ui,cp,0xB0-byte iconType definition
+0x009CD7C0,WindowType_ctor,C,ui,cp,0x2A4-byte windowType definition; backGround (0x99) string at +0x84
+0x00436DE0,SearchPaths_PickExisting,I,engine,cp,"mod path when PHYSFS_exists, else the base path (event pictures and 37 more callers)"
+0x00B21820,PHYSFS_exists,C,engine,cp,cdecl (const char* path): nonzero when the file is in a mounted folder
+0x00436780,SearchPaths_GameFolder,C,engine,cp,"EAX = index, EDX = g_searchPaths, ESI = std::string out: copy of +0x84 + index * 0x1C"
+0x004367C0,SearchPaths_ModFolder,C,engine,cp,"EAX = index, EDX = g_searchPaths, ESI = std::string out: copy of +0x244 + index * 0x1C"
+0x009BC490,TextureManager_LoadFile,C,ui,cp,loads a texture through PhysFS (D3DXCreateTextureFromFileInMemoryEx); a .tga name is tried as .dds first
+0x004FB5C0,Country_GetMapColor,C,map,cp,"ESI = country, EAX = out CColor (0x1C); the per-government colour of country+0x15CC when [country+0xBD0]+0x40 has an entry, else country+0x924; returns EAX, plain RET, uses ECX/EDX/XMM0 only; 19 call sites (map-modes.md ""Political colours"")"
+0x007EBB80,CColor_Scale,C,render,cp,"ECX = source, EAX = out, XMM1 = factor: r/g/b * factor clamped to 1, alpha copied, +0x18 = all three > 0.999"
+0x007FCA30,MapColor_Political,C,map,cp,"mode 1, stdcall (CProvinceManager*), RET 4: owner colour * k (dim factor, kept in XMM1 across the owner Country_GetMapColor call), controller colour as secondary when it differs; no owner: white"
+0x007FCBD0,MapColor_PoliticalPlain,C,map,cp,"stdcall (CProvinceManager*), RET 4: as MapColor_Political without dimming; no owner: 0x99999999; 7 callers (CSetHistoryDate_Execute, MapView_ColorPolitical, ...)"
+0x00645D90,MapView_ColorPolitical,C,map,cp,EAX = map view: MapColor_PoliticalPlain(view+0x20BC)
+0x007FF880,MapColor_Sphere,C,map,cp,"mode 13: a GP (country+0x31) its own colour, a sphere member (country+0x142C) its leader colour; with a selected country, its sphere and influence"
+0x007FC980,MapColor_Terrain,C,map,cp,"mode 0, EDI = CProvinceManager: one constant colour for every province"
+0x0051B870,Country_RewriteColorFile,I,map,cp,copies a text file line by line and rewrites the color = { } lines with Country_GetMapColor * 255; why it is called is ?
+0x008D7760,IsSubstateTrigger_Evaluate,C,triggers,cp,country+0xCF4
+0x008D7A40,IsVassalTrigger_Evaluate,C,triggers,cp,country+0xCF5 or +0xCF4
+0x008D8B50,SubstateOfTrigger_Evaluate,C,triggers,cp,+0xCF4 and overlord index +0xCFC == target
+0x008D90B0,VassalOfTrigger_Evaluate,C,triggers,cp,"+0xCF5 or +0xCF4, and +0xCFC == target"
+0x008C1150,NumOfSubstatesTrigger_Evaluate,C,triggers,cp,country+0xDE0 >= value
+0x008FA9C0,HasSphereLeaderTrigger_Evaluate,C,triggers,cp,country+0x142C != 0
+0x008F9C70,InSphereTrigger_Evaluate,C,triggers,cp,country+0x142C == target index
+0x0090A800,CB_HasPeaceOption,C,cb,cp,"EAX = cb, ECX = po token; AL = the list at cb+0x120 has it"
+0x0094E660,WarGoal_Execute,C,cb,cp,"(warGoal at [ebp+8]): one block per peace option; po_demand_state at 0x0094E707 annexes a last state or transfers the state (call 0x0094E844); 8 calls from FUN_00916F00 / FUN_0091B1D0"
+0x00951920,WarGoal_PeaceCost,C,cb,cp,"stdcall (warGoal, int* out, bool), RET 0xC; po_demand_state / po_transfer_provinces sum FUN_004B79A0 over the provinces of the states; other options add a define"
+0x009500E0,WarGoal_Infamy,C,cb,cp,"EDI = int* out; sum of one define per peace option x badboy_factor (cb+0xF4) / 1000"
+0x004B5A90,TransferProvinces,C,provinces,cp,"cdecl (vector<int>* provinceIds, receiver ref*, date*, 1, cores ref*); reads only begin/end of the vector; 10 callers (war goals, effects, events)"
+0x00518620,Country_Annex,I,cb,cp,"po_annex, and po_demand_state of a last state (with the capital); 5 callers"
+0x0098FAA0,Token_SetStatic,C,lexer,cp,"ESI = entry {int id; char name[0x100]}, ECX = id, EAX = std::string*; 2744 calls from Tokens_RegisterKeywords"
+0x00990100,Lexer_Init,C,lexer,cp,"EDI = reader (+0xC = 0, +0x10 = 0); builds the token table once (g_lexerReady), under CLAUSEWITZ_LEXER_MUTEX"
+0x009901B0,Lexer_BuildTable,C,lexer,cp,"inserts the static tokens into g_lexerTable; g_lexerNextId = highest id + 1"
+0x009902D0,Token_AddDynamic,C,lexer,cp,"cdecl (const std::string* name, bool allowExisting) -> id; existing name: its id (logs Error on dynamic token when !allowExisting); else highest static id + dynamic count + 1"
+0x00990930,Lexer_NextToken,C,lexer,cp,"looks each word up in g_lexerTable as it is read: known -> id, other word -> 0xF, number -> 0xC; 60 callers"
