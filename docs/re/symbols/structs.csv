@@ -1,7 +1,7 @@
 struct,offset,name,type,conf,src,note
 World,0xACC,provinces,CMapProvince**,C,cp,province pointer array
 World,0xADC,dayTickCountries,vector,C,cp,"+0xADC/+0xAE0 country vector of the day tick"
-World,0xAEC,humanPlayers,vector<u32>,C,cp,"+0xAEC begin, +0xAF0 end; entry 0 = AI-controlled"
+World,0xAEC,humanPlayers,vector<u32>,C,cp,"+0xAEC begin, +0xAF0 end; entry 0 = AI-controlled; CIsAiTrigger_Evaluate"
 World,0xB0C,dateHours,u32,C,cp,"date in hours, base 0x029C55C0 = year -5000; +0x18 per day; 365-day years, no leap years"
 World,0xB14,timeAccumulator,f32,C,re,accumulated frame time in ProcessGameTimeAdvance
 World,0xB20,timeStopped,u32,C,re,non-zero -> ProcessGameTimeAdvance returns
@@ -34,7 +34,7 @@ CCountry,0xBE8,relations,Relation**,C,cp,indexed by the other country
 CCountry,0xCF4,isSubstate,u8,C,cp,is_substate; substate_of and vassal_of also accept it
 CCountry,0xCF5,isVassal,u8,C,cp,a vassal (puppet) that is not a substate; is_vassal = +0xCF5 or +0xCF4
 CCountry,0xCFC,overlordIndex,u32,C,cp,with +0xCF8; compared by substate_of / vassal_of
-CCountry,0xD08,neighbours,u8[],C,cp,byte per country
+CCountry,0xD08,neighbours,u8[],C,cp,byte per country; indexed by the other country's index; CNeighbourTrigger_Evaluate
 CCountry,0xDA8,atWarWith,vector,I,cp,"countries at war with: AI_ManagePeace walks it and reads relation+0x34 (was vassals, re)"
 CCountry,0xE44,states,list,C,cp,"head; tail +0xE48, count +0xE4C; world market iterates states then +0x18 factories"
 CCountry,0xE4C,stateCount,u32,C,cp,"count of the states list; WarGoal_Execute annexes when it is 1; AI war-target gate (self <= other * 5)"
@@ -77,9 +77,9 @@ CNationalFocus,0x54,railroad,u32,I,re,
 CNationalFocus,0x7C,promotions,vector,I,re,"+0x7C/+0x80"
 CEventScope,0x08,countryTag,u32,C,cp,
 CEventScope,0x0C,countryIndex,u32,C,cp,
-CEventScope,0x10,provinceIndex,u32,C,cp,"province scope of the daily province event pass (parallel_events writes it per entry)"
+CEventScope,0x10,provinceIndex,u32,C,cp,province scope of the daily province event pass (parallel_events writes it per entry); war-goal scopes put the province at +0x18 instead
 CEventScope,0x24,thisScope,CEventScope*,C,cp,initialised to self
-CEventScope,0x30,fromRef,u64,C,cp,"+0x30/+0x34"
+CEventScope,0x30,fromIndex,u32,C,cp,FROM country index; the tag is at +0x2C (corrected 2026-10-24: was fromRef u64 +0x30/+0x34)
 TriggerBlock,0x00,vftable,ptr,C,cp,"CAndTrigger / COrTrigger / CNotTrigger; size 0x1C"
 TriggerBlock,0x04,typeTag,u32,C,cp,0x18D
 TriggerBlock,0x08,children,vector<CTrigger*>,C,cp,"+0x08 begin, +0x0C end, +0x10 capacity"
@@ -170,7 +170,7 @@ CState,0x04,provinces,list,I,cp,"nodes {province, ?, next}"
 CState,0x0C,owner,u32,I,cp,"0 = no owner (State_GetControllerTag answers '---')"
 CState,0x14,units,list,I,cp,"nodes {unit, ?, next}; walked by State_HasHostilePresence"
 CCountry,0xE2C,possibleVassals,vector,C,cp,"8-byte entries {?, country index}; rebuilt on every query by Country_RebuildPossibleVassals (not thread-safe)"
-CProvince,0x148,cores,vector,C,cp,"8-byte entries, country index at +4"
+CProvince,0x148,cores,vector,C,cp,"8-byte entries, country index at +4; entries {tag, index}, end +0x14C; CIsCoreTrigger_Evaluate"
 std::string,0x00,buffer,char[16]/char*,C,cp,"MSVC 2010 layout: inline text while capacity < 16, else a heap pointer"
 std::string,0x10,size,u32,C,cp,
 std::string,0x14,capacity,u32,C,cp,15 while inline
@@ -341,7 +341,7 @@ CCasusBelliType,0x114,good_relation_infamy_factor,u32,C,cp,
 CCasusBelliType,0x118,good_relation_prestige_factor,u32,C,cp,
 CCasusBelliType,0x11C,good_relation_militancy_factor,u32,C,cp,
 CCasusBelliType,0x1D4,great_war_obligatory,u8,C,cp,
-CCasusBelliType,0x1DC,all_allowed_states,u8,C,cp,
+CCasusBelliType,0x1DC,all_allowed_states,u8,C,cp,set: WarGoal_GetTargetStates takes every receiver state that passes allowed_states and the dialog asks for none
 CEU3Dialog,0x04,window,CEU3DialogGui*,C,cp,instance of the eu3dialogtype
 CEU3Dialog,0x08,guiOwner,ptr,C,cp,"vt[0x34] gui, vt[0x3C] parent, vt[0x44] session (+0x38 queue vt[0x18])"
 CEU3Dialog,0x0C,agreeGlue,CButtonObserverGlue2C,C,cp,AgreeButton -> vt[0x18]
@@ -395,3 +395,12 @@ CDiplomacyDialog,0x6C,pendingAction,ptr,C,cp,the pending action; removed and del
 CInGameIdler,0x1D74,diplomaticDialogManager,ptr,I,cp,receives incoming offer dialogs (CInGameIdler_ShowDiplomaticDialog)
 CStateSelectionItem,0x28,dialog,CWarGoalDialog*,C,cp,
 CStateSelectionItem,0x2C,state,CState*,C,cp,"click and tooltip read only +0x48/+0x4C of it; the name comes from vt[0x20]"
+CEventScope,0x18,province,u32,I,cp,"province scope of war-goal evaluation (WarGoal_GetTargetStates, WarGoal_IsValid allowed_states); CAnyOwnedProvinceTrigger walks the state's provinces when set"
+CEventScope,0x2C,fromTag,u32,C,cp,"FROM {tag +0x2C, index +0x30}; read from the current scope by triggers with the FROM flag (+0x19); WarGoal_IsValid writes the goal's third country here in the THIS scope only"
+CEventScope,0x40,isCopy,u8,I,cp,set to 1 by EventScope_Copy
+CCasusBelliType,0xA8,allowed_states.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_states (+0xA0), end +0xAC; non-empty and not all_allowed_states: the war-goal dialog asks for a state (the treaty editor also for po_demand_state)"
+CCasusBelliType,0xE0,allowed_countries.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_countries (+0xD8), end +0xE4; non-empty: the dialog asks for a third country"
+CTreatyAction,0x00,vftable,ptr,C,cp,"Script Extender: copy of CPeaceAction's 38 slots with the RTTI locator of CDiplomaticAction; object 0xA0 bytes, CPeaceAction layout up to 0x98 (treaties.md)"
+CTreatyAction,0x98,money,i64,C,cp,Script Extender: the actor pays the recipient when > 0 (2^15 fixed point); save / command field se_treaty_money
+CMessageType,0x00,vftable,ptr,C,cp,0x00E0BF74; object 0x3C bytes (MessageTypes_Read)
+Sprite,0xD0,texture,ptr,I,cp,null when the .gfx was parsed after the game's .gfx loop; Sprite_Draw crashes at 0x00A28A6B

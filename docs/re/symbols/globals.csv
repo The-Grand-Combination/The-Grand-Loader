@@ -131,7 +131,7 @@ va,name,kind,conf,src,note
 0x00E08BEC,CEU3Button_vftable,vtable,C,cp,RTTI; slot 0xE0 = Button_SetSprite
 0x00E3CE50,GuiButton_vftable,vtable,I,cp,base button vtable (no RTTI name); slot 0xE0 = Button_SetSprite
 0x00E08D2C,CEU3ButtonType_vftable,vtable,C,cp,RTTI; guiButtonType definition of the EU3 layer
-0x00E3A930,Icon_vftable,vtable,I,cp,icon vtable (no RTTI name); slot 0xE0 = Icon_SetSprite; same slot at 0x00E0A834
+0x00E3A930,Icon_vftable,vtable,I,cp,"icon vtable (no RTTI name); slot 0xE0 = Icon_SetSprite; same slot at 0x00E0A834; slots 0x34 Icon_Show, 0x38 Icon_Hide, 0x48 Icon_SetFrame: the same slots as a button's show / hide / frame"
 0x00E2CB18,str_GFX_event_no_image,char[],C,cp,template sprite type of the event picture
 0x00E2CB04,str_pictures_events,char[],C,cp,"""/pictures/events/""; event picture folder"
 0x01268FF8,g_staticTokens,array,C,cp,"2744 x {int id; char name[0x100]} (stride 0x104) up to 0x013172D8; filled by Tokens_RegisterKeywords"
@@ -151,7 +151,7 @@ va,name,kind,conf,src,note
 0x00F095B8,g_diplomacyActionTable,int[17][2],C,cp,"{token, alternative} per diplomacy view action button; 0x38D/0x81E declare war / peace; last 0x931 make_cb_action"
 0x01259ABC,g_nullDate,u32,I,cp,default date in action ctors
 0x0131B788,g_warGoalDefaultDate,u32,I,cp,CWarGoal+0x34 default
-0x012589A7,g_cheatAIAcceptAll,u8,I,cp,AI_EvaluateCommandChance returns 100 for others' actions when set
+0x012589A7,g_cheatAIAcceptAll,u8,I,cp,AI_EvaluateCommandChance returns 100 for others' actions when set; toggled by the yesmen console command (str_yesmen); the Script Extender treaty AI honours it
 0x01258A08,g_cheatInfiniteInfluence,u32,?,cp,DiplomaticAction_CanPerform uses 100000 influence when set
 0x01258A80,g_gui,ptr,C,cp,"CEU3Gui = app+0x120; vt[0x2C](const std::string* windowType, parent) instantiates; (+4)->vt[0xC](block) reads a .gui block"
 0x0131C974,g_guiReloadObservers,ptr,I,cp,file -> observers (Gui_ReloadFile)
@@ -163,7 +163,7 @@ va,name,kind,conf,src,note
 0x00E341F4,CWarGoalBaseAction_vftable,vtable,C,cp,RTTI
 0x00E34294,CDeclareWarAction_vftable,vtable,C,cp,RTTI; 0x38D
 0x00E34334,CAddWarGoalAction_vftable,vtable,C,cp,RTTI; 0x8DD
-0x00E343D4,CMakeCBAction_vftable,vtable,C,cp,RTTI; 0x931; 0x2C bytes
+0x00E343D4,CMakeCBAction_vftable,vtable,C,cp,RTTI; 0x931; 0x2C bytes; slot 14 entry 0x00E3440C = CMakeCBAction_CreateDialog
 0x00E34474,CPeaceAction_vftable,vtable,C,cp,RTTI; 0x81E; 0x98 bytes
 0x00E345B4,CWarSubsidiesAction_vftable,vtable,C,cp,RTTI; 0x470
 0x00E346F4,CCrisisOfferAction_vftable,vtable,C,cp,RTTI; 0x9FA
@@ -172,7 +172,7 @@ va,name,kind,conf,src,note
 0x00DFC6E4,CConquerProvinceCommand_vftable,vtable,C,cp,type 0x298; Execute = TransferProvinces
 0x00DEDA5C,CCommand_vftable,vtable,C,cp,"16 slots: 2 serialize, 3 read, 4 field, 6 execute, 7 type, 12 keep for joiners, 13 create, 14 validate"
 0x00E08694,CEU3Dialog_vftable,vtable,C,cp,"RTTI; 18 slots (1 per-frame IsActive, 4 tooltip, 6 agree, 7 decline, 13 show, 14 hide, 15 title, 16 description)"
-0x00E086E0,CButtonObserverGlue_CEU3Dialog_vftable,vtable,C,cp,"0x2C glue: slot k jumps to [glue+off] with ECX = [glue+4]; slot 1 +0x20 (button), 2 +0x08, 9 +0x24 (button); same code for 0x00E35A84, 0x00E359A0, 0x00E07484"
+0x00E086E0,CButtonObserverGlue_CEU3Dialog_vftable,vtable,C,cp,"0x2C glue: slot k jumps to [glue+off] with ECX = [glue+4]; slot 1 +0x20 (button), 2 +0x08, 9 +0x24 (button); same code for 0x00E35A84, 0x00E359A0, 0x00E07484; the slots null-check their handler; the +0x20 handler receives (button)"
 0x00E0872C,CEU3DialogGui_vftable,vtable,C,cp,"RTTI; FixedWindow finders 0x34 button, 0x3C text, 0x44 icon, 0x48 checkbox, 0x4C scrollbar, 0x6C subwindow, 0x7C listbox, 0xBC add subwindow; +0x18 vtable 0x00E087FC"
 0x00E35714,CPeaceDialog_vftable,vtable,C,cp,RTTI
 0x00E356C4,CWarGoalDialog_vftable,vtable,C,cp,RTTI
@@ -189,3 +189,13 @@ va,name,kind,conf,src,note
 0x00E06078,CCBTypeEntry_vftable,vtable,C,cp,RTTI; +0x1C vtable 0x00E060AC
 0x00E35820,CStateSelectionItem_vftable,vtable,C,cp,"RTTI; slot 4 OnClick 0x0093F5D0"
 0x00DFD78C,CState_vftable,vtable,C,cp,"RTTI; 10 slots; slot 8 (0x20) CState_GetName"
+0x00E0BF74,CMessageType_vftable,vtable,C,cp,"RTTI (.?AVCMessageType@@); 0x3C-byte message type, built by MessageTypes_Read"
+0x01262EF4,g_messageManager,ptr,C,cp,0x44-byte message-type manager; MessageManager_Get
+0x00DF213C,str_yesmen,string,C,cp,console command yesmen (referenced at 0x00422229); toggles g_cheatAIAcceptAll
+0x00E33864,str_THEY_ACCEPT,string,C,cp,_THEY_ACCEPT: CDiplomaticActionCommand_Execute appends it to slot 10 (if non-empty) or slot 9 name for the message key
+0x00E33874,str_WE_ACCEPT,string,C,cp,_WE_ACCEPT
+0x00E33880,str_OTHER_ACCEPT,string,C,cp,_OTHER_ACCEPT
+0x00E338A4,str_THEY_DECLINE,string,C,cp,_THEY_DECLINE
+0x00E338B4,str_WE_DECLINE,string,C,cp,_WE_DECLINE
+0x00E338C0,str_OTHER_DECLINE,string,C,cp,_OTHER_DECLINE
+0x00E080CC,str_interfaceMessagetypes,string,C,cp,interface/messagetypes.txt

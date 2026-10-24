@@ -40,7 +40,7 @@ va,name,conf,area,src,note
 0x008AEB00,EventOption_EvaluateAIChance,C,events,re,pure
 0x00907D40,EventOptionCommand_ctor,I,events,re,0xB0-byte chosen-option command
 0x008A8F30,EventWindow_ctor,C,events,re,"RET 0x50; dead pop loop at 0x008A9434..0x008A9562"
-0x008A88D0,EventScope_Copy,C,events,re,copies the 0x48-byte scope
+0x008A88D0,EventScope_Copy,C,events,re,copies the 0x48-byte scope; re-checked 2026-10-24 (cp): copies +0x08..+0x3C and sets +0x40 = 1; makes the nested scopes of any_owned_province
 0x006480E0,GuiOwner_AddDialog,C,ui,cp,"ESI = gui owner, (dlg) RET 4; appends to owner+0x60 (tail +0x64, count +0x68) when not present; GuiOwner_UpdateDialogs polls it (was Window_Show)"
 0x0068B610,UI_GetState,I,ui,re,+0x28 byte = UI ready
 0x009C1D40,ObjectRegistry_HashLookup,C,util,re,"key ptr in EAX, table in ECX; hash (type<<16)+id"
@@ -61,8 +61,8 @@ va,name,conf,area,src,note
 0x00882B60,CSetGlobalFlagEffect_Execute,C,effects,cp,vtable 0x00E2AD68 slot 11
 0x00C381C0,Tokens_RegisterKeywords,C,parser,cp,"MOV EDX,<string>; ...; MOV ECX,<id> per keyword"
 0x0090CC40,CBManager_Get,C,cb,cp,lazy singleton stored at DAT_0131ACAC
-0x0090CDC0,CBManager_Load,C,cb,cp,parses common/cb_types.txt
-0x0090DA40,CBManager_FindByName,C,cb,cp,
+0x0090CDC0,CBManager_Load,C,cb,cp,"parses common/cb_types.txt; stdcall (manager, block) RET 8; clears the CB vector and restarts the index at 1 first, deletes the block at the end: cannot be called twice"
+0x0090DA40,CBManager_FindByName,C,cb,cp,MessageTypes_Read calls the same code for message type names (I: folded hash lookup)
 0x0092D400,CBManager_GetByIndex,C,cb,cp,falls back to types[0]
 0x00909D60,CCasusBelliType_ctor,C,cb,cp,
 0x0090A1E0,CCasusBelliType_OnKeyword,C,cb,cp,vtable slot 4
@@ -92,7 +92,7 @@ va,name,conf,area,src,note
 0x00834150,AI_GetBaseRelation,I,ai,re,base bilateral relation term of the opinion score
 0x0083DB20,AI_EvaluateCommandChance,I,ai,re,"switch over command type; 0..100; inlined copies in 0x006153A0, 0x00820DF0, 0x00942540, 0x00947210, 0x00949C20"
 0x006153A0,AI_GetActionResultTooltip,I,ai,re,
-0x00820DF0,AI_ProcessPendingProposals,I,ai,re,rolls and resolves pending proposals
+0x00820DF0,AI_ProcessPendingProposals,I,ai,re,"rolls and resolves pending proposals; type switch at 0x00820EBB (MOV EAX,[ESI]; MOV EDX,[EAX+0x20]); the chance is compared at 0x0082102B (CMP EAX,0x32)"
 0x00942540,CWarGoalDialog_Update,C,ui,cp,"CWarGoalDialog slot 1, per frame; calls 0x00940FB0 (was Command_CanExecute_A)"
 0x00947210,CPeaceDialog_Update,C,ui,cp,"CPeaceDialog slot 1, per frame: AgreeButton from DiplomaticAction_CanPerform, score = PeaceOffer_GetTotalCost, PEACE_WILL_(NOT_)ACCEPT from AI_EvaluatePeaceOffer; returns open (was Command_CanExecute_B)"
 0x00949C20,Command_CanExecute_C,I,ai,re,
@@ -363,7 +363,7 @@ va,name,conf,area,src,note
 0x009AD930,Localisation_GetOrInsert,C,ui,cp,"ESI = const std::string* key, EDI = localisation; returns pair+0x1C (value: owner at +0, vector<variant*> at +4/+8/+0xC); a missing key is inserted by Localisation_InsertPair; an empty key returns localisation+0x24"
 0x009AD900,Localisation_GetRef,I,ui,cp,"(out) for Localize: out = {Localisation_GetOrInsert(), 0, 0, 0}, then FUN_009AB9E0"
 0x009AD870,Localisation_InsertPair,I,ui,cp,"(localisation, key, value): new 0x30-byte pair {std::string key, value at +0x1C} into the +0x48 table"
-0x009AB900,Localisation_AddVariant,C,ui,cp,"(value = pair+0x1C, const std::string* text, 16-byte selector): new 0x34-byte variant = selector + RichText_Parse(text) at +0x10, appended to the value's vector; called by the CSV loader FUN_009AB610 and by Localize for a missing key (the key text itself)"
+0x009AB900,Localisation_AddVariant,C,ui,cp,"(value = pair+0x1C, const std::string* text, 16-byte selector): new 0x34-byte variant = selector + RichText_Parse(text) at +0x10, appended to the value's vector; called by the CSV loader FUN_009AB610 and by Localize for a missing key (the key text itself); an all-zero selector is what Localisation_MakeSelector builds for an empty string"
 0x009AA7C0,RichText_Parse,I,ui,cp,"(out, const std::string* text): localisation text -> vectors of polymorphic segment objects; also called by FUN_009ACD20 and FUN_009ACE40"
 0x009AA260,RichText_Copy,I,ui,cp,copy of a parsed RichText; segments cloned through vt+4
 0x009AB9F0,Localisation_SelectVariant,I,ui,cp,matches the four selector ints of each variant when a value has several
@@ -434,7 +434,7 @@ va,name,conf,area,src,note
 0x005DBD90,Units_UpdateHostileFlags,I,military,cp,EAX = unit list; recomputes unit+0x164 (in hostile territory)
 0x005B53D0,Military_RepositionArmies,I,military,cp,"(world+0xAB4, country): armies not moving or fighting are re-checked (expelled); run per participant after peace"
 0x0068AA10,World_DeleteArmy,I,military,cp,"used by Country_Annex, po_disarmament, secede_province"
-0x005DCBD0,Units_SumStrength,C,military,cp,"(unit list, int* land, int* naval); force balance of AI_EvaluatePeaceOffer"
+0x005DCBD0,Units_SumStrength,C,military,cp,"(unit list, int* land, int* naval); force balance of AI_EvaluatePeaceOffer; stdcall; ADDS to *land / *naval (zero them first)"
 0x00887420,SecedeProvinceEffect_Execute,C,effects,cp,CSecedeProvinceEffect slot 11; TransferProvinces or Country_Release; resets pop +0x118..; re-checks the old owner's armies
 0x00887FF0,InheritEffect_Execute,C,effects,cp,Country_Annex in either direction
 0x008975F0,MoneyEffect_Execute,C,effects,cp,"country scope: treasury += v x 32768 / 1000, no clamp, no ledger; pop scope pays the pops"
@@ -494,12 +494,12 @@ va,name,conf,area,src,note
 0x00911130,CDiplomaticActionCommand_OnKeyword,C,command,cp,type token -> DiplomaticAction_CreateByType -> the action reads its block
 0x009111A0,CDiplomaticActionCommand_Clone,C,command,cp,CCommand slot 13
 0x009110E0,CDiplomaticActionCommand_TypeId,C,command,cp,900
-0x0090F6B0,CDiplomaticActionCommand_Execute,C,diplomacy,cp,"slot 6, every machine: auto-accept (vt 0x6C) or status 3 -> vt 0x80 + RELATION_ON_ACCEPT; new -> status 1 + Country_AddPendingAction + costs; 2 -> vt 0x88 + RELATION_ON_DECLINE"
+0x0090F6B0,CDiplomaticActionCommand_Execute,C,diplomacy,cp,"slot 6, every machine: auto-accept (vt 0x6C) or status 3 -> vt 0x80 + RELATION_ON_ACCEPT; new -> status 1 + Country_AddPendingAction + costs; 2 -> vt 0x88 + RELATION_ON_DECLINE; the answer message key = slot 10 (if non-empty) else slot 9 name + _THEY/_WE/_OTHER_ACCEPT or _DECLINE (from 0x009107C4)"
 0x005164C0,Country_AddPendingAction,C,diplomacy,cp,"ESI = country, EDI = action; appends to +0xCE4 if the country has an AI object or is the local player"
 0x00516470,Relation_SetDiplomatTravel,C,diplomacy,cp,relation+0x64 = now + DIPLOMAT_TRAVEL_TIME days
-0x00916A30,CPeaceAction_CtorDefault,C,peace,cp,factory ctor (--- refs); CPeaceOffer embedded at +0x28; 0x98 bytes
+0x00916A30,CPeaceAction_CtorDefault,C,peace,cp,"factory ctor (--- refs); CPeaceOffer embedded at +0x28; 0x98 bytes; stdcall (this, date, actorTag, actorIdx, recTag, recIdx) RET 0x18; the Script Extender's CTreatyAction is one of these in 0xA0 bytes"
 0x00916900,CPeaceAction_Ctor,C,peace,cp,"(this, actorTag, actorIdx, recTag, recIdx); fills the offer from the war"
-0x00916B50,CPeaceAction_CopyCtor,C,peace,cp,used by Clone
+0x00916B50,CPeaceAction_CopyCtor,C,peace,cp,"used by Clone; stdcall (dst, src) RET 8: copies the offer and runs PeaceOffer_SetupSides; no FillFromWar"
 0x0091A2F0,CPeaceAction_Dtor,C,peace,cp,
 0x00919660,CPeaceAction_WriteFields,C,peace,cp,base fields + terms (the offer)
 0x00919690,CPeaceAction_OnKeyword,C,peace,cp,terms 0x41F -> offer
@@ -513,7 +513,7 @@ va,name,conf,area,src,note
 0x0091B160,CPeaceAction_GetDiploCostIdx,C,peace,cp,slot 20: 0xC4 PEACE_DIPLOMATIC_COST if the war has goals
 0x00916E40,CPeaceAction_IsAutoAccept,C,peace,cp,slot 27: no goals in the war; or warscore 100 and cost <= 100
 0x0091B0F0,CPeaceAction_UsesTravelTime,I,peace,cp,slot 28: war with goals
-0x00916F00,CPeaceAction_Execute,C,peace,cp,"slot 32: returns without a war; truce months, WarGoal_IsValid -> WarGoal_Execute or WarGoal_Fail per goal, return occupations, truces, leave the war, refresh"
+0x00916F00,CPeaceAction_Execute,C,peace,cp,"slot 32: returns without a war; truce months, WarGoal_IsValid -> WarGoal_Execute or WarGoal_Fail per goal, return occupations, truces, leave the war, refresh; participant repairs from 0x009183F8 (ValidateCapital, RepositionArmies, blockades, unit flags, CalculateDistribution, AI_DailyUpdate)"
 0x00918860,CPeaceAction_OnDecline,C,peace,cp,"slot 34: GOOD_PEACE_REFUSAL_WAREXH / _MILITANCY when warscore > 50 and AI-acceptable, or offer.better"
 0x009193A0,CPeaceAction_CanPerform,C,peace,cp,slot 36
 0x00918C90,CPeaceAction_GetCannotReason,I,peace,cp,"slot 37: DIPL_NOT_AT_WAR, MUST_NEGOTIATE_WITH_WAR_LEADER, NO_SEPARATE_PEACE_CRISIS"
@@ -528,7 +528,7 @@ va,name,conf,area,src,note
 0x009293C0,PeaceOffer_GetTotalCost,C,peace,cp,ESI = offer; (sum of selected WarGoal_PeaceCost + 500) / 1000; the peace dialog's score text
 0x00928D40,PeaceOffer_SetGoalSelected,I,peace,cp,"EDI = offer, EDX = goal, (bool) RET 4; flag 2 = locked"
 0x0092AB70,PeaceOffer_SortGoals,I,peace,cp,copies the flags to goal+0x08 and sorts (peace_order?)
-0x00929480,PeaceOffer_GetTermsText,C,peace,cp,"ECX = offer, out: one bullet per selected goal; PEACE_WHITEPEACE when empty"
+0x00929480,PeaceOffer_GetTermsText,C,peace,cp,"ECX = offer, out: one bullet per selected goal; PEACE_WHITEPEACE when empty; thiscall (std::string* out) RET 4; reads no war (CTreatyAction slot 16)"
 0x0083DE70,AI_EvaluatePeaceOffer,C,ai,cp,"EAX = CPeaceAction, cdecl (tag, idx, bool asActor) -> 0 / 100; 0 without a war; accept a demand iff cost <= theirWarscore + willingness/2"
 0x0083C7D0,AI_ManagePeace,I,ai,cp,"AI peace proposals (greedy goal pruning, both sides must evaluate 100) and war-goal additions"
 0x00847B60,AI_GetWarGoalStateValue,I,ai,cp,"AI desirability of (CB, state) for target selection; not used for peace acceptance"
@@ -543,9 +543,9 @@ va,name,conf,area,src,note
 0x0094BE20,CWarGoal_CopyCtor,C,cb,cp,"EAX = dst, ECX = src"
 0x0094E1E0,CWarGoal_WriteFields,C,cb,cp,"casus_belli, country, actor, receiver, state_province_id, region, score, change, date, is_fulfilled"
 0x0094BEB0,CWarGoal_OnKeyword,C,cb,cp,
-0x0094E4D0,WarGoal_GetTargetStates,C,cb,cp,"ECX = out vector<CState*>, stack goal, RET 4; all_allowed_states: the receiver's states that pass allowed_states"
+0x0094E4D0,WarGoal_GetTargetStates,C,cb,cp,"ECX = out vector<CState*>, stack goal, RET 4; all_allowed_states: the receiver's states that pass allowed_states; evaluates allowed_states in a province scope (+0x18 = the state's first province, no country) with THIS = actor and FROM in the evaluated scope"
 0x00951ED0,WarGoal_Fail,C,cb,cp,stdcall (goal); WAR_FAILED_GOAL_* x cb penalty_factor (+0x100) on the holder; po_colony cleanup
-0x00952850,WarGoal_IsValid,C,cb,cp,"thiscall ECX = goal, (war, bool crisis, ?) RET 0xC; with war 0: CB real, receiver owns provinces, allowed_countries, allowed_states; no can_use / is_valid"
+0x00952850,WarGoal_IsValid,C,cb,cp,"thiscall ECX = goal, (war, bool crisis, ?) RET 0xC; with war 0: CB real, receiver owns provinces, allowed_countries, allowed_states; no can_use / is_valid; with war 0 and crisis 0 returns true after its checks (0x00952D1B); keeps FROM (goal +0x10) only in the THIS scope, so nested is_core = FROM never sees it"
 0x00952230,WarGoal_IsPossible,I,cb,cp,"cdecl (CWarGoal*, bool crisis) -> AL; CB list and state list of the war goal dialog"
 0x009503D0,WarGoal_Prestige,C,cb,cp,"stdcall (goal, int* out) RET 8; PRESTIGE_*_BASE x prestige_factor; WarGoal_Execute gives it to the actor and takes it from the receiver"
 0x0090A830,CCasusBelliType_GetDisplayName,C,cb,cp,"(cb, out): Localize(name +0x14)"
@@ -588,7 +588,7 @@ va,name,conf,area,src,note
 0x0043D130,ScrollbarRange_Make,I,ui,cp,"ESI = out {min, max, step, count}, EAX = &min, (&max, &step)"
 0x0061B820,CDiplomacyView_ctor,C,ui,cp,0x398 bytes; country_diplomacy; selected country +0x388/+0x38C
 0x00622270,CDiplomacyView_Setup,C,ui,cp,17 diplomacy_option instances attached as action<i>; called at 0x0061BE1B (ctor) and 0x0061C096 (slot 0)
-0x0062B620,CDiplomacyView_RefreshActions,C,ui,cp,"action<i>: <ACTION>_BUTTON text, enabled from DiplomaticAction_CanPerform"
+0x0062B620,CDiplomacyView_RefreshActions,C,ui,cp,"action<i>: <ACTION>_BUTTON text, enabled from DiplomaticAction_CanPerform; CALL DiplomaticAction_CanPerform at 0x0062B9FC (ESI = action): Script Extender treaty enables CMakeCBAction there when a treaty is possible"
 0x0062F7B0,CDiplomacyView_MakeAction,C,diplomacy,cp,"(view, out, index): g_diplomacyActionTable, DiplomaticAction_CreateByType, actor = player, target = view+0x388; 0x38D -> 0x81E when at war"
 0x00624E60,CDiplomacyView_OnActionClick,C,ui,cp,"glue slot 1 (button) RET 4: dlg = action->vt[0x38](view+0x54, view); dlg->vt[0x28](); GuiOwner_AddDialog"
 0x00916840,CWarGoalBaseAction_CreateDialog,C,diplomacy,cp,slot 14 of CDeclareWarAction / CAddWarGoalAction: new 0xAC CWarGoalDialog
@@ -609,10 +609,10 @@ va,name,conf,area,src,note
 0x00948730,CPeaceGoalEntry_OnToggle,C,ui,cp,slot 4 (thunk 0x0077A0A0 from the checkbox glue)
 0x009486A0,CPeaceGoalEntry_dtor,C,ui,cp,window->vt[0x50]()
 0x0093FA90,CWarGoalDialog_ctor,C,ui,cp,"ECX = action, (this, owner, actorTag, actorIdx, targetTag, targetIdx) RET 0x18; 0xAC; DeclareWarDialog"
-0x00940090,CWarGoalDialog_FillCbList,C,ui,cp,"CBs held, always, or (at war) constructing_cb; can_use (vt[0x20]); WarGoal_IsPossible -> CGoalEntry rows"
+0x00940090,CWarGoalDialog_FillCbList,C,ui,cp,"CBs held, always, or (at war) constructing_cb; can_use (vt[0x20]); WarGoal_IsPossible -> CGoalEntry rows; can_use on the target scope with THIS = the actor (scopes at 0x00940205..0x00940256)"
 0x009447C0,CWarGoalDialog_SelectCb,C,ui,cp,"ESI = dialog, EDI = cb: allowed_countries / allowed_states / substate lists"
 0x009452A0,CWarGoalDialog_FillStateList,C,ui,cp,"target +0xE44 states, first province, allowed_states, WarGoal_IsPossible -> state rows"
-0x009456C0,CWarGoalDialog_FillCountryList,I,ui,cp,wargoal_country_select.country_list
+0x009456C0,CWarGoalDialog_FillCountryList,I,ui,cp,"wargoal_country_select.country_list; allowed_countries per candidate on the target scope, THIS = actor, FROM = candidate in the THIS scope at +0x2C/+0x30 (as WarGoal_IsValid)"
 0x00944EF0,CWarGoalDialog_FillSubstateList,I,ui,cp,
 0x00944D80,CWarGoalDialog_OnCancelSelect,I,ui,cp,cancel_select glue handler
 0x0093ECB0,CGoalEntry_ctor,C,ui,cp,"ECX = &target, (this, owner, cb, dialog) RET 0x10; 0x88; wargoal_item"
@@ -646,7 +646,7 @@ va,name,conf,area,src,note
 0x00615C40,CDiplomacyDialog_dtorBody,C,ui,cp,removes +0x6C from the pending list and deletes it
 0x00615D40,CDiplomacyDialog_PlaySound,C,ui,cp,slot 18: sound diplomaticoffer
 0x00615E80,CDiplomacyDialog_IsValid,C,ui,cp,slot 8: DiplomaticAction_CanPerform(0)
-0x00926D00,CMakeCBAction_CreateDialog,C,diplomacy,cp,"slot 14 (vtable entry 0x00E3440C), thiscall (owner, view) RET 8: new 0x78 CCBCreationDialog"
+0x00926D00,CMakeCBAction_CreateDialog,C,diplomacy,cp,"slot 14 (vtable entry 0x00E3440C), thiscall (owner, view) RET 8: new 0x78 CCBCreationDialog; Script Extender treaty replaces the vtable entry with the Diplomatic Play chooser"
 0x00926E90,CMakeCBAction_GetName,C,diplomacy,cp,"slot 9: MAKE_CB (button key MAKE_CB_BUTTON, vanilla housedivided.csv)"
 0x00919E20,CPeaceAction_GetName,C,peace,cp,slot 9: PEACE
 0x00619CB0,CCBCreationDialog_ctor,C,ui,cp,"ECX = owner, (this, action, view) RET 0xC; 0x78; MakeCBDialog; cb_list: real type, constructing_cb, not held, not always, can_use, allowed_countries / allowed_states"
@@ -660,3 +660,27 @@ va,name,conf,area,src,note
 0x0093F5E0,CStateSelectionItem_GetTooltip,I,ui,cp,"lists the names of state +0x48 provinces (province vt[0x1C]); called from 0x00942AA0"
 0x004CECE0,CState_GetName,C,game,cp,"CState vt[0x20], thiscall (std::string* out) -> out; NULL_STATE when the state has no province"
 0x004AAF90,CProvince_GetName,I,game,cp,"CProvince vt[0x1C], thiscall (std::string* out) -> out; localises province +0x5C"
+0x0099F770,CmdStream_WriteString,C,command,cp,"thiscall ECX = const std::string* value, (stream, 0) RET 8; writes a value after CmdStream_WriteToken (CTreatyAction slot 2 writes se_treaty_money this way)"
+0x00633620,Stub_ReturnFalse,C,util,cp,"returns 0 (u8); 12 callers; CTreatyAction slot 17 (no third parties, I)"
+0x00424B40,DiplomaticAction_NoDefine,C,diplomacy,cp,"returns 0x15B (no define); CTreatyAction slots 20-23: no diplomatic or influence cost, no relation change"
+0x00928300,DiplomaticAction_EmptyReason,C,diplomacy,cp,"slot 37 shape, thiscall (std::string* out, int) RET 8: writes an empty string (no 'cannot send' text)"
+0x0092C720,DiplomaticAction_SetRecipient,C,diplomacy,cp,"thiscall (tag, index) RET 8: action+0x10/+0x14; base slot 18 (CPeaceAction's refills the offer from the war)"
+0x0092C700,DiplomaticAction_SetActor,C,diplomacy,cp,"thiscall (tag, index) RET 8: action+0x08/+0x0C; base slot 19"
+0x005061E0,Message_MakeContext,I,ui,cp,(player country) -> the message-token context that CDiplomaticActionCommand_Execute passes to action slots 32 / 34; 60 callers
+0x006A4FA0,MessageTypes_Read,C,ui,cp,"stdcall (manager, block) RET 8; deletes the block; needs file_version >= 5; one CMessageType (0x3C, vtable 0x00E0BF74) per entry, looked up by name hash and inserted if new; call for interface/messagetypes.txt at 0x0063C4AA"
+0x006A4F40,MessageManager_Get,C,ui,cp,lazy singleton g_messageManager 0x01262EF4 (0x44 bytes); 220 callers
+0x008C6C20,CAnyOwnedProvinceTrigger_Evaluate,C,triggers,cp,"any_owned_province: iterates the state's provinces when the scope has a province at +0x18, else country+0x9D8; each child scope is an EventScope_Copy of the current one"
+0x008A8DC0,EventScope_ResolveThis,I,triggers,cp,follows [scope+0x24] to the THIS country; used by country-reference triggers with the THIS flag (+0x18); 103 callers
+0x008BDE30,CIsCoreTrigger_Evaluate,C,triggers,cp,"is_core: province+0x148/+0x14C {tag, index}; flag +0x18 = THIS (EventScope_ResolveThis), +0x19 = FROM read from +0x2C/+0x30 of the current scope"
+0x008D4620,CNeighbourTrigger_Evaluate,C,triggers,cp,neighbour: country+0xD08 u8 array indexed by the other country
+0x009C43C0,Icon_Show,C,ui,cp,"Icon_vftable slot 0x34 (as Button show): +0x4F = 1 unless +0xF6, then sprite (+0x94) vt[0x34]"
+0x009C43F0,Icon_Hide,C,ui,cp,"Icon_vftable slot 0x38: +0x4F = 0, then sprite vt[0x38]"
+0x009C4410,Icon_SetFrame,C,ui,cp,"Icon_vftable slot 0x48, thiscall (frame): sprite (+0x94) vt[0x60]"
+0x00513A90,Country_SetGovernment,I,country,cp,the receiver takes the actor's government type in WarGoal_Execute (po_install_communist_gov_type 0x975); 14 callers
+0x009D5450,FileBuffer_ctor,?,engine,cp,builds the object FileReader reads a file into; an in-memory parser source could use it (not done)
+0x00990DF0,TokenReader_CtorFromBuffer,I,engine,cp,"EAX = buffer, thiscall: a token reader over memory (vtable 0x00E37C30 then 0x00E37C48), used for network commands"
+0x004678D0,War_Archive,I,war,cp,archives an ended war; reads goal->cb at 0x00467F4E (crashed when the CB list changed after the save was made)
+0x00A28990,Sprite_Draw,I,render,cp,crashes at 0x00A28A6B when the sprite's texture (+0xD0) is null (a .gfx parsed after the game's .gfx loop)
+0x00989720,String_ReplaceAll,I,util,cp,"EDI = string, (string, const char* with); TextureManager_LoadFile replaces '\' with '/' through it"
+0x009A9070,Localisation_MakeSelector,I,ui,cp,builds the 16-byte variant selector for Localisation_AddVariant; all zero for an empty string
+0x00408ED0,std_string_assign_from,C,util,cp,"thiscall ECX = std::string*, (const std::string* src, pos, count) RET 0xC; text boxes: assign textbox+0xDC before TextSprite_SetText"

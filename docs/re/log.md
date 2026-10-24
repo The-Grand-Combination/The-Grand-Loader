@@ -613,3 +613,25 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Answer:** the state rows (`CStateSelectionItem`, ctor `0x0093F2B0`) read only the state's name (vt `0x20`, `CState_GetName` `0x004CECE0`) and its `+0x48/+0x4C` province ids (tooltip `0x0093F5E0`; click `CWarGoalDialog_SelectState` `0x00944B10` stores the first id in the action clone's `+0x50` = war goal `+0x28`). `FillStateList` takes the list head with `MOV EAX,[EAX+0xE44]` at `0x00945429` (ESI = dialog; the CB is action clone `+0x34`). → [systems/casus-belli.md](systems/casus-belli.md) ("`po_demand_province`")
 - **Built:** `se_demand_province_states`: for a marked CB that load returns a list of stand-in states, one per province, each named after its province. `allowed_states` and `WarGoal_IsPossible` now run per province for these CBs. Not tested in game.
 - **Open:** the AI still picks a state's first province for these CBs.
+
+## 2026-10-24 — Treaties built
+
+- **Question:** build the peacetime treaty planned in treaties.md: CBs with `is_treaty_cb = yes` as terms, plus money, proposed from the "Justify war" button, answered like a peace offer, with an AI rule.
+- **Built:** Script Extender `treaty` (9 patch sites `se_treaty_*`). `CTreatyAction` is a `CPeaceAction` object (0xA0 bytes, money at `+0x98`) with a copied vtable; the entry hook on `DiplomaticAction_CreateByType` covers commands, saves and the UI; the AI answers through a hook on the type switch of `AI_ProcessPendingProposals`; a "Diplomatic Play" chooser on DefaultDialog and an editor on the plugin's `se_treaty_dialog`; 11 treaty CBs in the plugin's `common/se_treaty_cbs.txt`; answer message types and texts added at run time. Testing in progress. → [systems/treaties.md](systems/treaties.md)
+- **Answered:**
+  - action slot conventions (all thiscall; 7 / 9 / 16 `(out)` RET 4, 36 `(bool)` RET 4, 32 / 34 `(ctx)` RET 4, 37 `(out, int)` RET 8) and base slots that need no war → [systems/diplomacy.md](systems/diplomacy.md);
+  - answer message keys (slot 10 or 9 + `_THEY_ACCEPT` ...), message types are data (`MessageTypes_Read` `0x006A4FA0` can read a second file), and texts can be injected like `Localize`'s missing-key path → diplomacy.md ("Messages");
+  - `PeaceOffer_GetTermsText` and `CPeaceAction_CopyCtor` read no war (treaties.md risk 5);
+  - `WarGoal_Execute` semantics of `po_add_to_sphere`, `po_release_puppet`, `po_make_puppet`, `po_install_communist_gov_type` with and without a third country (`CWarGoal+0x10`, casus-belli.md question 5) → diplomacy.md;
+  - the user asked whether `common/se_cb_types.generated.txt` is necessary: no in principle (an in-memory token reader exists, `0x00990DF0`, and `FileBuffer_ctor` `0x009D5450`), not done yet.
+- **Corrections:**
+  - **CB scopes:** `can_use` and `allowed_countries` run on the CB's *target* scope with THIS = the actor (`CWarGoalDialog_FillCbList` `0x00940205`..); the attacker / defender names of casus-belli.md's `IsCBUsable` pseudo-code may be swapped (note extended, new "Scopes" section).
+  - **`CEventScope` FROM** is `+0x2C` tag / `+0x30` index (structs.csv said `fromRef` u64 at `+0x30/+0x34`). War-goal province scopes use `+0x18`.
+  - **The FROM quirk:** `WarGoal_IsValid` keeps FROM only in the THIS scope, and nested scopes (`EventScope_Copy`, `any_owned_province`) read FROM from their own copy, so `free_peoples` / `liberate_country` never pass it; `WarGoal_GetTargetStates` puts FROM in the evaluated scope. The treaty validates that way.
+  - `cb+0x0C` is `sprite_index` (the icon frame), `months` is `+0x134` (already fixed in structs.csv; diplomacy.md question 6 closed).
+  - `CBManager_Load` clears the CB vector and restarts the index at 1, and deletes its block: it cannot be called twice, so the plugin merges its CBs into one file.
+  - `g_searchPaths` points at the game folder when `cb_types.txt` is loaded, even with `-mod=`.
+- **Crashes found and fixed:**
+  1. Drawing the editor crashed in `Sprite_Draw` (`0x00A28A6B`): the plugin's `.gfx` was parsed at `Gui_Finalize`, after the game's `.gfx` loop, so the sprite's texture (`+0xD0`) was null. Now parsed at the end of the loop (`0x00635D89`).
+  2. TGC saves crashed at the first peace in `War_Archive` (`0x00467F4E`, reading `goal->cb`): the merge used `g_searchPaths` and so vanilla `cb_types.txt`, so TGC's CB list was replaced. Now the source is found from the `-mod=` folders (`game::game_file`).
+- **Open:** listed in treaties.md (in-memory CB block, terms in the answer messages, untested `install_government` and the release of dead countries, saves with a pending treaty without the plugin).
