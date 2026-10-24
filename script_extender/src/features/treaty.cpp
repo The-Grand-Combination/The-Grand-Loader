@@ -795,6 +795,10 @@ bool can_send(uintptr_t action) {
 
 bool is_human(int country) { return se::features::is_human(country); }
 
+bool possible(int actor, int recipient) {
+    return actor != recipient && exists(actor) && exists(recipient) && !read<uintptr_t>(relation(actor, recipient) + kRelationWar);
+}
+
 int ai_score(uintptr_t action, int country) { return score_for(action, country); }
 
 int term_cost(const Term& term) {

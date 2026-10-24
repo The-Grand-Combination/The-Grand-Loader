@@ -1,0 +1,22 @@
+# Script Extender: sprites of the treaty editor (se_treaty.gui). Paths are from the game folder.
+
+spriteTypes = {
+	# The Justify-war background (diplo_makecb_bg) mirrored: the wide panel on the left.
+	spriteType = {
+		name = "GFX_se_treaty_bg"
+		texturefile = "mod\\script_extender\\gfx\\interface\\se_treaty_bg.tga"
+	}
+
+	# The peace dialog's tab (diplo_peacetab) narrowed from 128 to 104 pixels per frame: two fit the narrow panel.
+	spriteType = {
+		name = "GFX_se_treaty_tab"
+		texturefile = "mod\script_extender\gfx\interface\se_treaty_tab.tga"
+		noOfFrames = 2
+	}
+
+	# The war-goal row (diplo_wargoal_button) widened from 160 to 240 pixels.
+	textSpriteType = {
+		name = "GFX_se_treaty_row"
+		texturefile = "mod\\script_extender\\gfx\\interface\\se_treaty_row.tga"
+	}
+}

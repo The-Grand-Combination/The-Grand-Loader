@@ -20,7 +20,6 @@ SE_TREATY_MODE_DEMAND;Demand;;;;;;;;;;;;;x
 SE_TREATY_MODE_GIVE;Offer;;;;;;;;;;;;;x
 SE_TREATY_PICK_PROVINCE;$CB$: choose the province;;;;;;;;;;;;;x
 SE_TREATY_NO_OPTIONS;No term available this way.;;;;;;;;;;;;;x
-SE_TREATY_FULL;The treaty is full.;;;;;;;;;;;;;x
 SE_TREATY_BACK;Back;;;;;;;;;;;;;x
 SE_TREATY_SCORE;Value: we gain $GAIN$, we give $GIVE$.;;;;;;;;;;;;;x
 SE_TREATY_WILL_ACCEPT;$COUNTRY$ will accept this treaty.;;;;;;;;;;;;;x

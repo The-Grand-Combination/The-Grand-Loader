@@ -18,9 +18,10 @@
 
 // Treaty screens: docs/re/systems/treaties.md ("Screens"), diplomacy.md ("Diplomacy UI").
 //
-// - Loading: the CALL Gui_Finalize at 0x0063690D (after the game parsed interface/*.gfx and *.gui) first
-//   parses the plugin's interface/*.gfx into the sprite database (app+0x11C) and *.gui into the GUI
-//   (app+0x120), with the game's per-file sequence (FileReader, ParserBlock, (target+4)->vt[0xC]).
+// - Loading, with the game's per-file sequence (FileReader, ParserBlock, (target+4)->vt[0xC]): the
+//   plugin's interface/*.gfx at the end of the game's .gfx loop (0x00635D89), so the sprites get the same
+//   later setup as the game's (parsed after it, a sprite has no texture at +0xD0 and drawing it
+//   crashes); its interface/*.gui before the CALL Gui_Finalize at 0x0063690D.
 // - "Diplomatic Play": CMakeCBAction's slot 14 (vtable entry 0x00E3440C) returns a chooser built on the
 //   vanilla "DefaultDialog" box instead: Agree opens the vanilla Justify-war dialog, Decline the editor.
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
@@ -36,6 +37,8 @@ using game::GameString;
 using game::read;
 
 // GUI loading
+constexpr uint32_t kGfxLoopEnd = 0x00635D89;  // after the last .gfx: MOV EDX,[EBP-0x40]; MOV ECX,[EDX+0x128]
+constexpr uint8_t kGfxLoopEndBytes[] = {0x8B, 0x55, 0xC0, 0x8B, 0x8A, 0x28, 0x01, 0x00, 0x00};
 constexpr uint32_t kGuiFinalizeCall = 0x0063690D;  // CALL Gui_Finalize; EDI = the application
 constexpr uint32_t kGuiFinalize = 0x009A4190;
 constexpr uint32_t kAppGfx = 0x11C;
@@ -67,6 +70,8 @@ constexpr uint32_t kGuiTypes = 0x34;              // gui + 0x34: type table, vt[
 // Window finders: thiscall (const std::string*) -> element or 0
 constexpr uint32_t kFindButton = 0x34;
 constexpr uint32_t kFindTextBox = 0x3C;
+constexpr uint32_t kFindIcon = 0x44;
+constexpr uint32_t kCbSpriteIndex = 0x0C;  // the frame of GFX_diplo_wargoal_icons (as CGoalEntry shows it)
 // Buttons
 constexpr uint32_t kButtonShow = 0x34;
 constexpr uint32_t kButtonHide = 0x38;
@@ -80,6 +85,9 @@ constexpr uint32_t kTextBoxSprite = 0xA0;
 constexpr uint32_t kStringAssignFrom = 0x00408ED0;  // thiscall (const std::string*, pos, count)
 constexpr uint32_t kTextSpriteSetText = 0x00A5ECC0;  // ESI = sprite, (const std::string*, 0)
 // "Justify war"
+constexpr uint32_t kRefreshCanPerform = 0x0062B9FC;  // CDiplomacyView_RefreshActions: CALL CanPerform, ESI = action
+constexpr uint32_t kCanPerform = 0x00911760;         // DiplomaticAction_CanPerform: ESI = action, (bool) -> AL
+constexpr uint32_t kMakeCbVtable = 0x00E343D4;
 constexpr uint32_t kMakeCbDialogSlot = 0x00E3440C;   // CMakeCBAction_vftable slot 14
 constexpr uint32_t kMakeCbDialog = 0x00926D00;       // thiscall (owner, view) -> dialog
 constexpr uint32_t kActionClone = 0x30;              // action vt: Clone
@@ -95,13 +103,18 @@ constexpr int64_t kMoneyOne = 32768;
 
 constexpr const char* kEditorType = "se_treaty_dialog";
 constexpr const char* kChooserType = "DefaultDialog";
-constexpr int kRows = 6;
+constexpr int kTermRows = 8;  // se_term_<i> in se_treaty.gui
+constexpr int kPickRows = 6;  // se_pick_<i>
+constexpr int kMaxRows = kTermRows > kPickRows ? kTermRows : kPickRows;
 constexpr int kMoneyAmounts[] = {100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000};
 constexpr uintptr_t kMoneyOption = 1;       // in the CB options: the money item
 constexpr uint32_t kButtonSetFrame = 0x48;  // Button_SetFrame: the tabs show frame 2 when active
 
 Config g_config;
 uintptr_t g_gui_finalize = 0;
+uintptr_t g_gfx_back = 0;  // kGfxLoopEnd + 9
+uintptr_t g_can_perform = 0;
+uintptr_t g_make_cb_vtable = 0;
 uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
 uintptr_t g_chooser_vtable_storage[kDialogSlots + 1];
 
@@ -188,15 +201,31 @@ void parse_file(uintptr_t target, const std::string& path) {
     logf("treaty: loaded %s", path.c_str());
 }
 
-void __stdcall load_files(uintptr_t app) {
+void __stdcall load_gfx(uintptr_t app) {
     std::string dir = plugin_physfs_dir() + "/interface/";
-    uintptr_t gfx = read<uintptr_t>(app + kAppGfx);
-    uintptr_t gui = read<uintptr_t>(app + kAppGui);
-    if (gfx) {
+    if (uintptr_t gfx = read<uintptr_t>(app + kAppGfx)) {
         for (const std::string& name : files(L"*.gfx")) {
             parse_file(gfx, dir + name);
         }
     }
+}
+
+// Jumped to from kGfxLoopEnd (EBP = EU3App_LoadResources' frame, [EBP-0x40] = the application).
+__declspec(naked) void gfx_thunk() {
+    __asm {
+        SE_SAVE_ALL
+        push dword ptr [ebp - 0x40]
+        call load_gfx
+        SE_RESTORE_ALL
+        mov edx, [ebp - 0x40]
+        mov ecx, [edx + 0x128]
+        jmp g_gfx_back
+    }
+}
+
+void __stdcall load_files(uintptr_t app) {
+    std::string dir = plugin_physfs_dir() + "/interface/";
+    uintptr_t gui = read<uintptr_t>(app + kAppGui);
     if (gui) {
         for (const std::string& name : files(L"*.gui")) {
             parse_file(gui, dir + name);
@@ -258,6 +287,14 @@ void button_call(uintptr_t button, uint32_t slot) {
 }
 
 void show(uintptr_t button, bool visible) { button_call(button, visible ? kButtonShow : kButtonHide); }
+
+// A CB's icon on `icon` (an iconType of GFX_diplo_wargoal_icons), or hidden for cb 0.
+void cb_icon(uintptr_t icon, uintptr_t cb) {
+    show(icon, cb != 0);
+    if (icon && cb) {
+        vt<void(__fastcall*)(uintptr_t, void*, int)>(icon, kButtonSetFrame)(icon, nullptr, read<int>(cb + kCbSpriteIndex));
+    }
+}
 void enable(uintptr_t button, bool on) { button_call(button, on ? kButtonEnable : kButtonDisable); }
 
 void shield(uintptr_t window, uint32_t setter, int country) {
@@ -352,7 +389,7 @@ const char* const kUiKeys[] = {
     "SE_TREATY_BACK",         "SE_TREATY_MONEY",       "SE_TREATY_PICK_MONEY",     "SE_TREATY_SCORE",
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
     "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
-    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_FULL",
+    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY",
 };
 
 std::string replace(std::string s, const std::string& token, const std::string& value) {
@@ -376,8 +413,11 @@ struct Editor {
     std::map<std::string, std::string> texts;
     // children
     uintptr_t window = 0;
-    uintptr_t terms[kRows] = {};
-    uintptr_t picks[kRows] = {};
+    uintptr_t terms[kMaxRows] = {};
+    uintptr_t picks[kMaxRows] = {};
+    uintptr_t term_icons[kMaxRows] = {};
+    uintptr_t pick_icons[kMaxRows] = {};
+    uintptr_t term_prev = 0, term_next = 0, term_page_text = 0, mode_demand_text = 0, mode_give_text = 0;
     uintptr_t mode_demand = 0, mode_give = 0, prev = 0, next = 0, back = 0, agree = 0, decline = 0;
     uintptr_t title = 0, terms_label = 0, pick_label = 0, score = 0, acceptance = 0;
     std::vector<uintptr_t> observed;
@@ -385,6 +425,7 @@ struct Editor {
     Mode mode = kDemand;
     uintptr_t picked_cb = 0;  // 0: choosing a CB; kMoneyOption: choosing an amount
     int page = 0;
+    int term_page = 0;
     std::vector<uintptr_t> cb_options;
     std::vector<uint32_t> province_options;  // or amounts in pounds
     bool dirty = true;
@@ -465,8 +506,8 @@ void refresh(Editor& e) {
     e.dirty = false;
     set_text(e.title, e.t("SE_TREATY_TITLE"));
     set_text(e.terms_label, e.t("SE_TREATY_TERMS"));
-    button_text(e.mode_demand, e.t("SE_TREATY_MODE_DEMAND"));
-    button_text(e.mode_give, e.t("SE_TREATY_MODE_GIVE"));
+    set_text(e.mode_demand_text, e.t("SE_TREATY_MODE_DEMAND"));
+    set_text(e.mode_give_text, e.t("SE_TREATY_MODE_GIVE"));
     using FrameFn = void(__fastcall*)(uintptr_t, void*, int);
     if (e.mode_demand && e.mode_give) {
         vt<FrameFn>(e.mode_demand, kButtonSetFrame)(e.mode_demand, nullptr, e.mode == kDemand ? 2 : 1);
@@ -485,15 +526,23 @@ void refresh(Editor& e) {
     int64_t m = treaty::money(e.action);
     size_t money_rows = m != 0 ? 1 : 0;
     size_t rows = money_rows + terms.size();
-    for (int i = 0; i < kRows; ++i) {
+    int term_pages = std::max(1, static_cast<int>((rows + kTermRows - 1) / kTermRows));
+    e.term_page = std::max(0, std::min(e.term_page, term_pages - 1));
+    show(e.term_prev, e.term_page > 0);
+    show(e.term_next, e.term_page + 1 < term_pages);
+    set_text(e.term_page_text, term_pages > 1 ? std::to_string(e.term_page + 1) + "/" + std::to_string(term_pages) : "");
+    for (int row = 0; row < kTermRows; ++row) {
+        int i = e.term_page * kTermRows + row;
         if (i >= static_cast<int>(rows)) {
-            show(e.terms[i], false);
+            show(e.terms[row], false);
+            cb_icon(e.term_icons[row], 0);
             continue;
         }
         if (static_cast<size_t>(i) < money_rows) {
             std::string label = e.t("SE_TREATY_MONEY") + ": " + pounds_of(m);
-            show(e.terms[i], true);
-            button_text(e.terms[i], replace(e.t(m < 0 ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label));
+            show(e.terms[row], true);
+            cb_icon(e.term_icons[row], 0);
+            button_text(e.terms[row], replace(e.t(m < 0 ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label));
             continue;
         }
         const treaty::Term& term = terms[i - money_rows];
@@ -504,28 +553,28 @@ void refresh(Editor& e) {
         char cost[16];
         std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_cost(term));
         label = replace(e.t(term.actor == e.me ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label + cost);
-        show(e.terms[i], true);
-        button_text(e.terms[i], label);
+        show(e.terms[row], true);
+        cb_icon(e.term_icons[row], term.cb);
+        button_text(e.terms[row], label);
     }
 
     // Picker
     size_t count = option_count(e);
-    int pages = static_cast<int>((count + kRows - 1) / kRows);
+    int pages = static_cast<int>((count + kPickRows - 1) / kPickRows);
     e.page = std::max(0, std::min(e.page, pages - 1));
     std::string pick_label = e.picked_cb == kMoneyOption ? e.t("SE_TREATY_PICK_MONEY")
                              : e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
                              : e.t(e.mode == kDemand ? "SE_TREATY_PICK_CB_DEMAND" : "SE_TREATY_PICK_CB_OFFER");
-    bool full = rows >= static_cast<size_t>(kRows) && !(e.picked_cb == kMoneyOption && m != 0);
     if (count == 0) {
         pick_label = e.t("SE_TREATY_NO_OPTIONS");
-    } else if (full) {
-        pick_label = e.t("SE_TREATY_FULL");
     }
     set_text(e.pick_label, pick_label);
-    for (int i = 0; i < kRows; ++i) {
-        size_t index = static_cast<size_t>(e.page * kRows + i);
-        bool visible = index < count && !full;
+    for (int i = 0; i < kPickRows; ++i) {
+        size_t index = static_cast<size_t>(e.page * kPickRows + i);
+        bool visible = index < count;
         show(e.picks[i], visible);
+        uintptr_t row_cb = visible && !e.picked_cb && e.cb_options[index] != kMoneyOption ? e.cb_options[index] : 0;
+        cb_icon(e.pick_icons[i], row_cb);
         if (visible) {
             button_text(e.picks[i], e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
                                     : e.picked_cb             ? province_name(e, e.province_options[index])
@@ -560,19 +609,20 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     if (!e) {
         return;
     }
-    for (int i = 0; i < kRows; ++i) {
+    for (int i = 0; i < kMaxRows; ++i) {
         if (button == e->terms[i]) {
             size_t money_rows = treaty::money(e->action) != 0 ? 1 : 0;
-            if (static_cast<size_t>(i) < money_rows) {
+            size_t row = static_cast<size_t>(e->term_page * kTermRows + i);
+            if (row < money_rows) {
                 treaty::set_money(e->action, 0);
             } else {
-                treaty::remove_term(e->action, static_cast<size_t>(i) - money_rows);
+                treaty::remove_term(e->action, row - money_rows);
             }
             reset_picker(*e);
             return;
         }
         if (button == e->picks[i]) {
-            size_t index = static_cast<size_t>(e->page * kRows + i);
+            size_t index = static_cast<size_t>(e->page * kPickRows + i);
             if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
                 int64_t amount = static_cast<int64_t>(e->province_options[index]) * kMoneyOne;
                 treaty::set_money(e->action, treaty::money(e->action) + (e->mode == kGive ? amount : -amount));
@@ -583,9 +633,11 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
                     e->picked_cb = cb;
                 } else {
                     treaty::add_term(e->action, {cb, e->gains(), e->gives(), 0});
+                    e->term_page = 1 << 20;  // show the last page, where the new term is
                 }
             } else if (e->picked_cb && index < e->province_options.size()) {
                 treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), e->province_options[index]});
+                e->term_page = 1 << 20;  // show the last page, where the new term is
                 e->picked_cb = 0;
             }
             reset_picker(*e);
@@ -599,6 +651,9 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     } else if (button == e->back) {
         e->picked_cb = 0;
         reset_picker(*e);
+    } else if (button == e->term_prev || button == e->term_next) {
+        e->term_page += button == e->term_next ? 1 : -1;
+        e->dirty = true;
     } else if (button == e->prev || button == e->next) {
         e->page += button == e->next ? 1 : -1;
         e->dirty = true;
@@ -684,10 +739,21 @@ void open_editor(uintptr_t owner, int me, int them) {
         }
         return b;
     };
-    for (int i = 0; i < kRows; ++i) {
-        e->terms[i] = button("se_term_" + std::to_string(i));
-        e->picks[i] = button("se_pick_" + std::to_string(i));
+    for (int i = 0; i < kMaxRows; ++i) {
+        if (i < kTermRows) {
+            e->terms[i] = button("se_term_" + std::to_string(i));
+            e->term_icons[i] = find(w, kFindIcon, "se_term_icon_" + std::to_string(i));
+        }
+        if (i < kPickRows) {
+            e->picks[i] = button("se_pick_" + std::to_string(i));
+            e->pick_icons[i] = find(w, kFindIcon, "se_pick_icon_" + std::to_string(i));
+        }
     }
+    e->term_prev = button("se_term_prev");
+    e->term_next = button("se_term_next");
+    e->term_page_text = find(w, kFindTextBox, "se_term_page");
+    e->mode_demand_text = find(w, kFindTextBox, "se_mode_demand_text");
+    e->mode_give_text = find(w, kFindTextBox, "se_mode_give_text");
     e->mode_demand = button("se_mode_demand");
     e->mode_give = button("se_mode_give");
     e->prev = button("se_pick_prev");
@@ -706,6 +772,49 @@ void open_editor(uintptr_t owner, int me, int them) {
     refresh(*e);
     add_dialog(owner, dialog);
     logf("treaty: editor %d -> %d (%u treaty CBs)", me, them, static_cast<unsigned>(treaty::treaty_cbs().size()));
+}
+
+// The vanilla gate of an action (DiplomaticAction_CanPerform), e.g. whether a CB may be justified.
+bool vanilla_can_perform(uintptr_t action) {
+    uintptr_t f = g_can_perform;
+    bool result;
+    __asm {
+        push esi
+        mov esi, action
+        push 1
+        call f
+        mov result, al
+        pop esi
+    }
+    return result;
+}
+
+// The button's state: "Diplomatic Play" is usable when a treaty is, whatever the CB rules say (those
+// still decide "Justify Casus Belli" in the chooser and the command that fabricates).
+bool __stdcall button_usable(uintptr_t action) {
+    if (treaty::enabled() &&
+        treaty::possible(read<int>(action + kActionActorIndex), read<int>(action + kActionRecipientIndex))) {
+        return true;
+    }
+    return vanilla_can_perform(action);
+}
+
+// Replaces the CALL CanPerform of CDiplomacyView_RefreshActions; ESI = the button's action, (bool).
+__declspec(naked) void refresh_thunk() {
+    __asm {
+        mov eax, [esi]
+        cmp eax, g_make_cb_vtable
+        jne vanilla
+        SE_SAVE_ALL
+        push esi
+        call button_usable
+        movzx eax, al
+        mov [esp + SE_SAVED_EAX], eax
+        SE_RESTORE_ALL
+        ret 4
+    vanilla:
+        jmp g_can_perform
+    }
 }
 
 // --- "Diplomatic Play" chooser ------------------------------------------------------------------------
@@ -763,7 +872,9 @@ uintptr_t __fastcall make_cb_dialog(uintptr_t action, void*, uintptr_t owner, ui
     uintptr_t w = read<uintptr_t>(dialog + kDialogWindow);
     set_text(find(w, kFindTextBox, "Title"), t("SE_TREATY_CHOOSER_TITLE"));
     set_text(find(w, kFindTextBox, "Description"), t("SE_TREATY_CHOOSER_DESC"));
-    button_text(find(w, kFindButton, "AgreeButton"), t("SE_TREATY_CHOOSER_JUSTIFY"));
+    uintptr_t justify = find(w, kFindButton, "AgreeButton");
+    button_text(justify, t("SE_TREATY_CHOOSER_JUSTIFY"));
+    enable(justify, vanilla_can_perform(action));  // the CB rules (truce, relations, ...) still apply here
     button_text(find(w, kFindButton, "DeclineButton"), t("SE_TREATY_CHOOSER_TREATY"));
     shield(w, kSetLeftShield, read<int>(action + kActionActorIndex));
     shield(w, kSetRightShield, read<int>(action + kActionRecipientIndex));
@@ -794,6 +905,18 @@ bool install(const Config& config) {
     build_vtable(g_chooser_vtable_storage, reinterpret_cast<uintptr_t>(&chooser_dtor), 0,
                  reinterpret_cast<uintptr_t>(&chooser_justify), reinterpret_cast<uintptr_t>(&chooser_treaty));
     g_gui_finalize = hooks::exe_va(kGuiFinalize);
+    g_gfx_back = hooks::exe_va(kGfxLoopEnd) + sizeof(kGfxLoopEndBytes);
+    if (!hooks::jump_hook(hooks::exe_va(kGfxLoopEnd), kGfxLoopEndBytes, sizeof(kGfxLoopEndBytes),
+                          reinterpret_cast<uintptr_t>(&gfx_thunk))) {
+        logf("treaty: the end of the .gfx loop at %08X is not the expected one", kGfxLoopEnd);
+        return false;
+    }
+    g_can_perform = hooks::exe_va(kCanPerform);
+    g_make_cb_vtable = hooks::exe_va(kMakeCbVtable);
+    if (!hooks::redirect_call(hooks::exe_va(kRefreshCanPerform), g_can_perform, reinterpret_cast<uintptr_t>(&refresh_thunk))) {
+        logf("treaty: the diplomacy buttons' CanPerform call at %08X is not the expected one", kRefreshCanPerform);
+        return false;
+    }
     if (!hooks::redirect_call(hooks::exe_va(kGuiFinalizeCall), g_gui_finalize, reinterpret_cast<uintptr_t>(&finalize_thunk))) {
         logf("treaty: the Gui_Finalize call at %08X is not the expected one", kGuiFinalizeCall);
         return false;

@@ -46,6 +46,8 @@ std::string problem(uintptr_t action);
 // which ends with problem() being empty.
 bool can_send(uintptr_t action);
 bool is_human(int country);
+// A treaty between the two could be proposed at all (both exist, not the same, not at war).
+bool possible(int actor, int recipient);
 // The AI's answer if `country` (actor or recipient) were asked: its score; >= 0 accepts.
 int ai_score(uintptr_t action, int country);
 // War-score points of a term (WarGoal_PeaceCost / 1000).

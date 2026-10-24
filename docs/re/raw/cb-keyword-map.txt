@@ -5,7 +5,7 @@
 # 8 CanUse 0x0090A7F0 = can_use.Evaluate). CNullCasusBelliType::vftable = 0x00E3374C (slot 7 = 0x0058CFD0 returns 0).
 
 id      keyword                          offset   type/default
-0x3BF   months                           +0x0C    int
+0x3BF   months                           +0x134   int, default 12
 -       (name)                           +0x14    std::string (size +0x24, cap +0x28)
 0x8D0   is_valid                         +0x30    CAndTrigger (embedded, 0x1C bytes)
 0x92A   can_use                          +0x4C    CAndTrigger
@@ -32,7 +32,7 @@ id      keyword                          offset   type/default
 0x899   mutual                           +0x131   bool, default 0
 0x798   always                           +0x132   bool, default 0      <- gate: IsCBUsable skips the type unless always or already held
 0x9E4   crisis                           +0x133   bool, default 1
-0x8EC   sprite_index                     +0x134   int, default 12
+0x8EC   sprite_index                     +0x0C    int
 0x89E   war_name                         +0x138   std::string
 0x89F   country_desc                     +0x154   std::string
 0x8A0   prov_desc                        +0x170   std::string

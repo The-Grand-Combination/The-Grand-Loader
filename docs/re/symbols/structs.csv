@@ -88,7 +88,7 @@ CTrigger,0x19,valueIsFrom,u8,C,cp,
 CTrigger,0x1C,value,?,C,cp,"CTagTrigger: tag chars; CIsAiTrigger: bool"
 CTrigger,0x20,valueIndex,u32,C,cp,CTagTrigger: country index of the literal tag
 CCasusBelliType,0x08,index,u32,C,cp,index in the manager vector
-CCasusBelliType,0x0C,months,u32,C,cp,keyword 0x3BF; CGoalEntry also uses it as the wargoal_icon frame (?)
+CCasusBelliType,0x0C,sprite_index,u32,C,cp,"keyword 0x8EC (OnKeyword jump-table case 0x0090A2EA); frame of GFX_diplo_wargoal_icons (CGoalEntry 0x0093EFEC); corrected 2026-10-24, was months"
 CCasusBelliType,0x14,name,std::string,C,cp,"SSO buffer +0x14, size +0x24, capacity +0x28"
 CCasusBelliType,0x30,is_valid,TriggerBlock,C,cp,keyword 0x8D0
 CCasusBelliType,0x4C,can_use,TriggerBlock,C,cp,keyword 0x92A; evaluated by the daily scan
@@ -103,7 +103,7 @@ CCasusBelliType,0x130,is_triggered_only,u8,C,cp,
 CCasusBelliType,0x131,mutual,u8,C,cp,
 CCasusBelliType,0x132,always,u8,C,cp,gate for the daily scan
 CCasusBelliType,0x133,crisis,u8,C,cp,default 1
-CCasusBelliType,0x134,sprite_index,u32,C,cp,default 12
+CCasusBelliType,0x134,months,u32,C,cp,"keyword 0x3BF (OnKeyword 0x0090A24C), default 12; corrected 2026-10-24, was sprite_index"
 CCasusBelliType,0x18C,on_add,CEffect,C,cp,
 CCasusBelliType,0x1AC,on_po_accepted,CEffect,C,cp,
 CCasusBelliType,0x1CC,is_civil_war,u8,C,cp,

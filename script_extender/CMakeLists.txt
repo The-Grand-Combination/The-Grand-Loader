@@ -23,7 +23,8 @@ set_target_properties(script_extender PROPERTIES PREFIX "" OUTPUT_NAME "script_e
 
 install(TARGETS script_extender RUNTIME DESTINATION mod/script_extender COMPONENT script_extender)
 install(FILES mod/script_extender.ini DESTINATION mod COMPONENT script_extender)
-install(DIRECTORY mod/script_extender/localisation mod/script_extender/interface DESTINATION mod/script_extender
+install(DIRECTORY mod/script_extender/localisation mod/script_extender/interface mod/script_extender/gfx
+        DESTINATION mod/script_extender
         COMPONENT script_extender)
 
 set(SCRIPT_EXTENDER_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
