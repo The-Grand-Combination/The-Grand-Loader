@@ -530,3 +530,22 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Found (decompilation, call bytes checked in the exe):** exclusive fullscreen loses the device on every alt-tab (1 s sleep, full Reset, retries on failure); the game already has a borderless mode with a windowed device, selected by `fullScreen=no, borderless=yes`; the mouse is Win32 `GetCursorPos` with no capture or clipping; edge scroll never checks that the cursor is inside the window. Details in `systems/ui-console.md`, "Window, focus and mouse".
 - **Built:** `borderless_fullscreen` forces the game's borderless mode at the primary monitor's size before the window is created; `fix_edge_scroll` clears the edge-scroll flag of the active-window camera call when the game is not in the foreground or the cursor is outside its client area.
 - **Open:** the WM_ACTIVATE wParam check (focus flag after a restore), stuck mouse buttons without capture, the activation click reaching the map, the bordered-window cursor offset; not patched yet.
+
+## 2026-10-23 — `parallel_events` shadow run clean; on by default again
+
+- **Run (user):** `parallel_events = 2`, every other patch on, 1836-1840 (five game years), single player: 10 677 946 trigger results compared, **0 mismatches**, 0 passed through; 5 000-6 200 triggers listed per day, 12-386 events fired per 30 days (same-day chains included). The 2026-10-17 report stays unreproduced.
+- **Default** `parallel_events = 1` in the shipped ini.
+
+## 2026-10-23 — Windowed edge scroll: mouse position and `edge_scroll_lock`
+
+- **Report (user):** in windowed mode with `fix_edge_scroll`, the map scrolls only with the cursor placed exactly on the edge, and never upwards.
+- **Found:** mouse vt[0x4C] (`0x00A7A970`, slot `0x00E4397C`) is GetCursorPos minus GetWindowRect plus a hard-coded frame (4 px left, SM_CYDLGFRAME + SM_CYCAPTION top), thinner than the Windows 10/11 frame: the top and left 6 px bands of `Camera_Update` lie on the title bar and border, which `fix_edge_scroll` excludes.
+- **Built:** `fix_edge_scroll` replaces the slot with a client-area position (ScreenToClient). `edge_scroll_lock` (mouse counts, 0 = off): the cursor is clipped to the client area while the camera update runs with focus; raw mouse input (WM_INPUT, window procedure subclassed) accumulates motion pushed against an edge, and past the value the cursor is released just outside it. Untested.
+
+## 2026-10-23 — Map modes and province buildings (Script Extender research)
+
+- **Question:** for the new Script Extender for TGC: how does the infrastructure map mode work, and how can it show any province building? How are province buildings expanded, and can a bulk upgrade post the same commands as the expand button?
+- **Answer:** → [systems/map-modes.md](systems/map-modes.md), [systems/buildings.md](systems/buildings.md). Infrastructure is `MAPMODE` 4 (`mapmode_6`); its handler is loaded by a relocated `MOV EAX,imm32` at `0x0064B151` and its colour function (`0x008014D0`) has one caller; `CInGameIdler_RefreshMapMode` redraws. `Province_CanExpandBuilding` gates the button, Ctrl-click, the AI and the command's Validate; a bulk upgrade is `ConstructBuildingCommand_ctor` + `NetSession_QueueCommand` per province, as vanilla's Ctrl-click (one state) and the AI do.
+- **Found on the way:** vanilla never checks that the builder owns the province (only owner == controller); `type =` other than factory / rgo / infrastructure / naval_base becomes 4 (fort), so in TGC `g_buildingDb+0x38` (`build_fort_in_capital`, the AI's fort) is the **bank**, and the AI never builds universities or banks. Script keyword ids: `raw/script-tokens.tsv`.
+- **Method:** two research passes over the decompilation and a private copy of the Ghidra project; the hook-site and entry bytes were re-read from the exe.
+- **Open:** listed at the end of both pages; the TGC bank-as-fort effect and the one-modifier-per-building limit need an in-game check.

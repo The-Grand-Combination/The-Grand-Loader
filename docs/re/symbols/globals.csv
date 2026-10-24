@@ -3,7 +3,7 @@ va,name,kind,conf,src,note
 0x012587E4,g_countryManager,ptr,C,cp,"+0 count of all defined tags, +4 CCountry* array"
 0x0131ACAC,g_cbManager,ptr,C,cp,"+0xC/+0x10 vector<CCasusBelliType*>; getter 0x0090CC40"
 0x01319730,g_decisionManager,ptr,C,cp,"lists +0xC/+0x10 and +0x28/+0x2C; getter 0x00875040"
-0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag"
+0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag; +0x64 IDirect3DDevice9*; +0x158 texture manager (10000 entries of 0x2C from +0x15C: IDirect3DTexture9*, path, width, height, refcount)"
 0x01258A48,g_issueManager,ptr,I,re,"issue registry: +0x4/+0x8 string-hash buckets (lookup FUN_00975ED0, hash h = (h + c) * 0x3D), vectors +0x18.. +0x6C per issue category (element+0x30 read per country in FUN_00503020). CIssueGroupTrigger parser FUN_008C4A70 loads it at 0x008C4AD4; miss -> CNullIssue singleton DAT_01258A40 (FUN_00974850). Named g_unitManager until 2026-10-13"
 0x012586DC,g_economyDefines,ptr,?,cp,+0x50 market totals; +0x08 date-like value
 0x0125870C,g_provinceSource,ptr,I,re,vt[0x24] returns the province count
@@ -97,3 +97,21 @@ va,name,kind,conf,src,note
 0x0125B5E0,g_settings,ptr,C,cp,"CSettings singleton (Settings_Get); +0x108 lastplayer, +0x124 lasthost, +0x140 serveradress, +0xC0 file name"
 0x00DFB5B4,CSettings_vftable,vtable,C,cp,"7 slots: +0x08 Write(stream), +0x10 ParseToken"
 0x00F0D840,g_chatChannelKey,u32[2],C,cp,"(type, id) of the multiplayer chat channel; ObjectRegistry_FindByTypeAndId gives the channel the chat command delivers to"
+0x012588DC,g_mapView,ptr,C,cp,"map view: +0x20BC CProvinceManager, +0x20D8/+0x20DC colour records (+0 primary, +4 secondary ARGB, +0xC CProvince*), +0x3648 renderer, +0x3A28 dirty"
+0x0125CE80,g_buildingDb,ptr,C,cp,"0x3C bytes: +0x0C all buildings, +0x1C province buildings, +0x2C null, +0x30 naval_base, +0x34 last type 2, +0x38 last type 4 (TGC: bank); systems/buildings.md"
+0x01258730,g_nullBuilding,object,C,cp,CNullBuilding singleton (vtable 0x00DFDAF0)
+0x012586D6,g_instantConstruction,u8,C,cp,"console toggle; local player only, desyncs multiplayer"
+0x01258A9C,g_constructionIdCounter,u32,C,cp,"incremented by ConstructBuildingCommand_ctor; id = (word DAT_01258A90 + 0x1268, counter)"
+0x00E00C34,CConstructBuildingCommand_vftable,vtable,C,cp,"slots 2 Serialize, 4 Deserialize, 6 Execute, 7 TypeId, 12 keep-for-joiners (0), 13 Clone, 14 Validate"
+0x00DFDAC0,CBuilding_vftable,vtable,C,cp,
+0x00DFDB20,CProvinceBuilding_vftable,vtable,C,cp,second at 0x00DFDB4C
+0x00DFC09C,CBuildingConstruction_vftable,vtable,C,cp,"second at 0x00DFC0DC; slot 9 Complete, 14 DailyUpdate"
+0x00E0A5EC,CStack_MAPMODE_vftable,vtable,C,cp,map-mode history at idler+0xBC8
+0x00DFBA7C,CColor_vftable,vtable,C,cp,floats r/g/b/a at +8/+0xC/+0x10/+0x14
+0x00679B1C,kSetMapModeJumpTable,table,C,cp,"22 entries, CInGameIdler_SetMapMode"
+0x004B1600,kProvinceTooltipModeJumpTable,table,C,cp,CProvince_GetTooltip by map mode; infrastructure entry at 0x004B1610
+0x00E09A10,str_mapmode_1,string,C,cp,mapmode_1 .. mapmode_22 up to 0x00E09B0C
+0x00E09DB0,str_mapmode_infrastructure,string,C,cp,
+0x00DFCBDC,str_INFRA_LEVEL_HERE,string,C,cp,
+0x00E13314,str_PROVINCE_VIEW_BUILD_ALL_TOOLTIP,string,C,cp,"loaded at 0x0074793B, 0x0074EB63, 0x00751FA8"
+0x0131C99C,g_localisation,ptr,C,cp,+0x48 key -> text hash table read by Localize

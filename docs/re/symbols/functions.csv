@@ -277,3 +277,85 @@ va,name,conf,area,src,note
 0x00676E80,Chat_OnMessage,I,ui,cp,"chat channel listener: builds a chat_entry / chat_entry_other line (sender's flag) in the chat list"
 0x009F3290,ChatMessage_ctor,I,ui,cp,"0x74-byte message object (vtable 0x00E3D08C), text at +0x58"
 0x009F4240,ChatMessageCommand_ctor,C,network,cp,"CCommand subclass (vtable 0x00E3D100) carrying a chat message; execute 0x009F4530 finds the channel by key and calls FUN_009F40A0 (append, notify listeners)"
+0x0064A6D0,CInGameIdler_ctor,C,ui,cp,"builds the button glues from idler+0xDB8 (0x50 bytes each); mapmode_6 glue at +0xF48, handler loaded at 0x0064B151"
+0x0066C180,MenuBar_SetMapModeButtons,C,map,cp,"stdcall (idler, N), RET 8: frame 2 on mapmode_N, frame 1 on the others"
+0x00679A70,CInGameIdler_SetMapMode,C,map,cp,"EAX = mode, ECX = idler; jump table 0x00679B1C, > 0x15 -> terrain; mode stored at idler+0xDB4. Do not detour: JA rel32 at +4"
+0x00678A80,CInGameIdler_RefreshMapMode,C,map,cp,"idler vt[0xDC]: MOV EAX,[ECX+0xDB4]; JMP CInGameIdler_SetMapMode. Redraws the current mode at once; building commands call it in modes 4 and 21"
+0x00647570,CInGameIdler_GetMapMode,C,map,cp,idler vt[0x13C]
+0x00651CE0,CInGameIdler_GetMapView,C,map,cp,idler vt[0x38]: [[idler+0x17E8]+0x124] (= g_mapView)
+0x006789E0,CInGameIdler_PushMapMode,C,map,cp,idler vt[0x174]; CStack<MAPMODE> at idler+0xBC8; no direct callers
+0x00678A40,CInGameIdler_PopMapMode,C,map,cp,idler vt[0x178]: pops and sets the mode; no direct callers
+0x00654530,CInGameIdler_ProcessMapDirty,C,map,cp,"per frame, ESI = idler: idler+0x24 -> int[22] dirty flag per mode; idler+0x74 flags 0x100/low nibble = recolour, 0x200 = upload only"
+0x00648040,CInGameIdler_MarkMapDirty,C,map,cp,"EAX = idler, EDX = flags, stack = province id"
+0x0066C9F0,MapModeButton_Infrastructure,C,map,cp,"mapmode_6 handler, thiscall (idler); sets mode 4, CSettings +0xF0 = 7, calls MapColor_Infrastructure at 0x0066CABE; return 0x00679AA2 when called by CInGameIdler_SetMapMode"
+0x008014D0,MapColor_Infrastructure,C,map,cp,"stdcall (CProvinceManager*), RET 4; railroad level gradient, red at max, khaki when not buildable, yellow stripe while building"
+0x009B6DF0,CColor_ToARGB,C,render,cp,ECX = CColor* (floats r/g/b/a at +8..+0x14); returns A<<24|R<<16|G<<8|B
+0x00819830,MapRenderer_UploadProvinceColors,C,render,cp,"ECX = renderer ([mapView+0x3648]), EAX = mapView+0x20D8 (colour records)"
+0x00819860,MapRenderer_DrawProvinceColorTextures,C,render,cp,"ESI = renderer; two 256x256 lookup textures (primary, secondary), province i at (i&0xFF, 255-(i>>8)); selected provinces +0.1"
+0x006458D0,MapView_RefreshForMapMode,I,map,cp,stdcall (mapView)
+0x006442E0,MapView_ctor,C,map,cp,
+0x007EC640,CProvinceManager_ctor,C,map,cp,at mapView+0x20BC
+0x00495D50,CMap_ctor,C,map,cp,g_provinceSource; current map mode mirrored at +0x2AD8
+0x00645A20,MapView_AddMapModeIcon,I,map,cp,map-mode icons used by recruitment and migration
+0x004AAFD0,CProvince_GetTooltip,C,ui,cp,"thiscall, ECX = CProvince+8, (out, ctx), RET 8; slots 0x00DFD344 / 0x00DFD2B4; switches on the map mode via jump table 0x004B1600 (infrastructure entry 0x004B1610 -> 0x004AE546, INFRA_LEVEL_HERE)"
+0x004B17F0,CProvince_OnClick,C,ui,cp,nothing mode-specific; marks the map dirty with 0x200
+0x00448740,String_Append,I,util,cp,"std::string::append, thiscall (string, ptr, len)"
+0x004DAED0,BuildingDb_Load,C,buildings,cp,"buildings.txt: CBuilding per block -> db+0x0C; province = yes -> +0x134 index, db+0x1C; naval_base name -> db+0x30, last type 2 -> +0x34, last type 4 -> +0x38"
+0x004D8B60,CBuilding_ctor,C,buildings,cp,"(this, std::string name, int fileIndex); 0x140 bytes; +0x58 = index, +0x18 = 9999, +0x134 = -1"
+0x004D9310,CBuilding_OnKeyword,C,buildings,cp,"vt slot 4, thiscall (parser, token), RET 8"
+0x004D9AB0,CBuilding_Resolve,I,buildings,cp,run on every building at the end of buildings.txt
+0x004DA1C0,Building_ParseType,C,buildings,cp,"EDI = std::string*: factory 0, rgo 1, infrastructure 2, naval_base 3, anything else 4 (fort)"
+0x004DA280,Building_TypeName,C,buildings,cp,
+0x004DA330,Building_TypeLocKey,C,buildings,cp,BUILDTYPE_* keys
+0x004DAD40,BuildingDb_Get,C,buildings,cp,fastcall; creates g_buildingDb on first use
+0x004DAC50,CNullBuilding_ctor,C,buildings,cp,singleton g_nullBuilding
+0x004DA850,Building_ComputeCost,C,buildings,cp,"EDI = country, EBX = out; stack (bld, out, country, subtractStockpile, stockpile, nextLevel), RET 0x18; goods x (1 - country+0xE70) at world prices + cost x 2^(level-2) (formula I)"
+0x004DA790,Building_ComputeExpandCost,C,buildings,cp,"EDX = province, ESI = out i64*; stack (bld, country, country+0x1184), RET 0xC; effective level + 1"
+0x004B6090,Province_HasBuilding,C,buildings,cp,"ECX = province, EAX = building; level > 0"
+0x004B6180,Province_GetBuilding,C,buildings,cp,
+0x004B6120,Province_SetBuildingLevel,C,buildings,cp,"thiscall (prov, levelX1000, recalc), EAX = building"
+0x004B5F60,Province_AddConstruction,C,buildings,cp,"ESI = province, EDI = construction"
+0x00492710,BuildingConstruction_Complete,C,buildings,cp,"vt slot 9: level +1000 (capped), effective = built, recalc, BUILDING_DONE; discarded when the builder is dead"
+0x00491030,BuildingConstruction_DailyUpdate,C,buildings,cp,"vt slot 14: while the goods project (+0x54) exists, start and end move one day"
+0x00511E70,Province_CanExpandBuilding,C,buildings,cp,"EDI = country, stack (bld, prov), RET 8, AL: controller == owner, expand cost <= money, Building_CanBuildInProvince(...,0,0,0,0,0). No owner == country check. Expand button, Ctrl-click, AI and command Validate"
+0x00511EF0,Building_CanBuildInProvince,C,buildings,cp,"EAX = bld, stack (country, prov, popProject, ignoreTech, ignoreConstructing, useBuildingMaxOnly, ignoreRailRule), RET 0x1C; conditions in systems/buildings.md"
+0x00512150,Building_OnePerStateFree,C,buildings,cp,no other province of the state has the building or is building it
+0x00512230,Building_BuildExpandTooltip,C,buildings,cp,"(country, out, bld, prov)"
+0x0052FBA0,Country_CanInvestIn,C,buildings,cp,"investor GP, target not GP, target allows foreign investment, relation +0x34 == 0"
+0x00511670,Country_PayForBuilding,C,buildings,cp,"stdcall (country, bld, prov), RET 0xC"
+0x00525770,Country_SpendMoney,C,economy,cp,"EAX = country, EDI = out, stack (i64 amount, category); borrows when short and books the expense"
+0x0073CF00,CProvinceView_ctor,C,ui,cp,province_view; province at view+0x24; expand callback at view+0x7C
+0x00740050,CProvinceView_Update,C,ui,cp,"building rows: progress while building, else expand enabled by Province_CanExpandBuilding (call 0x0074356E)"
+0x007443D0,CProvinceView_OnTooltip,C,ui,cp,expand tooltip: Building_BuildExpandTooltip + PROVINCE_VIEW_BUILD_ALL_TOOLTIP unless one_per_state
+0x0073D6D0,CProvinceView_OnExpandClick,C,ui,cp,"thiscall (view, button), RET 4; Ctrl (input vt[0x30]) and not one_per_state -> every eligible province of the state; else one command without pre-check"
+0x0074A030,CForeignProvince_OnExpandClick,C,ui,cp,"same as CProvinceView_OnExpandClick, province at this+0x134"
+0x006E45F0,FactoryView_OnExpandClick,C,ui,cp,Ctrl/Shift bulk factory expansion with a running money total
+0x0057B560,ConstructBuildingCommand_ctor,C,buildings,cp,"stdcall (this, CBuilding*, provId, u32 tag, countryIdx), RET 0x14, returns this; 0x58 bytes, type 0x26E; main thread only (global id counter)"
+0x0057B640,ConstructBuildingCommand_ctorPopProject,C,buildings,cp,pop investment (host only)
+0x0057BC50,ConstructBuildingCommand_Serialize,C,buildings,cp,vt slot 2
+0x0057BDF0,ConstructBuildingCommand_Deserialize,C,buildings,cp,vt slot 4
+0x0057B7E0,ConstructBuildingCommand_Execute,C,buildings,cp,"vt slot 6: pay, CBuildingConstruction + goods project, end = today + time, Province_AddConstruction, Country_Recalculate, map dirty"
+0x0057BC40,ConstructBuildingCommand_TypeId,C,buildings,cp,vt slot 7: 0x26E
+0x0057BEE0,ConstructBuildingCommand_Clone,C,buildings,cp,vt slot 13
+0x0057BF50,ConstructBuildingCommand_Validate,C,buildings,cp,"vt slot 14, thiscall: pop project -> Building_CanBuildInProvince(country, prov, 1, 0...), else Province_CanExpandBuilding"
+0x0057C130,ConstructStateBuildingCommand_ctor,C,factories,cp,EDI = state-id source; type 0x84E
+0x0057C400,ConstructStateBuildingCommand_Execute,C,factories,cp,
+0x0057CAF0,ConstructStateBuildingCommand_Validate,C,factories,cp,"Factory_CanBuildNow, or FUN_0052D150 for an expansion"
+0x008569A0,AI_ConstructionUpdate,C,ai,cp,"fastcall, ECX = AI object (+0x34 tag, +0x38 index); caches province buildings type 2/4/3 at +0x78/+0x7C/+0x80; one uncounted world-MT roll vs g_economyDefines+0x60"
+0x00858560,AI_BuildFort,C,ai,cp,needs money > 2x cost; posts ConstructBuildingCommand
+0x00857E60,AI_PickFortProvince,C,ai,cp,"owned, not colonial, Province_CanExpandBuilding; scored by capital and borders"
+0x00858460,AI_BuildNavalBase,C,ai,cp,province from FUN_008577B0
+0x008582D0,AI_BuildRailroad,C,ai,cp,also invests abroad
+0x008580E0,AI_PickRailroadProvince,C,ai,cp,state with the most factories
+0x00902790,CCanBuildInProvinceTrigger_Evaluate,C,triggers,cp,"Building_CanBuildInProvince(country, prov, 0, unciv, 0, unciv, unciv); +0x1C limit_to_world_greatest_level; no money or occupation check"
+0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,db+0x34 or db+0x38 (TGC: bank)
+0x008CE600,CHasBuildingTrigger_Evaluate,C,triggers,cp,level > 0
+0x00891CA0,CBuildingEffect_Execute,C,effects,cp,Province_SetBuildingLevel(value + pb+0x10); the +0x10 is odd (?)
+0x008948C0,CInfrastructureEffect_Execute,C,effects,cp,same on db+0x34 with pb+0x20
+0x008A49E0,CBuildProvinceBuildingInCapitalEffect_Execute,C,effects,cp,"capital or capital state, level +1 via FUN_008A4880; db+0x34 / db+0x38"
+0x009A8EE0,Localize,C,ui,cp,"stdcall (out, const std::string* key), RET 8, returns out = {entry, empty vector}; entry = hash-table value {owner, vector<variant*>}, a variant (0x34 bytes) = 4 selector ints + parsed segments (polymorphic, no plain text); a missing key is shown as the key text; 2421 callers"
+0x00988FA0,String_Concat,C,util,cp,"fastcall (out, const char* prefix) + stack std::string*: prefix + string"
+0x0070A340,CInGameIdler_BuildTooltip,I,ui,cp,tooltip dispatcher by widget name; mapmode_<n> -> Localize(MAPMODE_<n>) at 0x0070C5C8
+0x009BCBF0,TextureManager_GetOrLoad,C,render,cp,"EAX = manager (render+0x158), stack (std::string* path, logIfMissing), RET 8; returns the index, cached by path"
+0x007F4BF0,CProvinceManager_LoadTerrainTextures,C,render,cp,"stripes.dds index -> +0xC0 (colormap +0xB8, political +0xBC, water +0xC4, terrainalpha +0xD0)"
+0x007F9040,CProvinceManager_DrawTerrain,C,render,cp,"ESI = province manager; every pass: SetTexture(""tex7"", textures[+0xC0]) at 0x007F95C9 when the map style (CSettings+0xF0) != 0"

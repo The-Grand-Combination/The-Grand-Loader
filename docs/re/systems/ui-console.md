@@ -98,7 +98,9 @@ of extension points; not reproduced here.
   WM_ACTIVATEAPP and WM_SETCURSOR only set the cursor. **[C]**
 - **Mouse:** Win32 only (the DirectInput mouse at `0x00A79F20` is never built). Each frame `GetCursorPos`;
   the client position consumers use (mouse vt[0x4C], `0x00A7A970`) is GetCursorPos minus GetWindowRect,
-  plus a hard-coded frame in bordered windowed mode. No SetCapture, ClipCursor or raw input. **[C]**
+  plus a hard-coded frame in bordered windowed mode (4 px left, SM_CYDLGFRAME + SM_CYCAPTION top: thinner
+  than the Windows 10/11 frame, so the top and left 6 px edge bands lie outside the client area). No
+  SetCapture, ClipCursor or raw input. **[C]**
 - **Edge scroll:** `Camera_Update` (`0x0063F870`; ESI map view, EDI mouse, fifth stack argument = edge
   scroll on) scrolls within 6 px of the view's edges, never checking that the cursor is in the window.
   `CInGameIdler_Update` calls it at `0x00656275` (flag 1, active window) or `0x00656321` (flag 0). **[C]**
@@ -106,4 +108,5 @@ of extension points; not reproduced here.
   `0x0099C3D5` on the first failure, then on DEVICENOTRESET releases the tracked resource lists, Resets
   and restores them; a failed Reset retries every frame. **[C]**
 - Patched by `borderless_fullscreen` (settings forced before the window is created) and
-  `fix_edge_scroll` (the flag cleared at `0x00656275` when the cursor is outside the foreground window).
+  `fix_edge_scroll` (the flag cleared at `0x00656275` when the cursor is outside the foreground window;
+  vt[0x4C] at `0x00E4397C` replaced by a client-area position; `edge_scroll_lock` clips the cursor).

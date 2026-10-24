@@ -10,6 +10,7 @@ numbers and addresses can be re-checked without redoing the Ghidra or profiling 
 | `cb-callchains.txt` | every caller of `IsAnyCBUsable` and the chains that reach the daily / monthly tick |
 | `trigger-classes.txt` | all 236 trigger classes classified from their `Evaluate` (scalar / country-ref / pair-dependent) |
 | `trigger-vtables.txt` | the same classes with their vtable, Evaluate (slot 6), value parser (slot 9) and block parser (slot 4) addresses |
+| `script-tokens.tsv` | every script keyword and its token id, read from `Tokens_RegisterKeywords` (`0x00C381C0`), 2744 pairs |
 | `rtti-vftables.txt` | all 3111 RTTI vftable symbols Ghidra recovered |
 | `calls-*.txt` | the direct `CALL` instructions inside each hot function (site, target, counts); source of the profiler site tables |
 | `decomp/` | Ghidra decompilation of the functions the write-ups cite (raw, unrenamed) |

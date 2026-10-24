@@ -44,6 +44,8 @@ struct Config {
                                            // (uncolonised)
     bool borderless_fullscreen = false;  // stability: borderless window at the monitor's size (no device loss on alt-tab)
     bool fix_edge_scroll = false;       // stability: edge scroll only with the cursor inside the focused window
+    int edge_scroll_lock = 0;           // stability: cursor held in the window; mouse counts pushed past an
+                                        // edge to leave it (0 = no hold, needs fix_edge_scroll)
     bool clipboard_paste = false;       // interface: Ctrl+V types the clipboard text into text fields
     bool save_last_ip = false;          // interface: write the join address to settings.txt when joining
     bool join_port = false;             // interface: the join dialog accepts address:port (the game always uses 1638)

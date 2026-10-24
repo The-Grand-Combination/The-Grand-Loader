@@ -17,7 +17,7 @@ otherwise, an optimisation gives **the same results** as the unpatched game. Tim
 | [`skip_clean_resets`](skip-clean-resets.md) | skips a daily per-country table reset that would write what is already there |
 | [`fast_ai_queue`](fast-ai-queue.md) | at max speed, finishes the AI's daily work in one frame instead of 20 ms per frame |
 | [`parallel_decisions`](parallel-decisions.md) | evaluates the AI's daily decision checks on worker threads |
-| [`parallel_events`](parallel-events.md) | off by default: evaluates the daily event scan's triggers on worker threads |
+| [`parallel_events`](parallel-events.md) | evaluates the daily event scan's triggers on worker threads |
 | [`engine_worker_threads`](engine-worker-threads.md) | thread count of the game's own TBB scheduler |
 | [`background_sleep_ms`](background-sleep-ms.md) | shortens the 100 ms per-frame sleep of a fullscreen game whose render device is lost (alt-tabbed), so a multiplayer client in the background keeps up |
 
@@ -46,7 +46,8 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 | [`fix_missing_modifier`](fix-missing-modifier.md) | add/remove modifier effects that name a modifier that does not exist: empty tooltip, no effect, name logged |
 | [`fix_missing_state_crash`](fix-missing-state-crash.md) | AI scan over a unit in a province without an owner, which has no state object |
 | [`borderless_fullscreen`](borderless-fullscreen.md) | borderless window at the monitor's size instead of exclusive fullscreen: no device loss on alt-tab |
-| [`fix_edge_scroll`](fix-edge-scroll.md) | the map edge-scrolls only with the cursor inside the focused game window |
+| [`fix_edge_scroll`](fix-edge-scroll.md) | the map edge-scrolls only with the cursor inside the focused game window; correct mouse position in a window |
+| [`edge_scroll_lock`](fix-edge-scroll.md) | holds the cursor in the game view until pushed past an edge (mouse counts, 0 = off) |
 
 ## Interface
 

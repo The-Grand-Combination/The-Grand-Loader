@@ -56,6 +56,8 @@ docs/re/
 | [ai-national-focus.md](systems/ai-national-focus.md) | national focus scoring |
 | [technology.md](systems/technology.md) | research availability and the civilization gates |
 | [factories.md](systems/factories.md) | factory construction gates |
+| [buildings.md](systems/buildings.md) | building database, province buildings, the expand check, `CConstructBuildingCommand`, AI builders, bulk upgrade |
+| [map-modes.md](systems/map-modes.md) | the 22 map modes, buttons, per-province colours, GPU upload, redraw, infrastructure mode |
 | [loading.md](systems/loading.md) | what runs once after a game is loaded |
 | [checksum.md](systems/checksum.md) | file and runtime checksums, the resign/menu bug |
 | [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label, chat, text input, join dialog and settings |

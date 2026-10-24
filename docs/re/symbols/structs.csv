@@ -175,3 +175,51 @@ std::string,0x00,buffer,char[16]/char*,C,cp,"MSVC 2010 layout: inline text while
 std::string,0x10,size,u32,C,cp,
 std::string,0x14,capacity,u32,C,cp,15 while inline
 std::string,0x18,allocator,u32,C,cp,"empty allocator padded to 4 bytes: the object is 0x1C bytes (by-value arguments span 0x1C, e.g. the modifier tooltip's [ESP+0xC..0x27])"
+CInGameIdler,0x1C,input,ptr,C,cp,"vt[0x30] Ctrl held, vt[0x28] Shift held"
+CInGameIdler,0x24,mapDirtyFlags,int*,C,cp,"int[22], one per map mode"
+CInGameIdler,0x74,mapFlags,u32,C,cp,"0x100 / low nibble recolour, 0x200 upload only"
+CInGameIdler,0xBC8,mapModeHistory,CStack<MAPMODE>,C,cp,"head +0xBCC, count +0xBD4"
+CInGameIdler,0xDB4,mapMode,u32,C,cp,MAPMODE 0..21; infrastructure = 4
+CInGameIdler,0xF48,mapmode6Glue,CButtonObserverGlue,C,cp,0x50-byte glues from +0xDB8
+CInGameIdler,0x1630,menuBar,ptr,C,cp,
+CBuilding,0x10,type,u32,C,cp,"factory 0, rgo 1, infrastructure 2, naval_base 3, other 4"
+CBuilding,0x20,name,std::string,C,cp,
+CBuilding,0x58,index,u32,C,cp,"file index; index of country tech arrays (+0xBCC +0x08 max level, +0x2FC activated)"
+CBuilding,0x5C,cost,i32,C,cp,
+CBuilding,0x60,goodsCost,CGoodsPool,C,cp,
+CBuilding,0xB8,time,u32,C,cp,days
+CBuilding,0xBC,capital,u8,C,cp,"+0xBD port, +0xBE one_per_state"
+CBuilding,0xC4,maxLevel,u32,C,cp,
+CBuilding,0x130,defaultEnabled,u8,C,cp,
+CBuilding,0x131,isProvinceBuilding,u8,C,cp,
+CBuilding,0x134,provinceIndex,i32,C,cp,index into CProvince+0x118 and g_buildingDb+0x1C; -1 otherwise
+CBuilding,0x138,popBuildFactory,u8,C,cp,+0x139 spawn_railway_track
+CBuilding,0x13C,infrastructure,i32,C,cp,x1000
+CProvinceBuilding,0x18,building,CBuilding*,C,cp,
+CProvinceBuilding,0x20,levelX1000,i32,C,cp,built level
+CProvinceBuilding,0x24,effectiveLevelX1000,i32,C,cp,moves toward +0x20 daily (fort repair); used for cost and modifiers
+CBuildingConstruction,0x38,startHours,u32,C,cp,+0x3C end
+CBuildingConstruction,0x44,progressX1000,i32,C,cp,percent
+CBuildingConstruction,0x48,province,CProvince*,C,cp,
+CBuildingConstruction,0x4C,builderTag,char[4],C,cp,index at +0x50
+CBuildingConstruction,0x54,goodsProject,CGoodsProject*,C,cp,non-null while goods are pending (dates slide)
+CBuildingConstruction,0x58,building,CBuilding*,C,cp,
+CConstructBuildingCommand,0x3C,building,CBuilding*,C,cp,wire: bld+0x58
+CConstructBuildingCommand,0x40,provinceId,u32,C,cp,
+CConstructBuildingCommand,0x44,constructionId,u32[2],C,cp,
+CConstructBuildingCommand,0x4C,countryTag,char[4],C,cp,index at +0x50
+CConstructBuildingCommand,0x54,popProject,u8,C,cp,
+CProvince,0x5C,terrainData,ptr,I,cp,+0x14 -> +0x34 byte[] min_build per building (+0x58)
+CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0"
+CProvince,0x110,foreignInvestBlock,u32,?,cp,must be 0 for a foreign railroad investment
+CProvince,0x118,buildings,vector<CProvinceBuilding*>,C,cp,indexed by CBuilding+0x134
+CProvince,0x128,ownerTag,char[4],C,cp,index at +0x12C
+CProvince,0x158,coastal,u8,I,cp,port buildings
+CProvince,0x2B8,infrastructure,i32,C,cp,shown by the infrastructure tooltip
+CCountry,0x1184,stockpile,ptr,I,cp,passed to Building_ComputeExpandCost
+CCountry,0xE70,constructionCostModifier,i32,I,cp,
+CCountry,0x1580,foreignInvestment,ptr,C,cp,ledger
+CCountry,0xAC0,partyRules,u64[],C,cp,"+8*i; build_railway +0xAE8, build_factory_invest +0xB20, pop_build_factory +0xB00, build_railway_invest +0xB38, allow_foreign_investment +0xB60 (mapping I)"
+CProvinceManager,0x3C,render,ptr,C,cp,= g_renderDevice
+CProvinceManager,0xC0,stripesTexture,int,C,cp,"texture manager index of map/terrain/stripes.dds, bound as tex7 every frame"
+CProvinceManager,0x1A0,terrainEffect,ID3DXEffect*,C,cp,
