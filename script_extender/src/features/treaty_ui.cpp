@@ -25,7 +25,8 @@
 //   vanilla "DefaultDialog" box instead: Agree opens the vanilla Justify-war dialog, Decline the editor.
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
 //   0 dtor, 1 per-frame refresh, 6 send, 7 cancel). Its rows are fixed buttons, paged: the terms
-//   (click = remove), the picker (who gives, then a treaty CB, then a province) and money steps.
+//   (money first, then the CB terms; click = remove) and the picker (Demand / Offer tabs, then money or a
+//   treaty CB, then an amount or a province).
 
 namespace se::features::treaty_ui {
 
@@ -95,7 +96,9 @@ constexpr int64_t kMoneyOne = 32768;
 constexpr const char* kEditorType = "se_treaty_dialog";
 constexpr const char* kChooserType = "DefaultDialog";
 constexpr int kRows = 6;
-constexpr int kMoneySteps[] = {-1000, -100, 100, 1000};
+constexpr int kMoneyAmounts[] = {100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000};
+constexpr uintptr_t kMoneyOption = 1;       // in the CB options: the money item
+constexpr uint32_t kButtonSetFrame = 0x48;  // Button_SetFrame: the tabs show frame 2 when active
 
 Config g_config;
 uintptr_t g_gui_finalize = 0;
@@ -345,8 +348,8 @@ void delete_action(uintptr_t action) {
 
 const char* const kUiKeys[] = {
     "SE_TREATY_TITLE",        "SE_TREATY_TERMS",       "SE_TREATY_MODE_DEMAND",    "SE_TREATY_MODE_GIVE",
-    "SE_TREATY_PICK_CB",      "SE_TREATY_PICK_PROVINCE", "SE_TREATY_NO_OPTIONS",   "SE_TREATY_BACK",
-    "SE_TREATY_MONEY_NONE",   "SE_TREATY_MONEY_WE_PAY", "SE_TREATY_MONEY_THEY_PAY", "SE_TREATY_SCORE",
+    "SE_TREATY_PICK_CB_DEMAND", "SE_TREATY_PICK_CB_OFFER", "SE_TREATY_PICK_PROVINCE", "SE_TREATY_NO_OPTIONS",
+    "SE_TREATY_BACK",         "SE_TREATY_MONEY",       "SE_TREATY_PICK_MONEY",     "SE_TREATY_SCORE",
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
     "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
     "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_FULL",
@@ -375,16 +378,15 @@ struct Editor {
     uintptr_t window = 0;
     uintptr_t terms[kRows] = {};
     uintptr_t picks[kRows] = {};
-    uintptr_t money[4] = {};
     uintptr_t mode_demand = 0, mode_give = 0, prev = 0, next = 0, back = 0, agree = 0, decline = 0;
-    uintptr_t title = 0, terms_label = 0, pick_label = 0, money_text = 0, score = 0, acceptance = 0;
+    uintptr_t title = 0, terms_label = 0, pick_label = 0, score = 0, acceptance = 0;
     std::vector<uintptr_t> observed;
     // picker
     Mode mode = kDemand;
-    uintptr_t picked_cb = 0;  // 0: choosing a CB
+    uintptr_t picked_cb = 0;  // 0: choosing a CB; kMoneyOption: choosing an amount
     int page = 0;
     std::vector<uintptr_t> cb_options;
-    std::vector<uint32_t> province_options;
+    std::vector<uint32_t> province_options;  // or amounts in pounds
     bool dirty = true;
 
     std::string t(const char* key) const {
@@ -419,6 +421,7 @@ void compute_options(Editor& e) {
     e.cb_options.clear();
     e.province_options.clear();
     if (!e.picked_cb) {
+        e.cb_options.push_back(kMoneyOption);
         for (uintptr_t cb : treaty::treaty_cbs()) {
             if (treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, e.gains(), e.gives())) {
                 continue;
@@ -427,6 +430,17 @@ void compute_options(Editor& e) {
                 continue;
             }
             e.cb_options.push_back(cb);
+        }
+        return;
+    }
+    if (e.picked_cb == kMoneyOption) {
+        int64_t m = treaty::money(e.action);
+        for (int amount : kMoneyAmounts) {
+            int64_t next = m + (e.mode == kGive ? amount : -amount) * kMoneyOne;  // positive: we pay
+            uintptr_t payer = game::country(next > 0 ? e.me : e.them);
+            if (next == 0 || read<int64_t>(payer + kCountryTreasury) >= (next > 0 ? next : -next)) {
+                e.province_options.push_back(static_cast<uint32_t>(amount));
+            }
         }
         return;
     }
@@ -443,12 +457,21 @@ void compute_options(Editor& e) {
 
 size_t option_count(const Editor& e) { return e.picked_cb ? e.province_options.size() : e.cb_options.size(); }
 
+std::string option_name(const Editor& e, uintptr_t cb) { return cb == kMoneyOption ? e.t("SE_TREATY_MONEY") : cb_name(e, cb); }
+
+std::string pounds_of(int64_t fixed) { return std::to_string((fixed < 0 ? -fixed : fixed) / kMoneyOne); }
+
 void refresh(Editor& e) {
     e.dirty = false;
     set_text(e.title, e.t("SE_TREATY_TITLE"));
     set_text(e.terms_label, e.t("SE_TREATY_TERMS"));
     button_text(e.mode_demand, e.t("SE_TREATY_MODE_DEMAND"));
     button_text(e.mode_give, e.t("SE_TREATY_MODE_GIVE"));
+    using FrameFn = void(__fastcall*)(uintptr_t, void*, int);
+    if (e.mode_demand && e.mode_give) {
+        vt<FrameFn>(e.mode_demand, kButtonSetFrame)(e.mode_demand, nullptr, e.mode == kDemand ? 2 : 1);
+        vt<FrameFn>(e.mode_give, kButtonSetFrame)(e.mode_give, nullptr, e.mode == kGive ? 2 : 1);
+    }
     button_text(e.back, e.t("SE_TREATY_BACK"));
     button_text(e.agree, e.t("SE_TREATY_SEND"));
     button_text(e.decline, e.t("SE_TREATY_CANCEL"));
@@ -459,12 +482,21 @@ void refresh(Editor& e) {
     for (const treaty::Term& term : terms) {
         (term.actor == e.me ? gain : give) += treaty::term_cost(term);
     }
+    int64_t m = treaty::money(e.action);
+    size_t money_rows = m != 0 ? 1 : 0;
+    size_t rows = money_rows + terms.size();
     for (int i = 0; i < kRows; ++i) {
-        if (i >= static_cast<int>(terms.size())) {
+        if (i >= static_cast<int>(rows)) {
             show(e.terms[i], false);
             continue;
         }
-        const treaty::Term& term = terms[i];
+        if (static_cast<size_t>(i) < money_rows) {
+            std::string label = e.t("SE_TREATY_MONEY") + ": " + pounds_of(m);
+            show(e.terms[i], true);
+            button_text(e.terms[i], replace(e.t(m < 0 ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label));
+            continue;
+        }
+        const treaty::Term& term = terms[i - money_rows];
         std::string label = cb_name(e, term.cb);
         if (term.province) {
             label += ": " + province_name(e, term.province);
@@ -480,33 +512,29 @@ void refresh(Editor& e) {
     size_t count = option_count(e);
     int pages = static_cast<int>((count + kRows - 1) / kRows);
     e.page = std::max(0, std::min(e.page, pages - 1));
-    std::string pick_label = e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
-                                         : e.t("SE_TREATY_PICK_CB");
+    std::string pick_label = e.picked_cb == kMoneyOption ? e.t("SE_TREATY_PICK_MONEY")
+                             : e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
+                             : e.t(e.mode == kDemand ? "SE_TREATY_PICK_CB_DEMAND" : "SE_TREATY_PICK_CB_OFFER");
+    bool full = rows >= static_cast<size_t>(kRows) && !(e.picked_cb == kMoneyOption && m != 0);
     if (count == 0) {
         pick_label = e.t("SE_TREATY_NO_OPTIONS");
-    } else if (terms.size() >= static_cast<size_t>(kRows)) {
+    } else if (full) {
         pick_label = e.t("SE_TREATY_FULL");
     }
     set_text(e.pick_label, pick_label);
     for (int i = 0; i < kRows; ++i) {
         size_t index = static_cast<size_t>(e.page * kRows + i);
-        bool visible = index < count && terms.size() < static_cast<size_t>(kRows);
+        bool visible = index < count && !full;
         show(e.picks[i], visible);
         if (visible) {
-            button_text(e.picks[i], e.picked_cb ? province_name(e, e.province_options[index])
-                                                : cb_name(e, e.cb_options[index]));
+            button_text(e.picks[i], e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
+                                    : e.picked_cb             ? province_name(e, e.province_options[index])
+                                                              : option_name(e, e.cb_options[index]));
         }
     }
     show(e.prev, e.page > 0);
     show(e.next, e.page + 1 < pages);
     show(e.back, e.picked_cb != 0);
-
-    // Money
-    int64_t m = treaty::money(e.action);
-    std::string pounds = std::to_string((m < 0 ? -m : m) / kMoneyOne);
-    set_text(e.money_text, m == 0  ? e.t("SE_TREATY_MONEY_NONE")
-                          : m > 0 ? replace(e.t("SE_TREATY_MONEY_WE_PAY"), "$MONEY$", pounds)
-                                  : replace(e.t("SE_TREATY_MONEY_THEY_PAY"), "$MONEY$", pounds));
 
     // Summary
     std::string score = e.t("SE_TREATY_SCORE");
@@ -514,11 +542,11 @@ void refresh(Editor& e) {
     set_text(e.score, score);
     std::string why = treaty::problem(e.action);
     std::string acceptance = why;
-    if (why.empty()) {
+    if (why.empty() && !treaty::is_human(e.them)) {
         acceptance = treaty::ai_score(e.action, e.them) >= 0 ? e.t("SE_TREATY_WILL_ACCEPT") : e.t("SE_TREATY_WILL_NOT_ACCEPT");
     }
     set_text(e.acceptance, replace(acceptance, "$COUNTRY$", country_name(e, e.them)));
-    enable(e.agree, why.empty());
+    enable(e.agree, why.empty() && treaty::can_send(e.action));
 }
 
 void reset_picker(Editor& e) {
@@ -534,15 +562,24 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     }
     for (int i = 0; i < kRows; ++i) {
         if (button == e->terms[i]) {
-            treaty::remove_term(e->action, static_cast<size_t>(i));
+            size_t money_rows = treaty::money(e->action) != 0 ? 1 : 0;
+            if (static_cast<size_t>(i) < money_rows) {
+                treaty::set_money(e->action, 0);
+            } else {
+                treaty::remove_term(e->action, static_cast<size_t>(i) - money_rows);
+            }
             reset_picker(*e);
             return;
         }
         if (button == e->picks[i]) {
             size_t index = static_cast<size_t>(e->page * kRows + i);
-            if (!e->picked_cb && index < e->cb_options.size()) {
+            if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
+                int64_t amount = static_cast<int64_t>(e->province_options[index]) * kMoneyOne;
+                treaty::set_money(e->action, treaty::money(e->action) + (e->mode == kGive ? amount : -amount));
+                e->picked_cb = 0;
+            } else if (!e->picked_cb && index < e->cb_options.size()) {
                 uintptr_t cb = e->cb_options[index];
-                if (treaty::cb_needs_province(cb)) {
+                if (cb == kMoneyOption || treaty::cb_needs_province(cb)) {
                     e->picked_cb = cb;
                 } else {
                     treaty::add_term(e->action, {cb, e->gains(), e->gives(), 0});
@@ -552,13 +589,6 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
                 e->picked_cb = 0;
             }
             reset_picker(*e);
-            return;
-        }
-    }
-    for (int i = 0; i < 4; ++i) {
-        if (button == e->money[i]) {
-            treaty::set_money(e->action, treaty::money(e->action) + kMoneySteps[i] * kMoneyOne);
-            e->dirty = true;
             return;
         }
     }
@@ -598,7 +628,7 @@ bool __fastcall editor_update(uintptr_t dialog, void*) {
 
 void __fastcall editor_agree(uintptr_t dialog, void*) {
     Editor* e = editor_of(dialog);
-    if (e && treaty::problem(e->action).empty()) {
+    if (e && treaty::can_send(e->action)) {
         treaty::send(e->action, e->owner);
     }
     *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
@@ -658,9 +688,6 @@ void open_editor(uintptr_t owner, int me, int them) {
         e->terms[i] = button("se_term_" + std::to_string(i));
         e->picks[i] = button("se_pick_" + std::to_string(i));
     }
-    for (int i = 0; i < 4; ++i) {
-        e->money[i] = button("se_money_" + std::to_string(i));
-    }
     e->mode_demand = button("se_mode_demand");
     e->mode_give = button("se_mode_give");
     e->prev = button("se_pick_prev");
@@ -671,7 +698,6 @@ void open_editor(uintptr_t owner, int me, int them) {
     e->title = find(w, kFindTextBox, "Title");
     e->terms_label = find(w, kFindTextBox, "se_terms_label");
     e->pick_label = find(w, kFindTextBox, "se_pick_label");
-    e->money_text = find(w, kFindTextBox, "se_money_text");
     e->score = find(w, kFindTextBox, "score");
     e->acceptance = find(w, kFindTextBox, "acceptance");
     shield(w, kSetLeftShield, me);

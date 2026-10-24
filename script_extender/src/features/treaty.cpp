@@ -60,6 +60,7 @@ constexpr uint32_t kScopeThis = 0x24;
 
 // Diplomatic actions
 constexpr uint32_t kCreateByType = 0x0090E850;  // cdecl (int token) -> action
+constexpr uint32_t kCanPerform = 0x00911760;    // DiplomaticAction_CanPerform: ESI = action, (bool) -> AL
 constexpr uint8_t kCreateByTypeEntry[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
 constexpr uint32_t kPeaceVtable = 0x00E34474;
 constexpr uint32_t kBaseActionVtable = 0x00E3405C;
@@ -110,6 +111,7 @@ constexpr uint32_t kRelationValue = 0x3C;
 constexpr uint32_t kRelationMax = 0x0131B1E8;
 constexpr uint32_t kProvinceOwner = 0x12C;
 constexpr uint32_t kProvinceController = 0x134;
+constexpr uint32_t kProvinceState = 0x188;
 constexpr uint32_t kWorldHumans = 0xAEC;    // vector<int>: 0 = AI
 constexpr uint32_t kWorldMilitary = 0xAB4;
 constexpr uint32_t kWorldRunning = 0xD1C;
@@ -208,7 +210,7 @@ const char* const kTextKeys[] = {
     "SE_TREATY_TITLE",         "SE_TREATY_OFFER",        "SE_TREATY_MONEY_ACTOR",  "SE_TREATY_MONEY_RECIPIENT",
     "SE_TREATY_NO_TERMS",      "SE_TREATY_AT_WAR",       "SE_TREATY_GONE",         "SE_TREATY_TERM_INVALID",
     "SE_TREATY_TERM_ANNEX",    "SE_TREATY_TERM_OWNER",   "SE_TREATY_TERM_OCCUPIED", "SE_TREATY_TERM_LAST_STATE",
-    "SE_TREATY_MONEY_SHORT",   "SE_TREATY_TERM_SIDES",
+    "SE_TREATY_MONEY_SHORT",   "SE_TREATY_TERM_SIDES",    "SE_TREATY_TERM_DUPLICATE",
 };
 
 std::once_flag g_texts_once;
@@ -777,6 +779,22 @@ void set_money(uintptr_t action, int64_t amount) { *reinterpret_cast<int64_t*>(a
 
 std::string problem(uintptr_t action) { return treaty_problem(action); }
 
+bool can_send(uintptr_t action) {
+    uintptr_t f = hooks::exe_va(kCanPerform);
+    bool result;
+    __asm {
+        push esi
+        mov esi, action
+        push 0
+        call f
+        mov result, al
+        pop esi
+    }
+    return result;
+}
+
+bool is_human(int country) { return se::features::is_human(country); }
+
 int ai_score(uintptr_t action, int country) { return score_for(action, country); }
 
 int term_cost(const Term& term) {
@@ -812,6 +830,18 @@ std::string check_term(uintptr_t action, const Term& term) {
     }
     if (!cb_usable(term.cb, term.actor, term.receiver)) {
         return text("SE_TREATY_TERM_INVALID");
+    }
+    // One term per state: a second one would find the map already changed when the treaty is applied.
+    uintptr_t state = term.province ? read<uintptr_t>(game::province(term.province) + kProvinceState) : 0;
+    for (size_t i = 0, n = goal_count(action); i < n; ++i) {
+        uintptr_t other = goal(action, i);
+        uint32_t id = read<uint32_t>(other + kGoalProvince);
+        bool same_state = state && id && read<uintptr_t>(game::province(id) + kProvinceState) == state;
+        bool same_term = read<uintptr_t>(other + kGoalCb) == term.cb && read<int>(other + kGoalActorIndex) == term.actor &&
+                         id == term.province;
+        if (same_state || same_term) {
+            return text("SE_TREATY_TERM_DUPLICATE");
+        }
     }
     uint8_t g[kWarGoalSize];
     build_goal(g, term);

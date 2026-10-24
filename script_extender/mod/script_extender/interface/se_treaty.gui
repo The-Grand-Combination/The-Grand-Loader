@@ -69,9 +69,9 @@ guiTypes = {
 		guiButtonType = { name = "se_term_4" position = { x = 35 y = 208 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
 		guiButtonType = { name = "se_term_5" position = { x = 35 y = 233 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
 
-		# Picker: who gives, then a treaty CB, then (for a state CB) the province
-		guiButtonType = { name = "se_mode_demand" position = { x = 300 y = 80 } quadTextureSprite = "GFX_button_thin_120" buttonFont = "vic_18_black" buttonText = "" }
-		guiButtonType = { name = "se_mode_give" position = { x = 400 y = 80 } quadTextureSprite = "GFX_button_thin_120" buttonFont = "vic_18_black" buttonText = "" }
+		# Picker: Demand / Offer tabs (as the peace dialog's), then money or a treaty CB, then the amount or province
+		guiButtonType = { name = "se_mode_demand" position = { x = 290 y = 80 } quadTextureSprite = "GFX_diplo_peacetab" clicksound = click buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_mode_give" position = { x = 418 y = 80 } quadTextureSprite = "GFX_diplo_peacetab" clicksound = click buttonFont = "vic_18_black" buttonText = "" }
 		instantTextBoxType = {
 			name = "se_pick_label"
 			position = { x = 300 y = 106 }
@@ -90,21 +90,6 @@ guiTypes = {
 		guiButtonType = { name = "se_pick_prev" position = { x = 300 y = 280 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" }
 		guiButtonType = { name = "se_pick_back" position = { x = 360 y = 280 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "" }
 		guiButtonType = { name = "se_pick_next" position = { x = 490 y = 280 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" }
-
-		# Money: positive = we pay them
-		instantTextBoxType = {
-			name = "se_money_text"
-			position = { x = 35 y = 268 }
-			font = "vic_18"
-			text = ""
-			maxWidth = 250
-			maxHeight = 20
-			format = left
-		}
-		guiButtonType = { name = "se_money_0" position = { x = 35 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "-1000" }
-		guiButtonType = { name = "se_money_1" position = { x = 95 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "-100" }
-		guiButtonType = { name = "se_money_2" position = { x = 155 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "+100" }
-		guiButtonType = { name = "se_money_3" position = { x = 215 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "+1000" }
 
 		# Summary
 		instantTextBoxType = {

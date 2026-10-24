@@ -16,16 +16,12 @@ SE_TREATY_TERM_LAST_STATE;A country cannot give away its last state.;;;;;;;;;;;;
 SE_TREATY_MONEY_SHORT;The paying side does not have that much money.;;;;;;;;;;;;;x
 SE_TREATY_TERM_SIDES;A term is not between the two countries of the treaty.;;;;;;;;;;;;;x
 SE_TREATY_TERMS;Terms (click to remove);;;;;;;;;;;;;x
-SE_TREATY_MODE_DEMAND;They give;;;;;;;;;;;;;x
-SE_TREATY_MODE_GIVE;We give;;;;;;;;;;;;;x
-SE_TREATY_PICK_CB;Choose a term:;;;;;;;;;;;;;x
+SE_TREATY_MODE_DEMAND;Demand;;;;;;;;;;;;;x
+SE_TREATY_MODE_GIVE;Offer;;;;;;;;;;;;;x
 SE_TREATY_PICK_PROVINCE;$CB$: choose the province;;;;;;;;;;;;;x
 SE_TREATY_NO_OPTIONS;No term available this way.;;;;;;;;;;;;;x
 SE_TREATY_FULL;The treaty is full.;;;;;;;;;;;;;x
 SE_TREATY_BACK;Back;;;;;;;;;;;;;x
-SE_TREATY_MONEY_NONE;No money changes hands.;;;;;;;;;;;;;x
-SE_TREATY_MONEY_WE_PAY;We pay $MONEY$ pounds.;;;;;;;;;;;;;x
-SE_TREATY_MONEY_THEY_PAY;They pay us $MONEY$ pounds.;;;;;;;;;;;;;x
 SE_TREATY_SCORE;Value: we gain $GAIN$, we give $GIVE$.;;;;;;;;;;;;;x
 SE_TREATY_WILL_ACCEPT;$COUNTRY$ will accept this treaty.;;;;;;;;;;;;;x
 SE_TREATY_WILL_NOT_ACCEPT;$COUNTRY$ will not accept this treaty.;;;;;;;;;;;;;x
@@ -37,3 +33,8 @@ SE_TREATY_CHOOSER_TITLE;Diplomatic Play;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_DESC;Justify a casus belli against them, or open negotiations for a treaty.;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_JUSTIFY;Justify Casus Belli;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_TREATY;Initiate Treaty;;;;;;;;;;;;;x
+SE_TREATY_PICK_CB_DEMAND;We demand:;;;;;;;;;;;;;x
+SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
+SE_TREATY_MONEY;Money;;;;;;;;;;;;;x
+SE_TREATY_PICK_MONEY;Money: choose the amount;;;;;;;;;;;;;x
+SE_TREATY_TERM_DUPLICATE;That state is already part of the treaty.;;;;;;;;;;;;;x
