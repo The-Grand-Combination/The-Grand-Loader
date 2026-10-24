@@ -53,6 +53,8 @@ docs/re/
 | [decisions.md](systems/decisions.md) | where decisions are evaluated and how often |
 | [events.md](systems/events.md) | loading, body keywords, daily MTTH scan, firing, the event window (picture, background, GUI sprite swap), delayed events |
 | [ai-diplomacy.md](systems/ai-diplomacy.md) | opinion score, acceptance chance |
+| [diplomacy.md](systems/diplomacy.md) | diplomatic actions (classes, slots, ids), the command flow and the pending list, peace offers and `AI_EvaluatePeaceOffer`, peace options outside a war, defines, commands and their factory, province transfer helpers, the diplomacy dialogs and widgets, `.gui` / `.gfx` loading |
+| [treaties.md](systems/treaties.md) | planned treaty system: `is_treaty_cb`, `CTreatyAction`, "Diplomatic Play", screens, validation, execution, AI evaluation |
 | [ai-national-focus.md](systems/ai-national-focus.md) | national focus scoring |
 | [technology.md](systems/technology.md) | research availability and the civilization gates |
 | [factories.md](systems/factories.md) | factory construction gates |

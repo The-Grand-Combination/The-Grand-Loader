@@ -142,7 +142,7 @@ Player window only; patch site `event_dead_pop_loop`.
 
 `EventWindow_ctor` is stdcall (this, event, `CEventScope` by value, 0x48 bytes), RET 0x50, and returns
 `this` (0xD0 bytes from `operator_new`). Its two callers, `Event_Fire` (`0x008A8476`) and
-`Console_Event` (`0x0041F54E`), pass the result to `Window_Show`. **[C]**
+`Console_Event` (`0x0041F54E`), pass the result to `GuiOwner_AddDialog` (`0x006480E0`, formerly `Window_Show`). **[C]**
 
 | field | content |
 |---|---|

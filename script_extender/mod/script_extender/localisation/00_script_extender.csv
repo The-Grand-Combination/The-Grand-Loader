@@ -1,3 +1,39 @@
 CODE;ENGLISH;FRENCH;GERMAN;POLISH;SPANISH;ITALIAN;SWEDISH;CZECH;HUNGARIAN;DUTCH;PORTUGUESE;RUSSIAN;FINNISH;x
 SE_MAPMODE_BUILDING_TITLE;$MODE$ - $BUILDING$;;;;;;;;;;;;;x
 SE_PROVINCE_VIEW_BUILD_COUNTRY_TOOLTIP;(Click + CTRL + SHIFT to build in all provinces in country);;;;;;;;;;;;;x
+SE_TREATY_TITLE;Treaty Proposal;;;;;;;;;;;;;x
+SE_TREATY_OFFER;They propose a treaty with these terms:;;;;;;;;;;;;;x
+SE_TREATY_MONEY_ACTOR;They pay us $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_RECIPIENT;We pay them $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_NO_TERMS;Add at least one term.;;;;;;;;;;;;;x
+SE_TREATY_AT_WAR;Not possible while at war with each other.;;;;;;;;;;;;;x
+SE_TREATY_GONE;One of the countries no longer exists.;;;;;;;;;;;;;x
+SE_TREATY_TERM_INVALID;A term is not valid between these countries.;;;;;;;;;;;;;x
+SE_TREATY_TERM_ANNEX;That kind of term cannot be part of a treaty.;;;;;;;;;;;;;x
+SE_TREATY_TERM_OWNER;A province of the treaty changed owner.;;;;;;;;;;;;;x
+SE_TREATY_TERM_OCCUPIED;A province of the treaty is occupied.;;;;;;;;;;;;;x
+SE_TREATY_TERM_LAST_STATE;A country cannot give away its last state.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_SHORT;The paying side does not have that much money.;;;;;;;;;;;;;x
+SE_TREATY_TERM_SIDES;A term is not between the two countries of the treaty.;;;;;;;;;;;;;x
+SE_TREATY_TERMS;Terms (click to remove);;;;;;;;;;;;;x
+SE_TREATY_MODE_DEMAND;They give;;;;;;;;;;;;;x
+SE_TREATY_MODE_GIVE;We give;;;;;;;;;;;;;x
+SE_TREATY_PICK_CB;Choose a term:;;;;;;;;;;;;;x
+SE_TREATY_PICK_PROVINCE;$CB$: choose the province;;;;;;;;;;;;;x
+SE_TREATY_NO_OPTIONS;No term available this way.;;;;;;;;;;;;;x
+SE_TREATY_FULL;The treaty is full.;;;;;;;;;;;;;x
+SE_TREATY_BACK;Back;;;;;;;;;;;;;x
+SE_TREATY_MONEY_NONE;No money changes hands.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_WE_PAY;We pay $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_THEY_PAY;They pay us $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_SCORE;Value: we gain $GAIN$, we give $GIVE$.;;;;;;;;;;;;;x
+SE_TREATY_WILL_ACCEPT;$COUNTRY$ will accept this treaty.;;;;;;;;;;;;;x
+SE_TREATY_WILL_NOT_ACCEPT;$COUNTRY$ will not accept this treaty.;;;;;;;;;;;;;x
+SE_TREATY_SEND;Propose;;;;;;;;;;;;;x
+SE_TREATY_CANCEL;Cancel;;;;;;;;;;;;;x
+SE_TREATY_TERM_GAIN;+ $TERM$;;;;;;;;;;;;;x
+SE_TREATY_TERM_GIVE;- $TERM$;;;;;;;;;;;;;x
+SE_TREATY_CHOOSER_TITLE;Diplomatic Play;;;;;;;;;;;;;x
+SE_TREATY_CHOOSER_DESC;Justify a casus belli against them, or open negotiations for a treaty.;;;;;;;;;;;;;x
+SE_TREATY_CHOOSER_JUSTIFY;Justify Casus Belli;;;;;;;;;;;;;x
+SE_TREATY_CHOOSER_TREATY;Initiate Treaty;;;;;;;;;;;;;x

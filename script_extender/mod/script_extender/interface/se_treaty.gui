@@ -1,0 +1,148 @@
+# Script Extender: treaty editor (treaty = 1 in script_extender.ini). Loaded by the plugin from this
+# folder; every name starts with se_ so it cannot clash with a game or mod type. Sprites are vanilla.
+
+guiTypes = {
+	eu3dialogtype = {
+		name = "se_treaty_dialog"
+		backGround = "Background"
+		position = { x = -52 y = -90 }
+		size = { x = 550 y = 440 }
+		orientation = "CENTER"
+		moveable = 0
+		dontRender = ""
+		horizontalBorder = ""
+		verticalBorder = ""
+		fullScreen = no
+
+		guiButtonType = {
+			name = "Background"
+			quadTextureSprite = "diplo_dialog"
+			tooltip = ""
+			tooltipText = ""
+			delayedTooltipText = ""
+		}
+
+		iconType = {
+			name = "se_treaty_bg"
+			spriteType = "GFX_diplo_peace_bg"
+			position = { x = 25 y = 32 }
+			Orientation = "UPPER_LEFT"
+		}
+
+		shieldtype = {
+			name = "LeftShield"
+			spriteType = "GFX_flag_popup"
+			position = { x = 31 y = 29 }
+		}
+
+		shieldtype = {
+			name = "RightShield"
+			spriteType = "GFX_flag_popup"
+			position = { x = 454 y = 29 }
+		}
+
+		instantTextBoxType = {
+			name = "Title"
+			position = { x = 26 y = 31 }
+			font = "vic_32"
+			borderSize = { x = 4 y = 4 }
+			text = ""
+			maxWidth = 500
+			maxHeight = 40
+			format = centre
+		}
+
+		# Terms of the treaty (click one to remove it)
+		instantTextBoxType = {
+			name = "se_terms_label"
+			position = { x = 35 y = 84 }
+			font = "vic_18"
+			text = ""
+			maxWidth = 250
+			maxHeight = 20
+			format = left
+		}
+		guiButtonType = { name = "se_term_0" position = { x = 35 y = 108 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_term_1" position = { x = 35 y = 133 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_term_2" position = { x = 35 y = 158 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_term_3" position = { x = 35 y = 183 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_term_4" position = { x = 35 y = 208 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_term_5" position = { x = 35 y = 233 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+
+		# Picker: who gives, then a treaty CB, then (for a state CB) the province
+		guiButtonType = { name = "se_mode_demand" position = { x = 300 y = 80 } quadTextureSprite = "GFX_button_thin_120" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_mode_give" position = { x = 400 y = 80 } quadTextureSprite = "GFX_button_thin_120" buttonFont = "vic_18_black" buttonText = "" }
+		instantTextBoxType = {
+			name = "se_pick_label"
+			position = { x = 300 y = 106 }
+			font = "vic_18"
+			text = ""
+			maxWidth = 220
+			maxHeight = 20
+			format = left
+		}
+		guiButtonType = { name = "se_pick_0" position = { x = 330 y = 128 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_1" position = { x = 330 y = 153 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_2" position = { x = 330 y = 178 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_3" position = { x = 330 y = 203 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_4" position = { x = 330 y = 228 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_5" position = { x = 330 y = 253 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_prev" position = { x = 300 y = 280 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" }
+		guiButtonType = { name = "se_pick_back" position = { x = 360 y = 280 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "" }
+		guiButtonType = { name = "se_pick_next" position = { x = 490 y = 280 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" }
+
+		# Money: positive = we pay them
+		instantTextBoxType = {
+			name = "se_money_text"
+			position = { x = 35 y = 268 }
+			font = "vic_18"
+			text = ""
+			maxWidth = 250
+			maxHeight = 20
+			format = left
+		}
+		guiButtonType = { name = "se_money_0" position = { x = 35 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "-1000" }
+		guiButtonType = { name = "se_money_1" position = { x = 95 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "-100" }
+		guiButtonType = { name = "se_money_2" position = { x = 155 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "+100" }
+		guiButtonType = { name = "se_money_3" position = { x = 215 y = 292 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "+1000" }
+
+		# Summary
+		instantTextBoxType = {
+			name = "score"
+			position = { x = 40 y = 318 }
+			font = "vic_18"
+			borderSize = { x = 4 y = 4 }
+			text = ""
+			maxWidth = 480
+			maxHeight = 20
+			format = left
+		}
+		instantTextBoxType = {
+			name = "acceptance"
+			position = { x = 40 y = 338 }
+			font = "vic_18"
+			borderSize = { x = 4 y = 4 }
+			text = ""
+			maxWidth = 480
+			maxHeight = 32
+			format = left
+		}
+
+		guiButtonType = {
+			name = "AgreeButton"
+			position = { x = 290 y = 376 }
+			quadTextureSprite = "GFX_button_standard_200"
+			buttonText = ""
+			buttonFont = "vic_18_black"
+			shortcut = "ENTER"
+		}
+		guiButtonType = {
+			name = "DeclineButton"
+			position = { x = 60 y = 376 }
+			quadTextureSprite = "GFX_button_standard_200"
+			buttonText = ""
+			buttonFont = "vic_18_black"
+			shortcut = "ESCAPE"
+		}
+	}
+}

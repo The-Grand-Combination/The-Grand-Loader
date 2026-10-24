@@ -35,7 +35,7 @@ CCountry,0xCF4,isSubstate,u8,C,cp,is_substate; substate_of and vassal_of also ac
 CCountry,0xCF5,isVassal,u8,C,cp,a vassal (puppet) that is not a substate; is_vassal = +0xCF5 or +0xCF4
 CCountry,0xCFC,overlordIndex,u32,C,cp,with +0xCF8; compared by substate_of / vassal_of
 CCountry,0xD08,neighbours,u8[],C,cp,byte per country
-CCountry,0xDA8,vassals,vector,I,re,"+0xDA8/+0xDAC"
+CCountry,0xDA8,atWarWith,vector,I,cp,"countries at war with: AI_ManagePeace walks it and reads relation+0x34 (was vassals, re)"
 CCountry,0xE44,states,list,C,cp,"head; tail +0xE48, count +0xE4C; world market iterates states then +0x18 factories"
 CCountry,0xE4C,stateCount,u32,C,cp,"count of the states list; WarGoal_Execute annexes when it is 1; AI war-target gate (self <= other * 5)"
 CCountry,0xE64,primaryCulture,u32,I,re,
@@ -44,10 +44,10 @@ CCountry,0x142C,sphereLeaderIndex,u32,C,cp,has_sphere_leader (!= 0) and in_spher
 CCountry,0x1404,rank,u32,I,cp,
 CCountry,0x1430,infamyX1000,u32,C,cp,
 CCountry,0x156C,sphere,ptr,I,re,
-Relation,0x20,list20,list,I,re,purged daily
-Relation,0x28,list28,list,I,re,purged daily
-Relation,0x2C,list2C,list,I,re,purged daily
-Relation,0x30,list30,list,I,re,purged daily
+Relation,0x20,guarantee,ptr,I,cp,agreement object; purged daily
+Relation,0x28,agreement28,ptr,I,cp,agreement object owned by A; purged daily
+Relation,0x2C,reparations,CPayingReparations*,C,cp,PayingReparations_Attach writes both ways; paid daily in Country_PrePass
+Relation,0x30,paidObject,ptr,?,cp,PrePass pays i64 +0x28 with SpendMoney + Country_RepayLoans; meaning unknown
 Relation,0x50,heldCBs,list,C,cp,"node +0 CCasusBelli*, +8 next"
 CCasusBelli,0x24,typeIndex,u32,C,cp,
 CMapProvince,0x14,eventCandidates,vector<CEvent*>,C,re,"+0x14/+0x18"
@@ -88,7 +88,7 @@ CTrigger,0x19,valueIsFrom,u8,C,cp,
 CTrigger,0x1C,value,?,C,cp,"CTagTrigger: tag chars; CIsAiTrigger: bool"
 CTrigger,0x20,valueIndex,u32,C,cp,CTagTrigger: country index of the literal tag
 CCasusBelliType,0x08,index,u32,C,cp,index in the manager vector
-CCasusBelliType,0x0C,months,u32,C,cp,keyword 0x3BF
+CCasusBelliType,0x0C,months,u32,C,cp,keyword 0x3BF; CGoalEntry also uses it as the wargoal_icon frame (?)
 CCasusBelliType,0x14,name,std::string,C,cp,"SSO buffer +0x14, size +0x24, capacity +0x28"
 CCasusBelliType,0x30,is_valid,TriggerBlock,C,cp,keyword 0x8D0
 CCasusBelliType,0x4C,can_use,TriggerBlock,C,cp,keyword 0x92A; evaluated by the daily scan
@@ -97,7 +97,7 @@ CCasusBelliType,0x84,allowed_states_in_crisis,TriggerBlock,C,cp,keyword 0x8C0
 CCasusBelliType,0xA0,allowed_states,TriggerBlock,C,cp,keyword 0x8BF
 CCasusBelliType,0xBC,allowed_substate_regions,TriggerBlock,C,cp,keyword 0x941
 CCasusBelliType,0xD8,allowed_countries,TriggerBlock,C,cp,keyword 0x8D1
-CCasusBelliType,0xF4,badboy_factor,u32,C,cp,"x1000; +0xF8..+0x10C six more x1000 factors, order unconfirmed"
+CCasusBelliType,0xF4,badboy_factor,u32,C,cp,"x1000; +0xF8 prestige_factor, +0xFC peace_cost_factor (C)"
 CCasusBelliType,0x110,truce_months,u32,C,cp,default 60
 CCasusBelliType,0x130,is_triggered_only,u8,C,cp,
 CCasusBelliType,0x131,mutual,u8,C,cp,
@@ -266,5 +266,132 @@ CCountry,0x15CC,governmentColors,vector,C,cp,"+0x15CC/+0x15D0, 0x20-byte entries
 CState,0x5C,ownerIndex,u32,I,cp,"with the tag at +0x58; WarGoal_Execute"
 CCasusBelliType,0x120,peaceOptions,list,C,cp,"nodes {po token, prev, next, u8} (0x10 bytes); tail +0x124, count +0x128"
 CWarGoal,0x0C,cb,CCasusBelliType*,C,cp,vtable 0x00E35DDC
-CWarGoal,0x18,receiver,CountryRef,I,cp,"{tag, index}; receives the provinces of po_demand_state"
+CWarGoal,0x18,actor,CountryRef,C,cp,"key actor 0x381: the holder and beneficiary (receives provinces, annexes)"
 CWarGoal,0x28,province,u32,C,cp,province id: the target of a state war goal
+CCountry,0xEA0,prestigeX1000,i32,C,cp,Country_AddPrestige; total adds tech(+0xBCC)+0x28C (I)
+CCountry,0x9E8,controlledProvinces,list,C,cp,"nodes {provId, ?, next}; Province_SetController; returned at peace"
+CCountry,0x9F8,coreProvinces,list,I,cp,Province_RemoveCore
+CCountry,0x7BC,armyCount,u32,C,cp,count of +0x7B4
+CCountry,0x1490,navies,list,I,cp,count +0x1494; deleted by Country_Annex
+CCountry,0xE8C,loans,vector,I,cp,"entries +0xC lender index, +0x18 i64 amount"
+CCountry,0xE88,bank,ptr,I,cp,+0x18 i64 lent amount
+CCountry,0x4C0,lastWarLossDate,u32,I,cp,set to today for peace losers
+CCountry,0x65C,diploPointsX1000,i32,C,cp,cap 9000
+CCountry,0x680,warExhaustion,i32,C,cp,AI_EvaluatePeaceOffer; GOOD_PEACE_REFUSAL_WAREXH
+CCountry,0xCDC,controller,ptr,C,cp,"vt[0x44]() -> session manager, +0x38 session (vt[0x18] queue command)"
+CCountry,0xCE4,pendingActions,list,C,cp,"nodes {action*, prev, next, u8}; tail +0xCE8, count +0xCEC; saved as diplomatic_action (0x8AF)"
+CCountry,0xD38,vassalList,vector,I,cp,8-byte refs
+CCountry,0xDE4,totalProvinceValue,i32,I,cp,divisor of Province_GetPeaceValue and war score
+CProvince,0x12C,ownerIndex,u32,C,cp,with tag +0x128
+CProvince,0x134,controllerIndex,u32,C,cp,with tag +0x130
+CProvince,0x358,controllerChangeDate,i32,C,cp,Province_SetController setDate
+CProvince,0x38,nationalismTimer,i32,I,cp,set from defines+0x40 on transfer
+CProvince,0xEC,units,list,I,cp,Units_UpdateHostileFlags
+CProvince,0x170,blockaded,u8,I,cp,Province_UpdatePortBlockade
+Pop,0x250,money,i64,I,cp,zeroed by TransferProvinces
+CState,0x258,bank,i64,I,cp,reduced by pop +0x250 on transfer
+Relation,0x24,vassal,CVassal*,C,cp,po_make_puppet / Vassal_Release
+Relation,0x34,war,CWar*,C,cp,null = not at war; CPeaceAction and AI_EvaluatePeaceOffer stop without it
+Relation,0x38,warSubsidies,CWarSubsides*,C,cp,CWarSubsidiesAction_Execute
+Relation,0x3C,value,i32,C,cp,Country_ChangeRelation; clamp g_relationMin..g_relationMax
+Relation,0x40,influenceLevel,u32,C,cp,"5 sphere, 4 after removal; +0x44 date"
+Relation,0x48,influence,i32,C,cp,checked against INFLUENCE_COST
+Relation,0x64,diplomatArrival,u32,C,cp,now + DIPLOMAT_TRAVEL_TIME
+Relation,0x6C,truceUntil,u32,C,cp,hours; written both ways at peace; truce_with
+Relation,0x71,dirty,u8,C,cp,
+CCommand,0x30,typeKey,u32,C,cp,prototype hash key (= +0x2C)
+CCommand,0x38,identity,u32,C,cp,field 0xF3
+CDiplomaticAction,0x08,actor,CountryRef,C,cp,key actor 0x381
+CDiplomaticAction,0x10,recipient,CountryRef,C,cp,key recipient 0x382
+CDiplomaticAction,0x18,date,u32,C,cp,creation date
+CDiplomaticAction,0x1C,lastCommandDate,u32,C,cp,set by CreateCommand / AddPending
+CDiplomaticAction,0x20,shownToPlayer,u8,C,cp,set once GuiOwner_UpdateDialogs showed the incoming box (vt[0x34]); reset on copy
+CDiplomaticAction,0x24,status,u32,C,cp,"0 new, 1 pending, 2 declined, 3 accepted"
+CDiplomaticActionCommand,0x3C,action,CDiplomaticAction*,C,cp,owned; command type 900
+CPeaceAction,0x28,offer,CPeaceOffer,C,cp,embedded 0x70; object 0x98
+CPeaceOffer,0x08,demand,u8,C,cp,1 = actor demands (winner); dialog writes it as action+0x30
+CPeaceOffer,0x09,better,u8,C,cp,PO_ISBETTER; forces the refusal penalty
+CPeaceOffer,0x0C,flags2,vector<int>,C,cp,selection for +0x2C (2 = locked)
+CPeaceOffer,0x1C,flags,vector<int>,C,cp,selection for +0x3C
+CPeaceOffer,0x2C,warGoals2,vector<CWarGoal>,C,cp,goals of side +0x4C (I)
+CPeaceOffer,0x3C,warGoals,vector<CWarGoal>,C,cp,goals of side +0x5C (I)
+CPeaceOffer,0x4C,sideB,vector<CountryRef>,I,cp,
+CPeaceOffer,0x5C,sideA,vector<CountryRef>,I,cp,
+CPeaceOffer,0x6C,valid,u8,C,cp,set by FillFromWar
+CWarSubsidiesAction,0x28,amount,i64,C,cp,2^15 fixed
+CPayingReparations,0x08,receiver,CountryRef,C,cp,"0x24 bytes; +0x10 payer, +0x18 start date"
+CWarGoal,0x08,selectedScratch,u32,I,cp,peace sort scratch; not saved
+CWarGoal,0x10,country,CountryRef,C,cp,"third party (transfer, release, sphere); key country 0x2F0"
+CWarGoal,0x20,receiver,CountryRef,C,cp,"key receiver 0xC2: the target, the side that loses"
+CWarGoal,0x2C,score,i32,C,cp,
+CWarGoal,0x30,change,i32,C,cp,
+CWarGoal,0x34,date,u32,C,cp,
+CWarGoal,0x38,isFulfilled,u8,C,cp,
+CWarGoal,0x3C,region,i32,C,cp,po_colony
+CWar,0x2C,attackers,vector<CountryRef>,C,cp,leader first
+CWar,0x3C,defenders,vector<CountryRef>,C,cp,
+CWar,0xE0,goalMap,map,C,cp,per-country goal records (+0x10 vector<CWarGoal>)
+CWar,0xFC,isGreatWar,u8,C,cp,GW multipliers
+CWar,0x100,direction,i32,I,cp,PEACE_WAR_DIRECTION_FACTOR term
+CCasusBelliType,0x100,penalty_factor,u32,C,cp,x1000 (OnKeyword jump table)
+CCasusBelliType,0x104,break_truce_prestige_factor,u32,C,cp,
+CCasusBelliType,0x108,break_truce_infamy_factor,u32,C,cp,
+CCasusBelliType,0x10C,break_truce_militancy_factor,u32,C,cp,
+CCasusBelliType,0x114,good_relation_infamy_factor,u32,C,cp,
+CCasusBelliType,0x118,good_relation_prestige_factor,u32,C,cp,
+CCasusBelliType,0x11C,good_relation_militancy_factor,u32,C,cp,
+CCasusBelliType,0x1D4,great_war_obligatory,u8,C,cp,
+CCasusBelliType,0x1DC,all_allowed_states,u8,C,cp,
+CEU3Dialog,0x04,window,CEU3DialogGui*,C,cp,instance of the eu3dialogtype
+CEU3Dialog,0x08,guiOwner,ptr,C,cp,"vt[0x34] gui, vt[0x3C] parent, vt[0x44] session (+0x38 queue vt[0x18])"
+CEU3Dialog,0x0C,agreeGlue,CButtonObserverGlue2C,C,cp,AgreeButton -> vt[0x18]
+CEU3Dialog,0x38,declineGlue,CButtonObserverGlue2C,C,cp,DeclineButton -> vt[0x1C]
+CEU3Dialog,0x64,closed,u8,C,cp,the manager deletes the dialog next frame
+CPeaceDialog,0x68,guiOwner,ptr,C,cp,
+CPeaceDialog,0x6C,action,CPeaceAction*,C,cp,action->vt[0x30]() clone; offer at +0x28
+CPeaceDialog,0x70,offerGlue,CButtonObserverGlue2C,C,cp,CPeaceDialog_OnOffer
+CPeaceDialog,0x9C,demandGlue,CButtonObserverGlue2C,C,cp,CPeaceDialog_OnDemand
+CWarGoalDialog,0x6C,action,ptr,C,cp,action clone (vt[0x20] type token)
+CWarGoalDialog,0x70,cancelGlue,CButtonObserverGlue2C,C,cp,both cancel_select buttons
+CWarGoalDialog,0x9C,actor,CountryRef,C,cp,
+CWarGoalDialog,0xA4,target,CountryRef,C,cp,
+CDiplomacyView,0x4C,window,ptr,C,cp,country_diplomacy instance
+CDiplomacyView,0x54,guiOwner,ptr,C,cp,passed to CreateDialog and GuiOwner_AddDialog
+CDiplomacyView,0x178,actionGlue,CButtonObserverGlue2C,C,cp,all action_option buttons -> CDiplomacyView_OnActionClick
+CDiplomacyView,0x2AC,addWargoalGlue,CButtonObserverGlue2C,C,cp,add_wargoal button
+CDiplomacyView,0x388,selectedTag,u32,C,cp,the selected country (starts as the player)
+CDiplomacyView,0x38C,selectedIndex,u32,C,cp,
+ListBoxItem,0x1C,windowVtable,ptr,I,cp,window wrapper interface
+ListBoxItem,0x20,window,ptr,C,cp,the row's window (destroyed with vt[0x50])
+CPeaceGoalEntry,0x2C,warGoal,CWarGoal*,C,cp,
+CPeaceGoalEntry,0x30,index,u32,C,cp,
+CPeaceGoalEntry,0x38,checkGlue,CCheckBoxObserverGlue,C,cp,pairs +0x10 / +0x18 = thunk 0x0077A0A0 (vt[4])
+CGoalEntry,0x28,target,CountryRef,C,cp,
+CGoalEntry,0x30,cb,CCasusBelliType*,C,cp,
+CGoalEntry,0x34,dialog,CWarGoalDialog*,C,cp,
+CGoalEntry,0x38,buttonGlue,CButtonObserverGlue,C,cp,0x4C pairs glue
+CButtonObserverGlue2C,0x04,owner,ptr,C,cp,ECX of the handler
+CButtonObserverGlue2C,0x08,onClick,code*,C,cp,"slot 2, no args; +0x20 slot 1 (button); +0x24 slot 9 right click"
+GuiButton,0x54,observers,ObserverList,C,cp,"vt[4] add, vt[8] remove"
+GuiButton,0x70,state,u32,C,cp,"0 normal, 1 pressed, 2 released, 3 disabled"
+GuiButton,0x4F,visible,u8,C,cp,
+GuiButton,0x154,userIndex,u32,C,cp,vt 0xD4 / 0x80
+GuiTextBox,0xA0,textSprite,ptr,C,cp,ESI of TextSprite_SetText
+GuiTextBox,0xDC,text,std::string,C,cp,assigned before TextSprite_SetText
+FixedWindow,0x248,backgroundButton,ptr,I,cp,the backGround button (not in the button lists)
+FixedWindow,0x424,subWindows,vector,C,cp,"{std::string name, window*} 0x20 bytes"
+GuiOwner,0x60,dialogs,list,C,cp,"nodes {dlg, prev, next}; tail +0x64, count +0x68"
+CEU3Application,0x11C,gfxDatabase,ptr,C,cp,.gfx blocks go to (+4)->vt[0xC]
+CEU3Application,0x120,gui,CEU3Gui*,C,cp,= g_gui
+CInGameIdler,0x70,mapClicksEnabled,u8,C,cp,CProvince_OnClick returns when 0
+CScrollbar,0x54,model,ptr,I,cp,"vt[0] set range, vt[0x1C](value, 1, 1) set, vt[0x10]() float value, vt[4] add observer"
+World,0xA84,agreements,list,C,cp,"diplomatic agreement objects; tail +0xA88, count +0xA8C, lock +0xA90"
+World,0xAB4,militaryMgr,struct,I,cp,arg of Military_RepositionArmies
+World,0xD1C,gameRunning,u8,I,cp,gates the transfer cleanup and the post-peace refresh
+CWarGoalBaseAction,0x28,warGoal,CWarGoal,I,cp,"embedded; cb at +0x34, province at +0x50"
+CWarGoalBaseAction,0x68,callAllies,u8,C,cp,declare war only
+CDiplomacyDialog,0x68,actionClone,ptr,C,cp,the clone Accept / Decline send
+CDiplomacyDialog,0x6C,pendingAction,ptr,C,cp,the pending action; removed and deleted by the dtor
+CInGameIdler,0x1D74,diplomaticDialogManager,ptr,I,cp,receives incoming offer dialogs (CInGameIdler_ShowDiplomaticDialog)
+CStateSelectionItem,0x28,dialog,CWarGoalDialog*,C,cp,
+CStateSelectionItem,0x2C,state,CState*,C,cp,"click and tooltip read only +0x48/+0x4C of it; the name comes from vt[0x20]"

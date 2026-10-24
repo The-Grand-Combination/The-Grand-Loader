@@ -7,6 +7,7 @@
 #include "features/country_upgrade.h"
 #include "features/demand_province.h"
 #include "features/event_background.h"
+#include "features/treaty.h"
 #include "features/vassal_map_color.h"
 #include "hooks/memory.h"
 #include "log.h"
@@ -32,6 +33,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     se::features::install_country_upgrade(config);
     se::features::install_demand_province(config);
     se::features::install_event_background(config);
+    se::features::install_treaty(config);  // after demand_province: it chains onto the same two sites
     se::features::install_vassal_map_color(config);
     return 0;
 }

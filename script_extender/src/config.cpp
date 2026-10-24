@@ -26,6 +26,12 @@ constexpr Key kKeys[] = {
     {"event_background", &Config::event_background, nullptr},
     {"vassal_map_color", &Config::vassal_map_color, nullptr},
     {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own},
+    {"treaty", &Config::treaty, nullptr},
+    {"treaty_infamy", &Config::treaty_infamy, nullptr},
+    {"treaty_ai_give_weight", nullptr, &Config::treaty_ai_give_weight},
+    {"treaty_ai_money_per_point", nullptr, &Config::treaty_ai_money_per_point},
+    {"treaty_ai_relation", nullptr, &Config::treaty_ai_relation},
+    {"treaty_ai_reluctance", nullptr, &Config::treaty_ai_reluctance},
 };
 
 std::string_view trim(std::string_view s) {

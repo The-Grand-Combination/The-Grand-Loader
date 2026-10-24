@@ -591,3 +591,25 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Built:** Script Extender `demand_province`. It adds the keyword as a variant of `po_demand_state` that transfers, prices and annexes by the war goal's province (5 patch sites `se_demand_province_*`). Not tested in game.
 - **Also found:** `country+0xE4C` is the state count (the list at `+0xE44`); it was labelled `aiScore`. `po_create_country` and `po_concede_defeat` are not parsed by `OnKeyword`.
 - **Open:** which province the war-goal dialog and the AI put in `CWarGoal+0x28`; the ticking war score and the AI value still use the whole state.
+
+## 2026-10-24 — Diplomatic actions, peace offers and the diplomacy UI (treaty research)
+
+- **Question:** what would a peacetime "treaty" need? Two countries trade CB terms (provinces) and money; the AI evaluates the deal like a peace offer.
+- **Answer:** the diplomatic-action framework, the peace offer and its AI rule, the peace options outside a war, the command factory, the province-transfer helpers and the diplomacy dialogs, with ~240 new function rows, ~50 globals and ~125 struct fields. → [systems/diplomacy.md](systems/diplomacy.md); the plan → [systems/treaties.md](systems/treaties.md)
+- **Corrections:**
+  - `0x006480E0` is `GuiOwner_AddDialog`, not `Window_Show`.
+  - `0x00947210` / `0x00942540` are the per-frame updates of `CPeaceDialog` / `CWarGoalDialog`, not `Command_CanExecute_*`.
+  - `CCountry+0xDA8` reads as "at war with", not "vassals".
+  - Relation `+0x20..+0x30` are agreement pointers (`+0x2C` reparations), not lists.
+  - `CWarGoal+0x18` is the `actor` (beneficiary); the save key `receiver` is `+0x20`, the target.
+  - `g_economyDefines` is the defines root.
+- **Answered:** casus-belli.md question 4 for the dialog. The war goal state list stores the state's first province.
+- **Side note for `event_background`:** window `vt[0x44]` finds icons only, and the event window's `Background` is a `guiButtonType` (and the `backGround` button sits apart at `window+0x248`). The element lookup may return 0, so check its log line in game.
+- **Open:** listed in diplomacy.md and treaties.md (RTTI on actions, `WarGoal_IsPossible` in peacetime, late `.gui` parsing, `CConquerProvinceCommand` round trip).
+
+## 2026-10-24 — A province list for `po_demand_province`
+
+- **Question:** the war-goal dialog lists states and stores the state's first province, so the player cannot choose which province a `po_demand_province` CB takes. Can it list provinces instead?
+- **Answer:** the state rows (`CStateSelectionItem`, ctor `0x0093F2B0`) read only the state's name (vt `0x20`, `CState_GetName` `0x004CECE0`) and its `+0x48/+0x4C` province ids (tooltip `0x0093F5E0`; click `CWarGoalDialog_SelectState` `0x00944B10` stores the first id in the action clone's `+0x50` = war goal `+0x28`). `FillStateList` takes the list head with `MOV EAX,[EAX+0xE44]` at `0x00945429` (ESI = dialog; the CB is action clone `+0x34`). → [systems/casus-belli.md](systems/casus-belli.md) ("`po_demand_province`")
+- **Built:** `se_demand_province_states`: for a marked CB that load returns a list of stand-in states, one per province, each named after its province. `allowed_states` and `WarGoal_IsPossible` now run per province for these CBs. Not tested in game.
+- **Open:** the AI still picks a state's first province for these CBs.

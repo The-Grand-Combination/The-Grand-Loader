@@ -124,3 +124,4 @@ se_demand_province_keyword,0x00E33734,E0 A1 90 00,vtable slot,experimental,cp,"S
 se_demand_province_transfer,0x0094E844,E8 47 72 B6 FF,call redirect,experimental,cp,"Script Extender demand_province: CALL TransferProvinces in WarGoal_Execute -> marked CB: only the war goal province"
 se_demand_province_annex,0x0094E77B,83 BA 4C 0E 00 00 01,CALL thunk + 90 90,experimental,cp,"Script Extender demand_province: CMP [owner+0xE4C],1 in WarGoal_Execute -> marked CB: annex only a one-province country"
 se_demand_province_cost,0x009519AD,8B 70 48 89 44 24 14,JMP thunk + 90 90,experimental,cp,"Script Extender demand_province: start of the po_demand_state cost loop in WarGoal_PeaceCost -> marked CB: that province only"
+se_demand_province_states,0x00945429,8B 80 44 0E 00 00,CALL thunk + 90,experimental,cp,"Script Extender demand_province: MOV EAX,[EAX+0xE44] in CWarGoalDialog_FillStateList -> marked CB: one stand-in state per province of the target (province list)"

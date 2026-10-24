@@ -1,5 +1,6 @@
 #include "features/demand_province.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -19,6 +20,10 @@
 // - For a war goal of a marked CB, in WarGoal_Execute the province transfer gets a one-element list (the
 //   war goal's province) instead of the state's, and the whole country is annexed only when that province
 //   is all it owns; in WarGoal_PeaceCost the per-province sum covers that province only.
+// - The war-goal dialog's state list (CWarGoalDialog_FillStateList) walks, for a marked CB, one stand-in
+//   state per province of the target instead of its states. Each stand-in holds that province alone and
+//   is named after it, so the vanilla loop lists provinces: allowed_states and WarGoal_IsPossible run per
+//   province, and a click stores that province in the war goal (the row stores the state's first one).
 
 namespace se::features {
 
@@ -39,6 +44,12 @@ constexpr uint32_t kAnnexCheck = 0x0094E77B;         // WarGoal_Execute: CMP [ow
 constexpr uint8_t kAnnexCheckBytes[] = {0x83, 0xBA, 0x4C, 0x0E, 0x00, 0x00, 0x01};
 constexpr uint32_t kCostLoop = 0x009519AD;           // WarGoal_PeaceCost: MOV ESI, [EAX+0x48]; MOV [ESP+0x14], EAX
 constexpr uint8_t kCostLoopBytes[] = {0x8B, 0x70, 0x48, 0x89, 0x44, 0x24, 0x14};
+constexpr uint32_t kStateList = 0x00945429;          // CWarGoalDialog_FillStateList: MOV EAX, [EAX+0xE44]
+constexpr uint8_t kStateListBytes[] = {0x8B, 0x80, 0x44, 0x0E, 0x00, 0x00};
+constexpr uint32_t kStateVtable = 0x00DFD78C;        // CState_vftable, 10 slots
+constexpr int kStateVtableSlots = 10;
+constexpr int kStateNameSlot = 0x20 / 4;             // thiscall (std::string* out) -> out
+constexpr uint32_t kProvinceNameSlot = 0x1C;         // CProvince vt: thiscall (std::string* out) -> out
 
 constexpr const char* kKeyword = "po_demand_province";
 constexpr int kPoDemandState = 0x8A3;
@@ -52,7 +63,11 @@ constexpr uint32_t kNodeNext = 0x08;
 // CWarGoal
 constexpr uint32_t kWarGoalCb = 0x0C;
 constexpr uint32_t kWarGoalProvince = 0x28;
+// CWarGoalDialog and its action clone, whose war goal starts at +0x28
+constexpr uint32_t kDialogAction = 0x6C;
+constexpr uint32_t kActionCb = 0x34;
 // CCountry, CProvince, CState
+constexpr uint32_t kCountryStates = 0xE44;  // list of nodes {state, prev, next}
 constexpr uint32_t kCountryStateCount = 0xE4C;
 constexpr uint32_t kProvinceState = 0x188;
 constexpr uint32_t kStateProvinceIds = 0x48;  // vector<int>
@@ -82,6 +97,31 @@ struct CostState {
 
 thread_local ProvinceList t_transfer;
 thread_local CostState t_cost;  // the AI prices war goals too, maybe off the main thread
+
+// A stand-in CState for the war-goal dialog: CState's vtable with the name slot replaced, and one
+// province in its province list. The dialog's rows keep a pointer to it, so it is never freed (one per
+// province, made on first use). The rest is zero: the dialog reads only the vtable and the list.
+struct ProvinceState {
+    const uintptr_t* vtable;
+    uint8_t unused[kStateProvinceIds - 4];
+    const int* begin;
+    const int* end;
+    const int* capacity;
+    int id;
+    uint8_t tail[0x300];
+};
+static_assert(offsetof(ProvinceState, begin) == kStateProvinceIds, "province list at CState+0x48");
+
+// A node of the game's state list; the dialog reads the value and next.
+struct StateNode {
+    uintptr_t state;
+    StateNode* prev;
+    StateNode* next;
+};
+
+uintptr_t g_province_state_vtable[kStateVtableSlots];
+std::vector<ProvinceState*> g_province_states;  // indexed by province id; the UI thread only
+std::vector<StateNode> g_state_nodes;           // the list handed to the dialog's last fill
 
 bool is_province_cb(uintptr_t cb) {
     for (uintptr_t c : g_cbs) {
@@ -226,6 +266,88 @@ __declspec(naked) void cost_thunk() {
     }
 }
 
+// The stand-in's name slot: the province's name.
+void* __fastcall province_state_name(const ProvinceState* self, void*, void* out) {
+    using NameFn = void*(__thiscall*)(uintptr_t, void*);
+    uintptr_t province = game::province(static_cast<uint32_t>(self->id));
+    return reinterpret_cast<NameFn>(read<uintptr_t>(read<uintptr_t>(province) + kProvinceNameSlot))(province, out);
+}
+
+ProvinceState* province_state(int id) {
+    if (id < 0) {
+        return nullptr;
+    }
+    if (static_cast<size_t>(id) >= g_province_states.size()) {
+        g_province_states.resize(id + 1, nullptr);
+    }
+    ProvinceState*& s = g_province_states[id];
+    if (!s) {
+        s = new ProvinceState();
+        s->vtable = g_province_state_vtable;
+        s->id = id;
+        s->begin = &s->id;
+        s->end = s->capacity = &s->id + 1;
+    }
+    return s;
+}
+
+// The state list the dialog walks: the target's, or for a marked CB one stand-in per province of it.
+uintptr_t __stdcall state_list(uintptr_t country, uintptr_t dialog) {
+    uintptr_t head = read<uintptr_t>(country + kCountryStates);
+    uintptr_t action = read<uintptr_t>(dialog + kDialogAction);
+    if (!action || !is_province_cb(read<uintptr_t>(action + kActionCb))) {
+        return head;
+    }
+    g_state_nodes.clear();
+    for (auto n = reinterpret_cast<const StateNode*>(head); n; n = n->next) {
+        uintptr_t state = n->state;
+        if (!state) {
+            continue;
+        }
+        for (const int* p = read<const int*>(state + kStateProvinceIds);
+             p < read<const int*>(state + kStateProvinceIds + 4); ++p) {
+            if (ProvinceState* s = province_state(*p)) {
+                g_state_nodes.push_back({reinterpret_cast<uintptr_t>(s), nullptr, nullptr});
+            }
+        }
+    }
+    for (size_t i = 0; i + 1 < g_state_nodes.size(); ++i) {  // linked once the vector stops growing
+        g_state_nodes[i].next = &g_state_nodes[i + 1];
+        g_state_nodes[i + 1].prev = &g_state_nodes[i];
+    }
+    return g_state_nodes.empty() ? 0 : reinterpret_cast<uintptr_t>(&g_state_nodes[0]);
+}
+
+// Replaces MOV EAX, [EAX+0xE44] (CALL + 1 NOP); EAX = target country, ESI = dialog. The flags are set
+// by the CMP after it.
+__declspec(naked) void state_list_thunk() {
+    __asm {
+        SE_SAVE_ALL
+        push esi
+        push eax
+        call state_list
+        mov [esp + SE_SAVED_EAX], eax
+        SE_RESTORE_ALL
+        ret
+    }
+}
+
+bool install_state_list() {
+    uintptr_t at = hooks::exe_va(kStateList);
+    if (!hooks::expect_bytes(at, kStateListBytes, sizeof(kStateListBytes))) {
+        return false;
+    }
+    auto real = reinterpret_cast<const uintptr_t*>(hooks::exe_va(kStateVtable));
+    for (int i = 0; i < kStateVtableSlots; ++i) {
+        g_province_state_vtable[i] = real[i];
+    }
+    g_province_state_vtable[kStateNameSlot] = reinterpret_cast<uintptr_t>(&province_state_name);
+    uint8_t patch[sizeof(kStateListBytes)] = {0xE8, 0, 0, 0, 0, 0x90};
+    auto rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(&state_list_thunk) - (at + 5));
+    std::memcpy(patch + 1, &rel, sizeof(rel));
+    return hooks::write_bytes(at, patch, sizeof(patch));
+}
+
 bool install_annex_check() {
     uintptr_t at = hooks::exe_va(kAnnexCheck);
     if (!hooks::expect_bytes(at, kAnnexCheckBytes, sizeof(kAnnexCheckBytes))) {
@@ -262,6 +384,10 @@ void install_demand_province(const Config& config) {
                           reinterpret_cast<uintptr_t>(&cost_thunk))) {
         logf("demand_province: the peace cost loop at %08X is not the expected one; keyword off", kCostLoop);
         return;
+    }
+    if (!install_state_list()) {  // without it the player still gets a state's first province
+        logf("demand_province: the war-goal state list at %08X is not the expected one; no province list",
+             kStateList);
     }
     if (!hooks::replace_pointer(hooks::exe_va(kCbOnKeywordSlot), hooks::exe_va(kCbOnKeyword),
                                 reinterpret_cast<uintptr_t>(&on_keyword))) {

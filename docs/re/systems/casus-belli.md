@@ -100,8 +100,8 @@ the peace code tests both. Every user walks the list and compares tokens: `CB_Ha
 |---|---|
 | `+0x0C` | `CCasusBelliType*` |
 | `+0x10/+0x14` | country ref `{tag, index}` |
-| `+0x18/+0x1C` | country ref, the one that receives the provinces |
-| `+0x20/+0x24` | country ref |
+| `+0x18/+0x1C` | `actor`: the holder, who receives the provinces |
+| `+0x20/+0x24` | `receiver` (save key): the target, who loses them |
 | `+0x28` | province id: the target of state war goals (`po_demand_state`) |
 
 How the AI and `CWarGoalDialog` fill `+0x28` was not traced. The AI scores targets per state, in the
@@ -176,8 +176,9 @@ deal.
 - **Parsing:** at the `CBManager_Load` call, the word is registered with `Token_AddDynamic`.
   `CCasusBelliType`'s vtable slot 4 (`0x00E33734`) gets a wrapper: with `yes`, the wrapper adds the
   `po_demand_state` node (once, even when both keywords are present) and marks the CB.
-- **Kept from `po_demand_state`:** target choice, `allowed_states`, AI, texts and infamy are those of
-  `po_demand_state`. Infamy is tuned per CB with `badboy_factor`.
+- **Kept from `po_demand_state`:** AI, texts and infamy are those of `po_demand_state`. The dialog lists
+  the target's provinces instead of its states (below), and `allowed_states` is checked per province.
+  Infamy is tuned per CB with `badboy_factor`.
 - **Changed, for a war goal of a marked CB:**
 
 | site | vanilla | marked CB |
@@ -185,6 +186,15 @@ deal.
 | `0x0094E844` (call `TransferProvinces`) | the state's province ids | a one-element list: `wg+0x28` |
 | `0x0094E77B` (`CMP [owner+0xE4C], 1`, 7 bytes, becomes `CALL` + 2 `NOP`) | annex when the owner has one state (with the capital) | annex only when that state is also a single province |
 | `0x009519AD` (7 bytes, `JMP` to a thunk) | cost over the state's provinces | cost of `wg+0x28` alone (a stand-in state whose `+0x48/+0x4C` cover that id) |
+| `0x00945429` (`MOV EAX,[EAX+0xE44]` in `CWarGoalDialog_FillStateList`, 6 bytes, becomes `CALL` + `NOP`) | the target's states; a row stores its state's first province | one stand-in state per province of the target, so the dialog lists provinces |
+
+**The war-goal dialog** ([diplomacy.md](diplomacy.md), `CWarGoalDialog`): the state list walks a list of stand-in
+`CState`s, one per province of the target's states, made once per province and never freed (the rows keep
+pointers to them). A stand-in has `CState`'s vtable with slot `0x20` (name) replaced by the province's
+name (`CProvince` vt `0x1C`), and that province alone at `+0x48/+0x4C`; the rest is zero. Everything else
+is vanilla and runs per province: the `allowed_states` scope (the first province), `WarGoal_IsPossible`,
+the row (`CStateSelectionItem`), its tooltip, and the click (`CWarGoalDialog_SelectState` `0x00944B10`,
+which stores `+0x48[0]` in the war goal). The substate list is not changed.
 
 Not adapted: the ticking war score (`FUN_00952FC0`) and the AI's war-goal value still look at the
 whole state. Patch sites: [patch_sites.csv](../symbols/patch_sites.csv) (`se_demand_province_*`).
@@ -195,7 +205,9 @@ whole state. Patch sites: [patch_sites.csv](../symbols/patch_sites.csv) (`se_dem
    `country+0xE4C` answered on 2026-10-24: the number of the country's states (see "Peace options").
 2. Order of the seven ×1000 factors at `+0xF4..+0x10C`.
 3. Whether `CNullCasusBelliType` instances are in the manager vector.
-4. Which province the war-goal dialog and the AI store in `CWarGoal+0x28` for a state war goal: the
-   clicked one, the state's capital or its first province? This decides which province
-   `po_demand_province` takes.
+4. Which province the war-goal dialog and the AI store in `CWarGoal+0x28` for a state war goal.
+   **Answered for the dialog (2026-10-24):** `CWarGoalDialog_FillStateList` stores the state's **first
+   province**, so `po_demand_province` from the dialog takes that one (see treaties.md). Since 2026-10-24
+   the Script Extender lists provinces instead for a `po_demand_province` CB (see above). The AI's
+   choice is still open.
 5. Fields `+0x10` and `+0x20` of `CWarGoal`, and the third argument of `WarGoal_PeaceCost`.

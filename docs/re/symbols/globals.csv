@@ -5,7 +5,7 @@ va,name,kind,conf,src,note
 0x01319730,g_decisionManager,ptr,C,cp,"lists +0xC/+0x10 and +0x28/+0x2C; getter 0x00875040"
 0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag; +0x64 IDirect3DDevice9*; +0x158 texture manager (10000 entries of 0x2C from +0x15C: IDirect3DTexture9*, path, width, height, refcount)"
 0x01258A48,g_issueManager,ptr,I,re,"issue registry: +0x4/+0x8 string-hash buckets (lookup FUN_00975ED0, hash h = (h + c) * 0x3D), vectors +0x18.. +0x6C per issue category (element+0x30 read per country in FUN_00503020). CIssueGroupTrigger parser FUN_008C4A70 loads it at 0x008C4AD4; miss -> CNullIssue singleton DAT_01258A40 (FUN_00974850). Named g_unitManager until 2026-10-13"
-0x012586DC,g_economyDefines,ptr,?,cp,+0x50 market totals; +0x08 date-like value
+0x012586DC,g_economyDefines,ptr,C,cp,"root of the defines.lua blocks (loader 0x0042E410): +0x30 diplomacy, +0x40 country, +0x60 AI; +0x50 market totals; +0x08 date-like value"
 0x0125870C,g_provinceSource,ptr,I,re,vt[0x24] returns the province count
 0x01258A98,g_registryLow,ptr,C,re,object registry for type <= 0x1268; events are type 0x27
 0x01258A94,g_registryHigh,ptr,C,re,object registry for type > 0x1268
@@ -139,3 +139,53 @@ va,name,kind,conf,src,note
 0x01258A64,g_lexerReady,u8,C,cp,"1 once Lexer_BuildTable has run"
 0x01258A60,g_lexerNextId,u32,C,cp,"highest static token id + 1"
 0x0131C8DC,g_dynamicTokens,vector,C,cp,"entries {int id; char name[0x100]}* added by Token_AddDynamic; end at 0x0131C8E0"
+0x0131C958,g_commandProtoCount,u32,C,cp,item count of the command prototype hash
+0x0131C95C,g_commandProtoBuckets,u32,C,cp,bucket count (0x1FF)
+0x0131C960,g_commandProtoTable,ptr,C,cp,"buckets of nodes {proto, next}; key proto+0x30 % 0x1FF; filled by Commands_RegisterPrototypes"
+0x01258738,g_budgetSlot,u32,I,cp,"current budget period; expenses at country+(slot+0xB)*0x10, income at country+(slot+0xD)*0x10"
+0x0131B1E8,g_relationMax,i32,I,cp,upper clamp of relation +0x3C (set at runtime)
+0x0131B2C8,g_relationMin,i32,I,cp,lower clamp of relation +0x3C (set at runtime)
+0x01318C70,g_controllerListeners,list,I,cp,Province_NotifyControllerListeners
+0x01318C80,g_ownerListeners,list,I,cp,Province_NotifyOwnerListeners
+0x01267970,g_countryDirtyBytes,u8*,I,cp,"one byte per country, set by Province_SetOwner (begin; end 0x01267974)"
+0x00F095B8,g_diplomacyActionTable,int[17][2],C,cp,"{token, alternative} per diplomacy view action button; 0x38D/0x81E declare war / peace; last 0x931 make_cb_action"
+0x01259ABC,g_nullDate,u32,I,cp,default date in action ctors
+0x0131B788,g_warGoalDefaultDate,u32,I,cp,CWarGoal+0x34 default
+0x012589A7,g_cheatAIAcceptAll,u8,I,cp,AI_EvaluateCommandChance returns 100 for others' actions when set
+0x01258A08,g_cheatInfiniteInfluence,u32,?,cp,DiplomaticAction_CanPerform uses 100000 influence when set
+0x01258A80,g_gui,ptr,C,cp,"CEU3Gui = app+0x120; vt[0x2C](const std::string* windowType, parent) instantiates; (+4)->vt[0xC](block) reads a .gui block"
+0x0131C974,g_guiReloadObservers,ptr,I,cp,file -> observers (Gui_ReloadFile)
+0x01258AC0,g_buttonClickHook,ptr,I,cp,cdecl (button*) called on every button click when set; no writer found
+0x00E3405C,CDiplomaticAction_vftable,vtable,C,cp,"RTTI; 38 slots (8 type id, 14 dialog, 27 auto-accept, 32 execute, 34 decline, 36 can perform)"
+0x00E340F8,CPeaceOffer_vftable,vtable,C,cp,RTTI; 6 slots (Persistent)
+0x00E34114,CDiplomaticActionCommand_vftable,vtable,C,cp,"RTTI; CCommand, type 900"
+0x00E34154,CNullDiplomaticAction_vftable,vtable,C,cp,RTTI
+0x00E341F4,CWarGoalBaseAction_vftable,vtable,C,cp,RTTI
+0x00E34294,CDeclareWarAction_vftable,vtable,C,cp,RTTI; 0x38D
+0x00E34334,CAddWarGoalAction_vftable,vtable,C,cp,RTTI; 0x8DD
+0x00E343D4,CMakeCBAction_vftable,vtable,C,cp,RTTI; 0x931; 0x2C bytes
+0x00E34474,CPeaceAction_vftable,vtable,C,cp,RTTI; 0x81E; 0x98 bytes
+0x00E345B4,CWarSubsidiesAction_vftable,vtable,C,cp,RTTI; 0x470
+0x00E346F4,CCrisisOfferAction_vftable,vtable,C,cp,RTTI; 0x9FA
+0x00E34B6C,CPayingReparations_vftable,vtable,C,cp,0x24 bytes
+0x00E337E8,CWarSubsides_vftable,vtable,C,cp,RTTI; i64 +0x28
+0x00DFC6E4,CConquerProvinceCommand_vftable,vtable,C,cp,type 0x298; Execute = TransferProvinces
+0x00DEDA5C,CCommand_vftable,vtable,C,cp,"16 slots: 2 serialize, 3 read, 4 field, 6 execute, 7 type, 12 keep for joiners, 13 create, 14 validate"
+0x00E08694,CEU3Dialog_vftable,vtable,C,cp,"RTTI; 18 slots (1 per-frame IsActive, 4 tooltip, 6 agree, 7 decline, 13 show, 14 hide, 15 title, 16 description)"
+0x00E086E0,CButtonObserverGlue_CEU3Dialog_vftable,vtable,C,cp,"0x2C glue: slot k jumps to [glue+off] with ECX = [glue+4]; slot 1 +0x20 (button), 2 +0x08, 9 +0x24 (button); same code for 0x00E35A84, 0x00E359A0, 0x00E07484"
+0x00E0872C,CEU3DialogGui_vftable,vtable,C,cp,"RTTI; FixedWindow finders 0x34 button, 0x3C text, 0x44 icon, 0x48 checkbox, 0x4C scrollbar, 0x6C subwindow, 0x7C listbox, 0xBC add subwindow; +0x18 vtable 0x00E087FC"
+0x00E35714,CPeaceDialog_vftable,vtable,C,cp,RTTI
+0x00E356C4,CWarGoalDialog_vftable,vtable,C,cp,RTTI
+0x00E359CC,CPeaceGoalEntry_vftable,vtable,C,cp,RTTI; slot 4 toggle; +0x1C vtable 0x00E35A04
+0x00E35A64,CCheckBoxObserverGlue_CPeaceGoalEntry_vftable,vtable,C,cp,"0x38 glue: owner +4, six {fn, adjust} pairs"
+0x00E35760,CGoalEntry_vftable,vtable,C,cp,RTTI; slot 4 OnClick; +0x1C vtable 0x00E35794
+0x00E05F8C,CDiplomacyDialog_vftable,vtable,C,cp,RTTI
+0x00E05FDC,CStandardDiplomacyDialogue_vftable,vtable,C,cp,RTTI
+0x00E07450,CDiplomacyView_vftable,vtable,C,cp,"RTTI; slot 0 setup again, 10 tooltip, 11 refresh (I)"
+0x00E392F0,ListBoxItem_vftable,vtable,I,cp,"slot 0 dtor, slot 4 OnClick; +0x1C vtable 0x00E39320"
+0x00E08B24,CEU3CheckBox_vftable,vtable,C,cp,RTTI
+0x00DF8390,CScrollbarObserverGlue_CInvestProject_vftable,vtable,C,cp,slot 1 jumps to [glue+8] with ECX = owner
+0x00E0602C,CCBCreationDialog_vftable,vtable,C,cp,"RTTI; 1 0x0061A920, 4 0x0061AAB0, 6 0x00948CF0 (folded OnAgree)"
+0x00E06078,CCBTypeEntry_vftable,vtable,C,cp,RTTI; +0x1C vtable 0x00E060AC
+0x00E35820,CStateSelectionItem_vftable,vtable,C,cp,"RTTI; slot 4 OnClick 0x0093F5D0"
+0x00DFD78C,CState_vftable,vtable,C,cp,"RTTI; 10 slots; slot 8 (0x20) CState_GetName"

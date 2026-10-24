@@ -1,0 +1,783 @@
+#include "features/treaty_ui.h"
+
+#include <windows.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "features/treaty.h"
+#include "game/localisation.h"
+#include "game/objects.h"
+#include "hooks/memory.h"
+#include "hooks/thunk.h"
+#include "log.h"
+
+// Treaty screens: docs/re/systems/treaties.md ("Screens"), diplomacy.md ("Diplomacy UI").
+//
+// - Loading: the CALL Gui_Finalize at 0x0063690D (after the game parsed interface/*.gfx and *.gui) first
+//   parses the plugin's interface/*.gfx into the sprite database (app+0x11C) and *.gui into the GUI
+//   (app+0x120), with the game's per-file sequence (FileReader, ParserBlock, (target+4)->vt[0xC]).
+// - "Diplomatic Play": CMakeCBAction's slot 14 (vtable entry 0x00E3440C) returns a chooser built on the
+//   vanilla "DefaultDialog" box instead: Agree opens the vanilla Justify-war dialog, Decline the editor.
+// - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
+//   0 dtor, 1 per-frame refresh, 6 send, 7 cancel). Its rows are fixed buttons, paged: the terms
+//   (click = remove), the picker (who gives, then a treaty CB, then a province) and money steps.
+
+namespace se::features::treaty_ui {
+
+namespace {
+
+using game::GameString;
+using game::read;
+
+// GUI loading
+constexpr uint32_t kGuiFinalizeCall = 0x0063690D;  // CALL Gui_Finalize; EDI = the application
+constexpr uint32_t kGuiFinalize = 0x009A4190;
+constexpr uint32_t kAppGfx = 0x11C;
+constexpr uint32_t kAppGui = 0x120;
+constexpr uint32_t kFileReaderCtor = 0x0098FFC0;   // thiscall (const std::string* path)
+constexpr uint32_t kFileReaderSize = 0x114;
+constexpr uint32_t kTokenReaderVtable = 0x00E37C3C;
+constexpr uint32_t kParserBlockCtor = 0x009A0BF0;  // EDX = const std::string* name, (mem, reader, 1)
+constexpr uint32_t kParserBlockSize = 0x360;
+constexpr uint32_t kReadBlock = 0x0C;              // (target+4)->vt[0xC](block)
+
+// Dialogs
+constexpr uint32_t kDialogCtor = 0x00640680;      // ECX = gui owner, (this, const std::string* type)
+constexpr uint32_t kDialogDtorBody = 0x00640880;  // ECX = this
+constexpr uint32_t kDialogIsActive = 0x006409B0;  // slot 1 of the base
+constexpr uint32_t kDialogVtable = 0x00E08694;    // CEU3Dialog_vftable, 18 slots
+constexpr uint32_t kDialogSlots = 18;
+constexpr uint32_t kDialogBaseSize = 0x68;
+constexpr uint32_t kDialogWindow = 0x04;
+constexpr uint32_t kDialogOwner = 0x08;
+constexpr uint32_t kDialogClosed = 0x64;
+constexpr uint32_t kDialogState = 0x68;  // ours: the C++ state
+constexpr uint32_t kAddDialog = 0x006480E0;  // GuiOwner_AddDialog: ESI = owner, (dialog)
+constexpr uint32_t kSetLeftShield = 0x00641630;   // ECX = window, EAX = &{tag, index}
+constexpr uint32_t kSetRightShield = 0x006416A0;
+constexpr uint32_t kGlueVtable = 0x00E086E0;      // CButtonObserverGlue<CEU3Dialog>
+constexpr uint32_t kOwnerGui = 0x34;              // gui owner vt: the GUI
+constexpr uint32_t kGuiTypes = 0x34;              // gui + 0x34: type table, vt[4](const std::string*) -> type
+// Window finders: thiscall (const std::string*) -> element or 0
+constexpr uint32_t kFindButton = 0x34;
+constexpr uint32_t kFindTextBox = 0x3C;
+// Buttons
+constexpr uint32_t kButtonShow = 0x34;
+constexpr uint32_t kButtonHide = 0x38;
+constexpr uint32_t kButtonEnable = 0xB8;
+constexpr uint32_t kButtonDisable = 0xBC;
+constexpr uint32_t kButtonSetText = 0xCC;  // (const std::string*, font 0)
+constexpr uint32_t kButtonObservers = 0x54;  // vt[4] add, vt[8] remove
+// Text boxes
+constexpr uint32_t kTextBoxString = 0xDC;
+constexpr uint32_t kTextBoxSprite = 0xA0;
+constexpr uint32_t kStringAssignFrom = 0x00408ED0;  // thiscall (const std::string*, pos, count)
+constexpr uint32_t kTextSpriteSetText = 0x00A5ECC0;  // ESI = sprite, (const std::string*, 0)
+// "Justify war"
+constexpr uint32_t kMakeCbDialogSlot = 0x00E3440C;   // CMakeCBAction_vftable slot 14
+constexpr uint32_t kMakeCbDialog = 0x00926D00;       // thiscall (owner, view) -> dialog
+constexpr uint32_t kActionClone = 0x30;              // action vt: Clone
+constexpr uint32_t kActionActorIndex = 0x0C;
+constexpr uint32_t kActionRecipientIndex = 0x14;
+
+// Countries, provinces
+constexpr uint32_t kCountryTag = 0x1C;
+constexpr uint32_t kCountryProvinces = 0x9D8;
+constexpr uint32_t kCountryTreasury = 0xE78;
+constexpr uint32_t kCbName = 0x14;
+constexpr int64_t kMoneyOne = 32768;
+
+constexpr const char* kEditorType = "se_treaty_dialog";
+constexpr const char* kChooserType = "DefaultDialog";
+constexpr int kRows = 6;
+constexpr int kMoneySteps[] = {-1000, -100, 100, 1000};
+
+Config g_config;
+uintptr_t g_gui_finalize = 0;
+uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
+uintptr_t g_chooser_vtable_storage[kDialogSlots + 1];
+
+template <class T>
+T fn(uint32_t va) {
+    return reinterpret_cast<T>(hooks::exe_va(va));
+}
+
+template <class T>
+T vt(uintptr_t object, uint32_t slot) {
+    return read<T>(read<uintptr_t>(object) + slot);
+}
+
+void* game_new(size_t size) { return fn<void*(__cdecl*)(size_t)>(0x00AAE9AF)(size); }
+void game_delete(void* p) { fn<void(__cdecl*)(void*)>(0x00AAE91B)(p); }
+
+// --- Loading the plugin's .gfx / .gui ------------------------------------------------------------
+
+// The plugin folder as a PhysFS path (the game folder is the PhysFS root), e.g. "mod/script_extender".
+std::string plugin_physfs_dir() {
+    std::wstring game = host().game_dir;
+    std::wstring plugin = host().plugin_dir;
+    std::wstring rel = plugin.size() > game.size() && _wcsnicmp(plugin.c_str(), game.c_str(), game.size()) == 0
+                           ? plugin.substr(game.size())
+                           : std::wstring(L"mod\\script_extender");
+    while (!rel.empty() && (rel.front() == L'\\' || rel.front() == L'/')) {
+        rel.erase(rel.begin());
+    }
+    std::string out;
+    for (wchar_t c : rel) {
+        out += c == L'\\' ? '/' : static_cast<char>(c);
+    }
+    return out;
+}
+
+std::vector<std::string> files(const wchar_t* pattern) {
+    std::vector<std::string> out;
+    WIN32_FIND_DATAW data;
+    HANDLE h = FindFirstFileW((std::wstring(host().plugin_dir) + L"\\interface\\" + pattern).c_str(), &data);
+    if (h == INVALID_HANDLE_VALUE) {
+        return out;
+    }
+    do {
+        std::string name;
+        for (const wchar_t* c = data.cFileName; *c; ++c) {
+            name += static_cast<char>(*c);
+        }
+        out.push_back(name);
+    } while (FindNextFileW(h, &data));
+    FindClose(h);
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// One file into `target` (the sprite database or the GUI), as EU3App_LoadResources does.
+void parse_file(uintptr_t target, const std::string& path) {
+    void* block_memory = game_new(kParserBlockSize);
+    void* reader = game_new(kFileReaderSize);
+    if (!block_memory || !reader) {
+        return;
+    }
+    GameString game_path(path);
+    using ReaderCtorFn = void(__fastcall*)(void*, void*, const GameString*);
+    fn<ReaderCtorFn>(kFileReaderCtor)(reader, nullptr, &game_path);
+    *reinterpret_cast<uintptr_t*>(reader) = hooks::exe_va(kTokenReaderVtable);
+    std::string session = "UNNAMED_SESSION";
+    GameString game_session(session);
+    const GameString* session_ptr = &game_session;
+    uintptr_t ctor = hooks::exe_va(kParserBlockCtor);
+    uintptr_t block;
+    __asm {
+        push 1
+        push reader
+        push block_memory
+        mov edx, session_ptr
+        call ctor
+        mov block, eax
+    }
+    uintptr_t reader_iface = target + 4;
+    using ReadFn = void(__fastcall*)(uintptr_t, void*, uintptr_t);
+    vt<ReadFn>(reader_iface, kReadBlock)(reader_iface, nullptr, block);
+    using DeleteFn = void(__fastcall*)(uintptr_t, void*, int);
+    vt<DeleteFn>(block, 0)(block, nullptr, 1);
+    logf("treaty: loaded %s", path.c_str());
+}
+
+void __stdcall load_files(uintptr_t app) {
+    std::string dir = plugin_physfs_dir() + "/interface/";
+    uintptr_t gfx = read<uintptr_t>(app + kAppGfx);
+    uintptr_t gui = read<uintptr_t>(app + kAppGui);
+    if (gfx) {
+        for (const std::string& name : files(L"*.gfx")) {
+            parse_file(gfx, dir + name);
+        }
+    }
+    if (gui) {
+        for (const std::string& name : files(L"*.gui")) {
+            parse_file(gui, dir + name);
+        }
+    }
+}
+
+__declspec(naked) void finalize_thunk() {
+    __asm {
+        SE_SAVE_ALL
+        push edi
+        call load_files
+        SE_RESTORE_ALL
+        jmp g_gui_finalize
+    }
+}
+
+// --- GUI helpers -----------------------------------------------------------------------------------
+
+uintptr_t find(uintptr_t window, uint32_t finder, const std::string& name) {
+    GameString game_name(name);
+    using FindFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*);
+    return vt<FindFn>(window, finder)(window, nullptr, &game_name);
+}
+
+void set_text(uintptr_t textbox, const std::string& text) {
+    if (!textbox) {
+        return;
+    }
+    GameString value(text);
+    using AssignFn = void(__fastcall*)(uintptr_t, void*, const GameString*, size_t, size_t);
+    fn<AssignFn>(kStringAssignFrom)(textbox + kTextBoxString, nullptr, &value, 0, static_cast<size_t>(-1));
+    uintptr_t sprite = read<uintptr_t>(textbox + kTextBoxSprite);
+    const GameString* value_ptr = &value;
+    uintptr_t set = hooks::exe_va(kTextSpriteSetText);
+    __asm {
+        push esi
+        mov esi, sprite
+        push 0
+        push value_ptr
+        call set
+        pop esi
+    }
+}
+
+void button_text(uintptr_t button, const std::string& text) {
+    if (!button) {
+        return;
+    }
+    GameString value(text);
+    using TextFn = void(__fastcall*)(uintptr_t, void*, const GameString*, int);
+    vt<TextFn>(button, kButtonSetText)(button, nullptr, &value, 0);
+}
+
+void button_call(uintptr_t button, uint32_t slot) {
+    if (button) {
+        vt<void(__fastcall*)(uintptr_t, void*)>(button, slot)(button, nullptr);
+    }
+}
+
+void show(uintptr_t button, bool visible) { button_call(button, visible ? kButtonShow : kButtonHide); }
+void enable(uintptr_t button, bool on) { button_call(button, on ? kButtonEnable : kButtonDisable); }
+
+void shield(uintptr_t window, uint32_t setter, int country) {
+    uint32_t ref[2] = {read<uint32_t>(game::country(country) + kCountryTag), static_cast<uint32_t>(country)};
+    uint32_t* ref_ptr = ref;
+    uintptr_t f = hooks::exe_va(setter);
+    __asm {
+        mov ecx, window
+        mov eax, ref_ptr
+        call f
+    }
+}
+
+// The button-observer glue of the game (0x2C bytes): slot 1 calls [+0x20] with ECX = owner, (button).
+struct Glue {
+    uintptr_t vtable;
+    uintptr_t owner;
+    uintptr_t handlers[9];
+};
+static_assert(sizeof(Glue) == 0x2C, "glue");
+constexpr int kGlueClickWithButton = 6;  // +0x20
+
+void observe(uintptr_t button, Glue* glue, bool add) {
+    if (!button) {
+        return;
+    }
+    uintptr_t list = button + kButtonObservers;
+    using ObserveFn = void(__fastcall*)(uintptr_t, void*, Glue*);
+    vt<ObserveFn>(list, add ? 4 : 8)(list, nullptr, glue);
+}
+
+bool gui_type_exists(uintptr_t owner, const char* type) {
+    uintptr_t gui = vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(owner, kOwnerGui)(owner, nullptr);
+    uintptr_t types = gui + kGuiTypes;
+    std::string name = type;
+    GameString game_name(name);
+    using LookupFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*);
+    return vt<LookupFn>(types, 4)(types, nullptr, &game_name) != 0;
+}
+
+// A CEU3Dialog of `type` with `vtable`, `extra` bytes after the base; 0 if the type is unknown.
+uintptr_t new_dialog(uintptr_t owner, const char* type, uintptr_t* vtable_storage, size_t extra) {
+    if (!gui_type_exists(owner, type)) {
+        logf("treaty: the window type %s is not loaded", type);
+        return 0;
+    }
+    void* memory = game_new(kDialogBaseSize + extra);
+    if (!memory) {
+        return 0;
+    }
+    std::memset(static_cast<uint8_t*>(memory) + kDialogBaseSize, 0, extra);
+    std::string name = type;
+    GameString game_name(name);
+    using CtorFn = uintptr_t(__fastcall*)(uintptr_t, void*, void*, const GameString*);
+    fn<CtorFn>(kDialogCtor)(owner, nullptr, memory, &game_name);
+    auto dialog = reinterpret_cast<uintptr_t>(memory);
+    *reinterpret_cast<uintptr_t*>(dialog) = reinterpret_cast<uintptr_t>(&vtable_storage[1]);
+    return dialog;
+}
+
+void add_dialog(uintptr_t owner, uintptr_t dialog) {
+    vt<void(__fastcall*)(uintptr_t, void*)>(dialog, 0x28)(dialog, nullptr);
+    uintptr_t f = hooks::exe_va(kAddDialog);
+    __asm {
+        push esi
+        mov esi, owner
+        push dialog
+        call f
+        pop esi
+    }
+}
+
+void destroy_dialog_base(uintptr_t dialog, int flags) {
+    using DtorFn = void(__fastcall*)(uintptr_t, void*);
+    fn<DtorFn>(kDialogDtorBody)(dialog, nullptr);
+    if (flags & 1) {
+        game_delete(reinterpret_cast<void*>(dialog));
+    }
+}
+
+void delete_action(uintptr_t action) {
+    if (action) {
+        vt<void(__fastcall*)(uintptr_t, void*, int)>(action, 0)(action, nullptr, 1);
+    }
+}
+
+// --- Texts -----------------------------------------------------------------------------------------
+
+const char* const kUiKeys[] = {
+    "SE_TREATY_TITLE",        "SE_TREATY_TERMS",       "SE_TREATY_MODE_DEMAND",    "SE_TREATY_MODE_GIVE",
+    "SE_TREATY_PICK_CB",      "SE_TREATY_PICK_PROVINCE", "SE_TREATY_NO_OPTIONS",   "SE_TREATY_BACK",
+    "SE_TREATY_MONEY_NONE",   "SE_TREATY_MONEY_WE_PAY", "SE_TREATY_MONEY_THEY_PAY", "SE_TREATY_SCORE",
+    "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
+    "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
+    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_FULL",
+};
+
+std::string replace(std::string s, const std::string& token, const std::string& value) {
+    for (size_t at = s.find(token); at != std::string::npos; at = s.find(token, at + value.size())) {
+        s.replace(at, token.size(), value);
+    }
+    return s;
+}
+
+// --- The editor --------------------------------------------------------------------------------------
+
+enum Mode { kDemand, kGive };  // kDemand: they give, we gain
+
+struct Editor {
+    uintptr_t dialog = 0;
+    uintptr_t owner = 0;
+    uintptr_t action = 0;
+    int me = 0;
+    int them = 0;
+    Glue glue{};
+    std::map<std::string, std::string> texts;
+    // children
+    uintptr_t window = 0;
+    uintptr_t terms[kRows] = {};
+    uintptr_t picks[kRows] = {};
+    uintptr_t money[4] = {};
+    uintptr_t mode_demand = 0, mode_give = 0, prev = 0, next = 0, back = 0, agree = 0, decline = 0;
+    uintptr_t title = 0, terms_label = 0, pick_label = 0, money_text = 0, score = 0, acceptance = 0;
+    std::vector<uintptr_t> observed;
+    // picker
+    Mode mode = kDemand;
+    uintptr_t picked_cb = 0;  // 0: choosing a CB
+    int page = 0;
+    std::vector<uintptr_t> cb_options;
+    std::vector<uint32_t> province_options;
+    bool dirty = true;
+
+    std::string t(const char* key) const {
+        auto it = texts.find(key);
+        return it == texts.end() ? std::string(key) : it->second;
+    }
+    int gains() const { return mode == kDemand ? me : them; }
+    int gives() const { return mode == kDemand ? them : me; }
+};
+
+Editor* editor_of(uintptr_t dialog) { return read<Editor*>(dialog + kDialogState); }
+
+std::string name_of(const Editor& e, const std::string& key) {
+    auto it = e.texts.find(key);
+    return it == e.texts.end() ? key : it->second;
+}
+
+std::string cb_name(const Editor& e, uintptr_t cb) { return name_of(e, GameString::copy(cb + kCbName)); }
+
+std::string province_name(const Editor& e, uint32_t id) {
+    char key[16];
+    std::snprintf(key, sizeof(key), "PROV%u", id);
+    return name_of(e, key);
+}
+
+std::string country_name(const Editor& e, int index) {
+    uint32_t tag = read<uint32_t>(game::country(index) + kCountryTag);
+    return name_of(e, std::string(reinterpret_cast<const char*>(&tag), 3));
+}
+
+void compute_options(Editor& e) {
+    e.cb_options.clear();
+    e.province_options.clear();
+    if (!e.picked_cb) {
+        for (uintptr_t cb : treaty::treaty_cbs()) {
+            if (treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, e.gains(), e.gives())) {
+                continue;
+            }
+            if (!treaty::cb_needs_province(cb) && !treaty::check_term(e.action, {cb, e.gains(), e.gives(), 0}).empty()) {
+                continue;
+            }
+            e.cb_options.push_back(cb);
+        }
+        return;
+    }
+    uintptr_t giver = game::country(e.gives());
+    auto begin = read<const int*>(giver + kCountryProvinces);
+    auto end = read<const int*>(giver + kCountryProvinces + 4);
+    for (const int* p = begin; p < end; ++p) {
+        treaty::Term term{e.picked_cb, e.gains(), e.gives(), static_cast<uint32_t>(*p)};
+        if (treaty::check_term(e.action, term).empty()) {
+            e.province_options.push_back(term.province);
+        }
+    }
+}
+
+size_t option_count(const Editor& e) { return e.picked_cb ? e.province_options.size() : e.cb_options.size(); }
+
+void refresh(Editor& e) {
+    e.dirty = false;
+    set_text(e.title, e.t("SE_TREATY_TITLE"));
+    set_text(e.terms_label, e.t("SE_TREATY_TERMS"));
+    button_text(e.mode_demand, e.t("SE_TREATY_MODE_DEMAND"));
+    button_text(e.mode_give, e.t("SE_TREATY_MODE_GIVE"));
+    button_text(e.back, e.t("SE_TREATY_BACK"));
+    button_text(e.agree, e.t("SE_TREATY_SEND"));
+    button_text(e.decline, e.t("SE_TREATY_CANCEL"));
+
+    // Terms
+    std::vector<treaty::Term> terms = treaty::terms(e.action);
+    int gain = 0, give = 0;
+    for (const treaty::Term& term : terms) {
+        (term.actor == e.me ? gain : give) += treaty::term_cost(term);
+    }
+    for (int i = 0; i < kRows; ++i) {
+        if (i >= static_cast<int>(terms.size())) {
+            show(e.terms[i], false);
+            continue;
+        }
+        const treaty::Term& term = terms[i];
+        std::string label = cb_name(e, term.cb);
+        if (term.province) {
+            label += ": " + province_name(e, term.province);
+        }
+        char cost[16];
+        std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_cost(term));
+        label = replace(e.t(term.actor == e.me ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label + cost);
+        show(e.terms[i], true);
+        button_text(e.terms[i], label);
+    }
+
+    // Picker
+    size_t count = option_count(e);
+    int pages = static_cast<int>((count + kRows - 1) / kRows);
+    e.page = std::max(0, std::min(e.page, pages - 1));
+    std::string pick_label = e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
+                                         : e.t("SE_TREATY_PICK_CB");
+    if (count == 0) {
+        pick_label = e.t("SE_TREATY_NO_OPTIONS");
+    } else if (terms.size() >= static_cast<size_t>(kRows)) {
+        pick_label = e.t("SE_TREATY_FULL");
+    }
+    set_text(e.pick_label, pick_label);
+    for (int i = 0; i < kRows; ++i) {
+        size_t index = static_cast<size_t>(e.page * kRows + i);
+        bool visible = index < count && terms.size() < static_cast<size_t>(kRows);
+        show(e.picks[i], visible);
+        if (visible) {
+            button_text(e.picks[i], e.picked_cb ? province_name(e, e.province_options[index])
+                                                : cb_name(e, e.cb_options[index]));
+        }
+    }
+    show(e.prev, e.page > 0);
+    show(e.next, e.page + 1 < pages);
+    show(e.back, e.picked_cb != 0);
+
+    // Money
+    int64_t m = treaty::money(e.action);
+    std::string pounds = std::to_string((m < 0 ? -m : m) / kMoneyOne);
+    set_text(e.money_text, m == 0  ? e.t("SE_TREATY_MONEY_NONE")
+                          : m > 0 ? replace(e.t("SE_TREATY_MONEY_WE_PAY"), "$MONEY$", pounds)
+                                  : replace(e.t("SE_TREATY_MONEY_THEY_PAY"), "$MONEY$", pounds));
+
+    // Summary
+    std::string score = e.t("SE_TREATY_SCORE");
+    score = replace(replace(score, "$GAIN$", std::to_string(gain)), "$GIVE$", std::to_string(give));
+    set_text(e.score, score);
+    std::string why = treaty::problem(e.action);
+    std::string acceptance = why;
+    if (why.empty()) {
+        acceptance = treaty::ai_score(e.action, e.them) >= 0 ? e.t("SE_TREATY_WILL_ACCEPT") : e.t("SE_TREATY_WILL_NOT_ACCEPT");
+    }
+    set_text(e.acceptance, replace(acceptance, "$COUNTRY$", country_name(e, e.them)));
+    enable(e.agree, why.empty());
+}
+
+void reset_picker(Editor& e) {
+    e.page = 0;
+    compute_options(e);
+    e.dirty = true;
+}
+
+void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
+    Editor* e = editor_of(dialog);
+    if (!e) {
+        return;
+    }
+    for (int i = 0; i < kRows; ++i) {
+        if (button == e->terms[i]) {
+            treaty::remove_term(e->action, static_cast<size_t>(i));
+            reset_picker(*e);
+            return;
+        }
+        if (button == e->picks[i]) {
+            size_t index = static_cast<size_t>(e->page * kRows + i);
+            if (!e->picked_cb && index < e->cb_options.size()) {
+                uintptr_t cb = e->cb_options[index];
+                if (treaty::cb_needs_province(cb)) {
+                    e->picked_cb = cb;
+                } else {
+                    treaty::add_term(e->action, {cb, e->gains(), e->gives(), 0});
+                }
+            } else if (e->picked_cb && index < e->province_options.size()) {
+                treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), e->province_options[index]});
+                e->picked_cb = 0;
+            }
+            reset_picker(*e);
+            return;
+        }
+    }
+    for (int i = 0; i < 4; ++i) {
+        if (button == e->money[i]) {
+            treaty::set_money(e->action, treaty::money(e->action) + kMoneySteps[i] * kMoneyOne);
+            e->dirty = true;
+            return;
+        }
+    }
+    if (button == e->mode_demand || button == e->mode_give) {
+        e->mode = button == e->mode_demand ? kDemand : kGive;
+        e->picked_cb = 0;
+        reset_picker(*e);
+    } else if (button == e->back) {
+        e->picked_cb = 0;
+        reset_picker(*e);
+    } else if (button == e->prev || button == e->next) {
+        e->page += button == e->next ? 1 : -1;
+        e->dirty = true;
+    }
+}
+
+uintptr_t __fastcall editor_dtor(uintptr_t dialog, void*, int flags) {
+    if (Editor* e = editor_of(dialog)) {
+        for (uintptr_t b : e->observed) {
+            observe(b, &e->glue, false);
+        }
+        delete_action(e->action);
+        delete e;
+        *reinterpret_cast<Editor**>(dialog + kDialogState) = nullptr;
+    }
+    destroy_dialog_base(dialog, flags);
+    return dialog;
+}
+
+bool __fastcall editor_update(uintptr_t dialog, void*) {
+    Editor* e = editor_of(dialog);
+    if (e && e->dirty) {
+        refresh(*e);
+    }
+    return fn<bool(__fastcall*)(uintptr_t, void*)>(kDialogIsActive)(dialog, nullptr);
+}
+
+void __fastcall editor_agree(uintptr_t dialog, void*) {
+    Editor* e = editor_of(dialog);
+    if (e && treaty::problem(e->action).empty()) {
+        treaty::send(e->action, e->owner);
+    }
+    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
+}
+
+void __fastcall dialog_close(uintptr_t dialog, void*) { *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1; }
+
+void open_editor(uintptr_t owner, int me, int them) {
+    uintptr_t action = treaty::create(me, them);
+    if (!action) {
+        return;
+    }
+    uintptr_t dialog = new_dialog(owner, kEditorType, g_editor_vtable_storage, sizeof(Editor*));
+    if (!dialog) {
+        delete_action(action);
+        return;
+    }
+    auto* e = new Editor;
+    *reinterpret_cast<Editor**>(dialog + kDialogState) = e;
+    e->dialog = dialog;
+    e->owner = owner;
+    e->action = action;
+    e->me = me;
+    e->them = them;
+    e->glue.vtable = hooks::exe_va(kGlueVtable);
+    e->glue.owner = dialog;
+    e->glue.handlers[kGlueClickWithButton] = reinterpret_cast<uintptr_t>(&on_click);
+
+    // Names shown in the editor: our texts, the treaty CBs, both countries and their provinces.
+    std::vector<std::string> keys(std::begin(kUiKeys), std::end(kUiKeys));
+    for (uintptr_t cb : treaty::treaty_cbs()) {
+        keys.push_back(GameString::copy(cb + kCbName));
+    }
+    for (int c : {me, them}) {
+        uint32_t tag = read<uint32_t>(game::country(c) + kCountryTag);
+        keys.emplace_back(reinterpret_cast<const char*>(&tag), 3);
+        uintptr_t country = game::country(c);
+        for (const int* p = read<const int*>(country + kCountryProvinces); p < read<const int*>(country + kCountryProvinces + 4); ++p) {
+            keys.push_back("PROV" + std::to_string(*p));
+        }
+    }
+    e->texts = game::read_localisation(keys);
+
+    uintptr_t w = read<uintptr_t>(dialog + kDialogWindow);
+    e->window = w;
+    auto button = [&](const std::string& name) {
+        uintptr_t b = find(w, kFindButton, name);
+        if (b) {
+            observe(b, &e->glue, true);
+            e->observed.push_back(b);
+        } else {
+            logf("treaty: %s has no button %s", kEditorType, name.c_str());
+        }
+        return b;
+    };
+    for (int i = 0; i < kRows; ++i) {
+        e->terms[i] = button("se_term_" + std::to_string(i));
+        e->picks[i] = button("se_pick_" + std::to_string(i));
+    }
+    for (int i = 0; i < 4; ++i) {
+        e->money[i] = button("se_money_" + std::to_string(i));
+    }
+    e->mode_demand = button("se_mode_demand");
+    e->mode_give = button("se_mode_give");
+    e->prev = button("se_pick_prev");
+    e->next = button("se_pick_next");
+    e->back = button("se_pick_back");
+    e->agree = find(w, kFindButton, "AgreeButton");
+    e->decline = find(w, kFindButton, "DeclineButton");
+    e->title = find(w, kFindTextBox, "Title");
+    e->terms_label = find(w, kFindTextBox, "se_terms_label");
+    e->pick_label = find(w, kFindTextBox, "se_pick_label");
+    e->money_text = find(w, kFindTextBox, "se_money_text");
+    e->score = find(w, kFindTextBox, "score");
+    e->acceptance = find(w, kFindTextBox, "acceptance");
+    shield(w, kSetLeftShield, me);
+    shield(w, kSetRightShield, them);
+    reset_picker(*e);
+    refresh(*e);
+    add_dialog(owner, dialog);
+    logf("treaty: editor %d -> %d (%u treaty CBs)", me, them, static_cast<unsigned>(treaty::treaty_cbs().size()));
+}
+
+// --- "Diplomatic Play" chooser ------------------------------------------------------------------------
+
+constexpr uint32_t kChooserAction = 0x68;  // the CMakeCBAction clone
+constexpr uint32_t kChooserView = 0x6C;
+constexpr size_t kChooserExtra = 8;
+
+uintptr_t __fastcall chooser_dtor(uintptr_t dialog, void*, int flags) {
+    delete_action(read<uintptr_t>(dialog + kChooserAction));
+    *reinterpret_cast<uintptr_t*>(dialog + kChooserAction) = 0;
+    destroy_dialog_base(dialog, flags);
+    return dialog;
+}
+
+// Agree: the vanilla Justify-war dialog.
+void __fastcall chooser_justify(uintptr_t dialog, void*) {
+    uintptr_t owner = read<uintptr_t>(dialog + kDialogOwner);
+    uintptr_t action = read<uintptr_t>(dialog + kChooserAction);
+    uintptr_t view = read<uintptr_t>(dialog + kChooserView);
+    using CreateFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, uintptr_t);
+    uintptr_t vanilla = fn<CreateFn>(kMakeCbDialog)(action, nullptr, owner, view);
+    if (vanilla) {
+        add_dialog(owner, vanilla);
+    }
+    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
+}
+
+// Decline: the treaty editor.
+void __fastcall chooser_treaty(uintptr_t dialog, void*) {
+    uintptr_t owner = read<uintptr_t>(dialog + kDialogOwner);
+    uintptr_t action = read<uintptr_t>(dialog + kChooserAction);
+    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
+    open_editor(owner, read<int>(action + kActionActorIndex), read<int>(action + kActionRecipientIndex));
+}
+
+// Replaces CMakeCBAction slot 14: thiscall (owner, view) -> dialog.
+uintptr_t __fastcall make_cb_dialog(uintptr_t action, void*, uintptr_t owner, uintptr_t view) {
+    using CreateFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, uintptr_t);
+    auto vanilla = fn<CreateFn>(kMakeCbDialog);
+    if (!treaty::enabled()) {
+        return vanilla(action, nullptr, owner, view);
+    }
+    uintptr_t dialog = new_dialog(owner, kChooserType, g_chooser_vtable_storage, kChooserExtra);
+    if (!dialog) {
+        return vanilla(action, nullptr, owner, view);
+    }
+    *reinterpret_cast<uintptr_t*>(dialog + kChooserAction) =
+        vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(action, kActionClone)(action, nullptr);
+    *reinterpret_cast<uintptr_t*>(dialog + kChooserView) = view;
+    std::vector<std::string> keys = {"SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC", "SE_TREATY_CHOOSER_JUSTIFY",
+                                     "SE_TREATY_CHOOSER_TREATY"};
+    auto texts = game::read_localisation(keys);
+    auto t = [&](const std::string& key) { return texts.count(key) ? texts[key] : key; };
+    uintptr_t w = read<uintptr_t>(dialog + kDialogWindow);
+    set_text(find(w, kFindTextBox, "Title"), t("SE_TREATY_CHOOSER_TITLE"));
+    set_text(find(w, kFindTextBox, "Description"), t("SE_TREATY_CHOOSER_DESC"));
+    button_text(find(w, kFindButton, "AgreeButton"), t("SE_TREATY_CHOOSER_JUSTIFY"));
+    button_text(find(w, kFindButton, "DeclineButton"), t("SE_TREATY_CHOOSER_TREATY"));
+    shield(w, kSetLeftShield, read<int>(action + kActionActorIndex));
+    shield(w, kSetRightShield, read<int>(action + kActionRecipientIndex));
+    return dialog;
+}
+
+void build_vtable(uintptr_t* storage, uintptr_t dtor, uintptr_t update, uintptr_t agree, uintptr_t decline) {
+    uintptr_t base = hooks::exe_va(kDialogVtable);
+    storage[0] = read<uintptr_t>(base - 4);
+    for (uint32_t i = 0; i < kDialogSlots; ++i) {
+        storage[i + 1] = read<uintptr_t>(base + i * 4);
+    }
+    storage[0 + 1] = dtor;
+    if (update) {
+        storage[1 + 1] = update;
+    }
+    storage[6 + 1] = agree;
+    storage[7 + 1] = decline;
+}
+
+}  // namespace
+
+bool install(const Config& config) {
+    g_config = config;
+    build_vtable(g_editor_vtable_storage, reinterpret_cast<uintptr_t>(&editor_dtor),
+                 reinterpret_cast<uintptr_t>(&editor_update), reinterpret_cast<uintptr_t>(&editor_agree),
+                 reinterpret_cast<uintptr_t>(&dialog_close));
+    build_vtable(g_chooser_vtable_storage, reinterpret_cast<uintptr_t>(&chooser_dtor), 0,
+                 reinterpret_cast<uintptr_t>(&chooser_justify), reinterpret_cast<uintptr_t>(&chooser_treaty));
+    g_gui_finalize = hooks::exe_va(kGuiFinalize);
+    if (!hooks::redirect_call(hooks::exe_va(kGuiFinalizeCall), g_gui_finalize, reinterpret_cast<uintptr_t>(&finalize_thunk))) {
+        logf("treaty: the Gui_Finalize call at %08X is not the expected one", kGuiFinalizeCall);
+        return false;
+    }
+    if (!hooks::replace_pointer(hooks::exe_va(kMakeCbDialogSlot), hooks::exe_va(kMakeCbDialog),
+                                reinterpret_cast<uintptr_t>(&make_cb_dialog))) {
+        logf("treaty: CMakeCBAction's dialog slot at %08X is not the expected one", kMakeCbDialogSlot);
+        return false;
+    }
+    return true;
+}
+
+}  // namespace se::features::treaty_ui
