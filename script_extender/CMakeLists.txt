@@ -7,15 +7,18 @@ add_library(script_extender SHARED
     src/config.cpp
     src/hooks/memory.cpp
     src/features/building_map_mode.cpp
+    src/features/country_upgrade.cpp
     src/game/localisation.cpp
 )
 
 target_include_directories(script_extender PRIVATE src)
 target_link_libraries(script_extender PRIVATE tgl::plugin_api shell32)
 target_compile_definitions(script_extender PRIVATE SCRIPT_EXTENDER_VERSION="${PROJECT_VERSION}")
-set_target_properties(script_extender PROPERTIES PREFIX "" OUTPUT_NAME "script_extender")
+set_target_properties(script_extender PROPERTIES PREFIX "" OUTPUT_NAME "Script Extender")
 
-install(TARGETS script_extender RUNTIME DESTINATION mod/script_extender COMPONENT script_extender)
-install(FILES mod/script_extender.ini DESTINATION mod COMPONENT script_extender)
+# The loader wants mod/<name>.ini and mod/<name>/<name>.dll; <name> is "Script Extender".
+install(TARGETS script_extender RUNTIME DESTINATION "mod/Script Extender" COMPONENT script_extender)
+install(FILES "mod/Script Extender.ini" DESTINATION mod COMPONENT script_extender)
+install(DIRECTORY "mod/Script Extender/localisation" DESTINATION "mod/Script Extender" COMPONENT script_extender)
 
 set(SCRIPT_EXTENDER_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

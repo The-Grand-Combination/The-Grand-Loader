@@ -74,6 +74,28 @@ Each handler also sets `CSettings` fields: `+0xF0` map style (7 for infrastructu
   the others. **[C]**
 - Keyboard shortcuts are the `shortcut =` entries of `menubar.gui` and fire the same glue. **[I]**
 
+### The glue (`CButtonObserverGlue<CInGameIdler>`)
+
+- `ButtonObserverGlue_ctor` (EAX = glue, ECX = object) stores the object at `+4` and nine pairs
+  `{handler, this-adjust}` from the stack at `+0x08..+0x4C`, then the vtable
+  `CButtonObserverGlue_CInGameIdler_vftable` (`0x00E0A58C`, 10 slots). **[C]**
+- Slot 0 is the destructor. Slots 1..9 each forward to one pair:
+  `MOV EAX,ECX; MOV EDX,[EAX+k]; TEST EDX,EDX; JZ; MOV ECX,[EAX+k+4]; ADD ECX,[EAX+4]; JMP EDX`. **[C]**
+
+  | slot | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | pair at | `+0x38` | `+0x08` | `+0x20` | `+0x10` | `+0x18` | `+0x28` | `+0x48` | `+0x30` | `+0x40` |
+
+  Slots 1, 7 and 9 keep a stack frame (`PUSH EBP ... POP EBP; JMP EDX`), so they probably pass stack
+  arguments through. **[C]** code, **[I]** arguments.
+- The map-mode glues fill only the first pair (`+0x08`, used by slot 2), with adjust 0. So slot 2 is the
+  click. **[I]** The handler is called as a plain thiscall with no stack arguments: the `MapModeButton_*`
+  handlers end with a plain `RET`. **[C]**
+- The other eight pairs are room for other events (right click, hover, ...). Which slot is which event is
+  **[?]**.
+- `MapModeButton_Infrastructure` skips the click sound when the mode is already 4
+  (`CMP [ESI+0xDB4],4; JZ`). The sound is `Sound_Get()->vt[0x60](str_click)`. **[C]**
+
 ## Setting the mode
 
 `CInGameIdler_SetMapMode` (`0x00679A70`) takes **EAX = mode, ECX = idler**. It dispatches through the
@@ -101,8 +123,9 @@ Colours are built as a stack `CColor` (vtable `0x00DFBA7C`, floats r/g/b/a at `+
 ### Infrastructure (`MapColor_Infrastructure`, `0x008014D0`)
 
 The building is the first province building with type 2 (railroad), found in `g_buildingDb + 0x1C`
-([buildings.md](buildings.md)). With `k` = 1.0 (float at `0x00F092FC`), or 0.3 (`0x00DEFC8C`) for a
-province the player has not seen: **[C]**
+([buildings.md](buildings.md)). With `k` = 1.0 (`kOne_f32`, `0x00F092FC`, also the alpha), or 0.3
+(`kMapDim_f32`, `0x00DEFC8C`) when the bytes `g_mapDimFlagA` and `g_mapDimFlagB` (`0x00F092FA/FB`, both 1 in
+the file) are set and `[prov+0x5C]+0x360 < 1` (a province the player has not seen, **[I]**): **[C]**
 
 | case | colour (r, g, b) |
 |---|---|
@@ -111,6 +134,11 @@ province the player has not seen: **[C]**
 | otherwise | gradient (0.2·level·k, 0.1k, (1 − 0.2·level)·k) |
 | a railroad construction in the province (`prov+0xD8`) | secondary yellow (stripes) |
 | another check on that list fails | secondary red; meaning **[?]** |
+
+The construction list is walked through each entry's vtable: slot 12 (`+0x30`) "is a building
+construction", then `entry+0x58` = `CBuilding*`; the second check is slot 13 (`+0x34`). For a
+`CBuildingConstruction` slot 12 returns 1 and slot 13 returns 0, so the red stripe probably marks a
+province with a construction of another building. **[C]** slots, **[I]** meaning.
 
 The tech max is `(country+0xBCC)->+8 [bld+0x58]` of the player country. The terrain reduction is the byte
 `(prov+0x5C)->+0x14->+0x34 [bld+0x58]`. The level is `CProvinceBuilding+0x20 / 1000`. **[C]**
@@ -169,7 +197,11 @@ To force a redraw:
 (`E8 13 C9 29 00`) with the key `MAPMODE_<n>`. **[C]**
 
 `Localize` is stdcall `(out, const std::string* key)`, `RET 8`. A key that is missing from the table is
-shown as the key text itself. **[C]**
+shown as the key text itself. **[C]** The table holds parsed text only, with no plain string to read back;
+see [ui-console.md](ui-console.md#localisation-2026-10-23).
+
+The Script Extender redirects this call: for `MAPMODE_6` it passes `"<MAPMODE_6 text> - <building text>"`
+(texts read from the localisation CSVs), a key that is not in the table and is therefore shown as it is.
 
 ## Province tooltip and click
 
@@ -204,13 +236,31 @@ Not traced: the "pick a province" modes. Idler `+0x70` together with a click red
 | every mode change | entry of `MenuBar_SetMapModeButtons` `0x0066C180` | `55 8B EC 64 A1 00 00 00 00` | stdcall `(idler, button)`, `RET 8`; called by all 22 handlers and `Game_FinalizeLoadAndEnterGameplay` |
 | redraw | call `0x00678A80` | `8B 81 B4 0D 00 00 E9` | ECX = idler; after a selection change and daily |
 
+The Script Extender's `building_map_mode` uses the handler imm32, the colour `CALL`, the tooltip `Localize`
+`CALL` (`0x0070C5C8`) and the `MenuBar_SetMapModeButtons` entry (rows `se_*` in `symbols/patch_sites.csv`):
+
+- **Button.** A click while the mode is already 4 selects the next province building of
+  `g_buildingDb+0x1C`; the first click selects the railroad.
+- **Colours.** Only the player's own provinces are coloured, and for a `port` building only coastal ones;
+  everything else is vanilla's khaki. A level under construction counts as built.
+  - Solid blue: the level is at the highest one reachable now, `min(max_level, tech max − terrain
+    reduction)`, the limit of `Building_CanBuildInProvince` ([buildings.md](buildings.md)).
+  - Blue with khaki stripes: it can be expanded (controller = owner and `Building_CanBuildInProvince` with
+    `ignoreConstructing`).
+  - Red with khaki stripes: anything else.
+- **Stripes.** A 128×128 texture with one wide diagonal stripe goes into the stripes entry of the texture
+  manager while button 6 is shown, and the original goes back for any other button.
+- **Tooltip.** As in [Menubar tooltip](#menubar-tooltip).
+
+What has been tested in game is in `log.md` (2026-10-23, "Script Extender: building_map_mode").
+
 ## Open questions
 
-1. What the red stripe of the infrastructure mode means.
+1. What the red stripe of the infrastructure mode means (probably a construction of another building, see the slot-13 note above).
 2. How the shader uses the stripe texture and `CSettings+0xEC/+0xF0`.
 3. Who calls `CInGameIdler_PushMapMode` / `CInGameIdler_PopMapMode`.
 4. Whether idler `+0x70` and `CProvince+0x54` are the "pick a province" mechanism.
-5. The layout of the button glue, and whether it has a right-click slot (a selector on right click
-   instead of cycling).
+5. Which glue slot is which event (the layout is known, see [The glue](#the-glue-cbuttonobservergluecingameidler)),
+   and whether one of them is a right click (a selector on right click instead of cycling).
 6. The tooltip `out` object beyond its string, and what `ctx` is.
 7. Whether the minimap reads the same textures.

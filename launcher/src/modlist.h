@@ -6,7 +6,7 @@
 namespace tgl {
 
 struct PluginEntry {
-    std::wstring name;         // ini file stem, e.g. "performance_patch"
+    std::wstring name;         // ini file stem, e.g. "Performance Patch"
     std::wstring config_file;  // absolute path to mod\<name>.ini
     std::wstring plugin_dir;   // absolute path to mod\<name>
 };

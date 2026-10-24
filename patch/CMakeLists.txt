@@ -54,9 +54,10 @@ target_link_libraries(performance_patch PRIVATE tgl::plugin_api winmm)
 # docs/tools/scripts/annotate_samples.sh names them from this file.
 target_link_options(performance_patch PRIVATE "/MAP:$<TARGET_FILE_DIR:performance_patch>/performance_patch.map")
 target_compile_definitions(performance_patch PRIVATE PERFORMANCE_PATCH_VERSION="${PROJECT_VERSION}")
-set_target_properties(performance_patch PROPERTIES PREFIX "" OUTPUT_NAME "performance_patch")
+set_target_properties(performance_patch PROPERTIES PREFIX "" OUTPUT_NAME "Performance Patch")
 
-install(TARGETS performance_patch RUNTIME DESTINATION mod/performance_patch COMPONENT performance_patch)
-install(FILES mod/performance_patch.ini DESTINATION mod COMPONENT performance_patch)
+# The loader wants mod/<name>.ini and mod/<name>/<name>.dll; <name> is "Performance Patch".
+install(TARGETS performance_patch RUNTIME DESTINATION "mod/Performance Patch" COMPONENT performance_patch)
+install(FILES "mod/Performance Patch.ini" DESTINATION mod COMPONENT performance_patch)
 
 set(PERFORMANCE_PATCH_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

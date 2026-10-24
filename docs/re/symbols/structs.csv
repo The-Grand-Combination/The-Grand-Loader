@@ -209,12 +209,12 @@ CConstructBuildingCommand,0x40,provinceId,u32,C,cp,
 CConstructBuildingCommand,0x44,constructionId,u32[2],C,cp,
 CConstructBuildingCommand,0x4C,countryTag,char[4],C,cp,index at +0x50
 CConstructBuildingCommand,0x54,popProject,u8,C,cp,
-CProvince,0x5C,terrainData,ptr,I,cp,+0x14 -> +0x34 byte[] min_build per building (+0x58)
-CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0"
+CProvince,0x5C,terrainData,ptr,I,cp,+0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C)
+CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0; nodes {entry, ?, next}; entry vt[0x30] (slot 12, thiscall -> bool) = is a building construction (CBuildingConstruction: 1), entry+0x58 = CBuilding*; vt[0x34] (slot 13) is also read by MapColor_Infrastructure (CBuildingConstruction: 0; meaning ?)"
 CProvince,0x110,foreignInvestBlock,u32,?,cp,must be 0 for a foreign railroad investment
 CProvince,0x118,buildings,vector<CProvinceBuilding*>,C,cp,indexed by CBuilding+0x134
 CProvince,0x128,ownerTag,char[4],C,cp,index at +0x12C
-CProvince,0x158,coastal,u8,I,cp,port buildings
+CProvince,0x158,coastal,u32,I,cp,read as a 32-bit int != 0 by the port check of Building_CanBuildInProvince
 CProvince,0x2B8,infrastructure,i32,C,cp,shown by the infrastructure tooltip
 CCountry,0x1184,stockpile,ptr,I,cp,passed to Building_ComputeExpandCost
 CCountry,0xE70,constructionCostModifier,i32,I,cp,
@@ -223,3 +223,14 @@ CCountry,0xAC0,partyRules,u64[],C,cp,"+8*i; build_railway +0xAE8, build_factory_
 CProvinceManager,0x3C,render,ptr,C,cp,= g_renderDevice
 CProvinceManager,0xC0,stripesTexture,int,C,cp,"texture manager index of map/terrain/stripes.dds, bound as tex7 every frame"
 CProvinceManager,0x1A0,terrainEffect,ID3DXEffect*,C,cp,
+CCountryTechState,0x08,maxBuildingLevels,int*,C,cp,pointer to int[] indexed by CBuilding+0x58 (max_<building>): *(*(country+0xBCC)+8) + idx*4
+CBuildingConstruction,0x00,vtable,ptr,C,cp,"CBuildingConstruction_vftable: slot 12 (+0x30) 0x00A31490 returns 1 (is a building construction), slot 13 (+0x34) 0x0058CFD0 returns 0"
+CButtonObserverGlue,0x00,vtable,ptr,C,cp,CButtonObserverGlue_CInGameIdler_vftable; 0x50 bytes
+CButtonObserverGlue,0x04,object,ptr,C,cp,the handler object (idler); ECX of the handler = this + adjust
+CButtonObserverGlue,0x08,handlers,"{code*, i32}[9]",C,cp,"pairs {handler, this-adjust}; the first (+0x08/+0x0C) is the click (I), called as a plain thiscall with no stack arguments; the map-mode glues fill only this pair"
+CLocalisation,0x48,table,hash table,C,cp,"+4 bucket count, +8 buckets; nodes {pair*, next}; see StringHashMap_Find"
+LocalisationPair,0x00,key,std::string,C,cp,0x30-byte pair
+LocalisationPair,0x1C,owner,ptr,C,cp,start of the value Localize returns
+LocalisationPair,0x20,variants,vector<LocalisationVariant*>,C,cp,+0x20/+0x24/+0x28 (value +4/+8/+0xC)
+LocalisationVariant,0x00,selector,i32[4],C,cp,0x34 bytes; matched by Localisation_SelectVariant
+LocalisationVariant,0x10,text,RichText,C,cp,"parsed segments (RichText_Parse), not a std::string: reading it as one crashed the game (2026-10-23)"

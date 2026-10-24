@@ -102,6 +102,7 @@ std::map<std::string, std::string> read_localisation(const std::vector<std::stri
     if (!mods.replaces_localisation) {
         folders.push_back(game_dir + L"\\localisation");
     }
+    folders.push_back(std::wstring(host().plugin_dir) + L"\\localisation");  // ours last: a mod may override
 
     std::set<std::wstring> seen_files;
     for (const std::wstring& folder : folders) {
@@ -123,7 +124,12 @@ std::map<std::string, std::string> read_localisation(const std::vector<std::stri
                 size_t second = line.find(';', first + 1);
                 std::string_view text(line.data() + first + 1,
                                       (second == std::string::npos ? line.size() : second) - first - 1);
-                found[key] = std::string(trim(text));
+                // The game's loader turns "\n" into a newline; text passed as a missing key is not.
+                std::string value(trim(text));
+                for (size_t at = value.find("\\n"); at != std::string::npos; at = value.find("\\n", at + 1)) {
+                    value.replace(at, 2, "\n");
+                }
+                found[key] = value;
             }
         }
     }

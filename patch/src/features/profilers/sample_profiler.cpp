@@ -54,7 +54,7 @@ constexpr size_t kPoolWords = 12u << 20;  // 48 MB of frames (~300 k stacks of ~
 constexpr int kMaxModules = 64;
 constexpr uint32_t kModuleTag = 0xF0000000u;  // leaf in another module: kModuleTag | module index
 constexpr uint32_t kUnknownLeaf = 0xFFFFFFFFu;
-constexpr uint32_t kOwnTag = 0xE0000000u;      // leaf in performance_patch.dll: kOwnTag | RVA (resolve with its .map)
+constexpr uint32_t kOwnTag = 0xE0000000u;      // leaf in Performance Patch.dll: kOwnTag | RVA (resolve with its .map)
 
 struct StackEntry {
     uint64_t hash;

@@ -32,6 +32,42 @@ alone does not keep fog off. NOP-ing branches in `Render_InitRestore` (`0x0099DA
 own text (`launcher/src/version_label.cpp`). The external "Master EXE Mod" instead overwrites the `4`
 of the string with `5`, which is why it calls itself v3.05 while targeting this same exe.
 
+## Localisation (2026-10-23)
+
+Found in this repo while building the Script Extender's building map mode. Names and addresses are in
+`symbols/` (`Localize`, `Localisation_*`, `StringHashMap_Find`, `RichText_*`, `g_localisation`; struct rows
+`CLocalisation`, `LocalisationPair`, `LocalisationVariant`).
+
+- **Storage.** `g_localisation` (a 0x54-byte object) holds a hash table at `+0x48`.
+  `StringHashMap_Find` (EAX = table, stack `const std::string* key`, `RET 4`) hashes the key as
+  `h = (h + c) * 0x3D` over its bytes, takes bucket `h % [table+4]` from the array at `[table+8]` and walks
+  nodes `{pair*, next}`. It returns the pair or 0. **[C]**
+- **Pair.** The key `std::string` is at `+0`; the value starts at `+0x1C`: `{owner, vector<variant*>}`
+  (vector at value `+4/+8/+0xC`). **[C]**
+- **Variant** (0x34 bytes). Four selector ints at `+0..+0xC`, matched by `Localisation_SelectVariant` when a
+  value has several **[I]**, then at `+0x10` a parsed rich-text object built by `RichText_Parse`: vectors
+  of polymorphic segment objects, cloned through `vt+4` by `RichText_Copy`. **[C]** layout, **[I]**
+  segment semantics.
+- **There is no plain `std::string` of the text in memory.** Reading variant `+0x10` as a `std::string`
+  crashed the game (access violation in a `memcpy` with a garbage size). Code that needs the plain text
+  must read the CSV files itself. **[C]**
+- **`Localize`** (stdcall `(out, const std::string* key)`, `RET 8`) returns `out = {pair+0x1C, 0, 0, 0}`
+  through `Localisation_GetRef` / `Localisation_GetOrInsert` (ESI = key, EDI = localisation; an empty key
+  returns localisation `+0x24`). **[C]**
+- **Missing key.** `Localisation_GetOrInsert` inserts a new pair (`Localisation_InsertPair`), and `Localize`
+  adds a variant parsed from the key text itself (`Localisation_AddVariant`, also used by the CSV loader).
+  A missing key is therefore displayed verbatim, and passing any text as the "key" shows that text. **[C]**
+
+Where the plain text comes from, as the Script Extender models it (`script_extender/src/game/localisation.cpp`;
+**[I]**, not checked against the game's loader):
+
+1. Each `-mod=<file>.mod` on the command line is read for `path = "mod/X"` and
+   `replace_path = "localisation"`.
+2. The `localisation/*.csv` files of the mod folders come first, then vanilla's `localisation/` unless a mod
+   replaces it (TGC does). Within a folder the files are taken in name order.
+3. A mod file with the same file name as a vanilla one replaces it.
+4. The first definition of a key wins. Column 2 (after the key) is English.
+
 ## Chat (2026-10-17) **[C]**
 
 - **Lines:** the in-game chat list is `chat_list` (`interface/menubar.gui`), lines `chat_entry` (with the

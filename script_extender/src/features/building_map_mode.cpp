@@ -10,6 +10,7 @@
 #include <d3d9.h>
 
 #include "game/localisation.h"
+#include "game/objects.h"
 #include "hooks/memory.h"
 #include "hooks/thunk.h"
 #include "log.h"
@@ -22,8 +23,8 @@
 // - The handler's only call of MapColor_Infrastructure (0x0066CABE) is redirected to color_provinces,
 //   so every redraw of the mode, refreshes included, uses the selected building.
 // - The menubar tooltip looks up MAPMODE_<n> with Localize at 0x0070C5C8. For MAPMODE_6 the call gets
-//   "<MAPMODE_6 text> - <building text>" (texts from the localisation CSVs) instead: a key that is not
-//   in the table, which Localize shows as it is.
+//   SE_MAPMODE_BUILDING_TITLE with $MODE$ and $BUILDING$ replaced (texts from the localisation CSVs)
+//   instead: a key that is not in the table, which Localize shows as it is.
 // - Every map-mode handler calls MenuBar_SetMapModeButtons(idler, button). A pre-hook there puts a
 //   texture with four times thicker stripes into the stripes slot of the texture manager for button 6
 //   and the original back for any other; the terrain draw binds that slot as tex7 every frame.
@@ -31,6 +32,13 @@
 namespace se::features {
 
 namespace {
+
+using game::GameString;
+using game::Range;
+using game::building_name;
+using game::province_buildings;
+using game::read;
+using game::vector_at;
 
 constexpr uint32_t kHandlerImm = 0x0064B152;      // imm32 of MOV EAX,0x0066C9F0 at 0x0064B151
 constexpr uint32_t kInfraHandler = 0x0066C9F0;    // MapModeButton_Infrastructure, thiscall (idler)
@@ -42,9 +50,6 @@ constexpr uint32_t kLocalize = 0x009A8EE0;         // stdcall (out, const std::s
 constexpr uint32_t kSetMapModeButtons = 0x0066C180;  // stdcall (idler, button), RET 8
 constexpr unsigned char kSetMapModeButtonsEntry[] = {0x55, 0x8B, 0xEC, 0x64, 0xA1, 0x00, 0x00, 0x00, 0x00};
 constexpr uint32_t kMapView = 0x012588DC;         // g_mapView
-constexpr uint32_t kWorld = 0x012588E8;           // g_world
-constexpr uint32_t kCountryManager = 0x012587E4;  // g_countryManager: +4 CCountry* array
-constexpr uint32_t kBuildingDb = 0x0125CE80;      // g_buildingDb
 
 constexpr int kInfrastructureMode = 4;
 constexpr int kInfrastructureButton = 6;
@@ -61,15 +66,12 @@ constexpr uint32_t kTextureEntrySize = 0x2C;
 constexpr int kTextureSlots = 10000;
 constexpr UINT kStripeSize = 128;  // one diagonal stripe per 128-texel tile; TGC's stripes.dds has four
 
-// CInGameIdler, World, CProvinceManager
+// CInGameIdler, CProvinceManager
 constexpr uint32_t kIdlerMapMode = 0xDB4;
-constexpr uint32_t kWorldPlayerIndex = 0xB60;
 constexpr uint32_t kManagerRecords = 0x1C;  // vector<record*>: +0 primary ARGB, +4 secondary, +0xC CProvince*
 constexpr uint32_t kRecordProvince = 0xC;
-// g_buildingDb, CBuilding, CProvinceBuilding
-constexpr uint32_t kDbProvinceBuildings = 0x1C;  // vector<CBuilding*>, indexed by CBuilding+0x134
+// CBuilding, CProvinceBuilding
 constexpr uint32_t kBuildingType = 0x10;
-constexpr uint32_t kBuildingName = 0x20;  // std::string (VS2010)
 constexpr uint32_t kBuildingFileIndex = 0x58;
 constexpr uint32_t kBuildingPort = 0xBD;
 constexpr uint32_t kBuildingMaxLevel = 0xC4;
@@ -96,29 +98,6 @@ constexpr uint32_t kRed = 0xFFCC3333;
 constexpr uint32_t kNeutral = 0xFFB2B266;  // vanilla's khaki: not the player's, or no place for this building
 
 int g_selected = -1;  // index into g_buildingDb+0x1C; -1 until the mode is first drawn
-
-template <class T>
-T read(uintptr_t at) {
-    return *reinterpret_cast<const T*>(at);
-}
-
-struct Range {
-    uintptr_t* begin;
-    uintptr_t* end;
-    size_t size() const { return static_cast<size_t>(end - begin); }
-};
-
-Range vector_at(uintptr_t at) { return {read<uintptr_t*>(at), read<uintptr_t*>(at + 4)}; }
-
-Range province_buildings() {
-    uintptr_t db = read<uintptr_t>(hooks::exe_va(kBuildingDb));
-    return db ? vector_at(db + kDbProvinceBuildings) : Range{nullptr, nullptr};
-}
-
-const char* building_name(uintptr_t building) {
-    uintptr_t s = building + kBuildingName;
-    return read<uint32_t>(s + 0x14) > 15 ? read<const char*>(s) : reinterpret_cast<const char*>(s);
-}
 
 // Building_CanBuildInProvince(country, province, popProject 0, ignoreTech 0, ignoreConstructing 1,
 // useBuildingMaxOnly 0, ignoreRailRule 0): EAX = building, RET 0x1C, result in AL.
@@ -211,10 +190,8 @@ void __stdcall color_provinces(uintptr_t manager) {
         return;
     }
     uintptr_t building = buildings.begin[g_selected];
-    uintptr_t world = read<uintptr_t>(hooks::exe_va(kWorld));
-    int player = read<int>(world + kWorldPlayerIndex);
-    uintptr_t countries = read<uintptr_t>(read<uintptr_t>(hooks::exe_va(kCountryManager)) + 4);
-    uintptr_t country = read<uintptr_t>(countries + static_cast<uint32_t>(player) * 4);
+    int player = read<int>(game::world() + game::kWorldPlayerIndex);
+    uintptr_t country = game::country(player);
 
     Range records = vector_at(manager + kManagerRecords);
     for (size_t i = 1; i < records.size(); ++i) {
@@ -230,33 +207,6 @@ void __stdcall color_provinces(uintptr_t manager) {
     }
 }
 
-// VS2010 std::string as the game reads it: inline below 16 characters, else by pointer.
-struct GameString {
-    union {
-        char buf[16];
-        const char* ptr;
-    };
-    uint32_t size;
-    uint32_t capacity;
-    uint32_t allocator;
-
-    explicit GameString(const std::string& s) : size(static_cast<uint32_t>(s.size())), allocator(0) {
-        if (s.size() < 16) {
-            std::memcpy(buf, s.c_str(), s.size() + 1);
-            capacity = 15;
-        } else {
-            ptr = s.c_str();
-            capacity = size;
-        }
-    }
-    static std::string copy(uintptr_t at) {
-        auto size = read<uint32_t>(at + 0x10);
-        const char* text = read<uint32_t>(at + 0x14) > 15 ? read<const char*>(at) : reinterpret_cast<const char*>(at);
-        return std::string(text, size);
-    }
-};
-static_assert(sizeof(GameString) == 0x1C, "VS2010 std::string is 28 bytes");
-
 using LocalizeFn = void*(__stdcall*)(void* out, const GameString* key);
 
 // Texts of MAPMODE_6 and of every province building, read from the CSVs on first use. The game keeps
@@ -264,18 +214,30 @@ using LocalizeFn = void*(__stdcall*)(void* out, const GameString* key);
 std::map<std::string, std::string> g_texts;
 bool g_texts_read = false;
 
-std::string localized(const std::string& key) {
+constexpr const char* kModeKey = "MAPMODE_6";
+constexpr const char* kTitleKey = "SE_MAPMODE_BUILDING_TITLE";  // $MODE$ and $BUILDING$ are replaced
+
+void read_texts() {
     if (!g_texts_read) {
         g_texts_read = true;
-        std::vector<std::string> keys{"MAPMODE_6"};
+        std::vector<std::string> keys{kModeKey, kTitleKey};
         Range buildings = province_buildings();
         for (size_t i = 0; i < buildings.size(); ++i) {
             keys.emplace_back(building_name(buildings.begin[i]));
         }
         g_texts = game::read_localisation(keys);
     }
+}
+
+std::string localized(const std::string& key) {
     auto it = g_texts.find(key);
     return it != g_texts.end() && !it->second.empty() ? it->second : key;
+}
+
+void replace_all(std::string& text, const std::string& from, const std::string& to) {
+    for (size_t at = text.find(from); at != std::string::npos; at = text.find(from, at + to.size())) {
+        text.replace(at, from.size(), to);
+    }
 }
 
 std::string g_title;  // the composed MAPMODE_6 text; outlives the Localize call it is passed to
@@ -285,13 +247,19 @@ void* __stdcall localize_tooltip(void* out, const GameString* key) {
     auto original = reinterpret_cast<LocalizeFn>(hooks::exe_va(kLocalize));
     Range buildings = province_buildings();
     if (g_selected < 0 || static_cast<size_t>(g_selected) >= buildings.size() ||
-        GameString::copy(reinterpret_cast<uintptr_t>(key)) != "MAPMODE_6") {
+        GameString::copy(reinterpret_cast<uintptr_t>(key)) != kModeKey) {
         return original(out, key);
     }
-    std::string name(building_name(buildings.begin[g_selected]));
-    g_title = localized("MAPMODE_6") + " - " + localized(name);
-    GameString title(g_title);
-    return original(out, &title);
+    read_texts();
+    auto title = g_texts.find(kTitleKey);
+    if (title == g_texts.end()) {
+        return original(out, key);  // no title text: the vanilla one
+    }
+    g_title = title->second;
+    replace_all(g_title, "$MODE$", localized(kModeKey));
+    replace_all(g_title, "$BUILDING$", localized(building_name(buildings.begin[g_selected])));
+    GameString text(g_title);
+    return original(out, &text);
 }
 
 IDirect3DTexture9* g_thick = nullptr;    // created on first use, never released (the game may hold it)
@@ -387,7 +355,7 @@ void __fastcall on_button(uintptr_t idler, void*) {
         } else if (read<int>(idler + kIdlerMapMode) == kInfrastructureMode) {
             g_selected = static_cast<int>((static_cast<size_t>(g_selected) + 1) % buildings.size());
         }
-        logf("building_map_mode: %s", building_name(buildings.begin[g_selected]));
+        logf("building_map_mode: %s", building_name(buildings.begin[g_selected]).c_str());
     }
     reinterpret_cast<void(__fastcall*)(uintptr_t, void*)>(hooks::exe_va(kInfraHandler))(idler, nullptr);
 }

@@ -287,8 +287,8 @@ va,name,conf,area,src,note
 0x00678A40,CInGameIdler_PopMapMode,C,map,cp,idler vt[0x178]: pops and sets the mode; no direct callers
 0x00654530,CInGameIdler_ProcessMapDirty,C,map,cp,"per frame, ESI = idler: idler+0x24 -> int[22] dirty flag per mode; idler+0x74 flags 0x100/low nibble = recolour, 0x200 = upload only"
 0x00648040,CInGameIdler_MarkMapDirty,C,map,cp,"EAX = idler, EDX = flags, stack = province id"
-0x0066C9F0,MapModeButton_Infrastructure,C,map,cp,"mapmode_6 handler, thiscall (idler); sets mode 4, CSettings +0xF0 = 7, calls MapColor_Infrastructure at 0x0066CABE; return 0x00679AA2 when called by CInGameIdler_SetMapMode"
-0x008014D0,MapColor_Infrastructure,C,map,cp,"stdcall (CProvinceManager*), RET 4; railroad level gradient, red at max, khaki when not buildable, yellow stripe while building"
+0x0066C9F0,MapModeButton_Infrastructure,C,map,cp,"mapmode_6 handler, thiscall (idler), plain RET; sets mode 4, CSettings +0xF0 = 7, calls MapColor_Infrastructure at 0x0066CABE; return 0x00679AA2 when called by CInGameIdler_SetMapMode; the click sound (Sound_Get()->vt[0x60](str_click)) is skipped when idler+0xDB4 is already 4 (CMP [ESI+0xDB4],4; JZ)"
+0x008014D0,MapColor_Infrastructure,C,map,cp,"stdcall (CProvinceManager*), RET 4; railroad level gradient, red at max, khaki when not buildable, yellow stripe while building; factor k = 0.3 (kMapDim_f32) when g_mapDimFlagA and g_mapDimFlagB are set and [prov+0x5C]+0x360 < 1, else 1.0 (kOne_f32, also the alpha)"
 0x009B6DF0,CColor_ToARGB,C,render,cp,ECX = CColor* (floats r/g/b/a at +8..+0x14); returns A<<24|R<<16|G<<8|B
 0x00819830,MapRenderer_UploadProvinceColors,C,render,cp,"ECX = renderer ([mapView+0x3648]), EAX = mapView+0x20D8 (colour records)"
 0x00819860,MapRenderer_DrawProvinceColorTextures,C,render,cp,"ESI = renderer; two 256x256 lookup textures (primary, secondary), province i at (i&0xFF, 255-(i>>8)); selected provinces +0.1"
@@ -353,9 +353,19 @@ va,name,conf,area,src,note
 0x00891CA0,CBuildingEffect_Execute,C,effects,cp,Province_SetBuildingLevel(value + pb+0x10); the +0x10 is odd (?)
 0x008948C0,CInfrastructureEffect_Execute,C,effects,cp,same on db+0x34 with pb+0x20
 0x008A49E0,CBuildProvinceBuildingInCapitalEffect_Execute,C,effects,cp,"capital or capital state, level +1 via FUN_008A4880; db+0x34 / db+0x38"
-0x009A8EE0,Localize,C,ui,cp,"stdcall (out, const std::string* key), RET 8, returns out = {entry, empty vector}; entry = hash-table value {owner, vector<variant*>}, a variant (0x34 bytes) = 4 selector ints + parsed segments (polymorphic, no plain text); a missing key is shown as the key text; 2421 callers"
+0x009A8EE0,Localize,C,ui,cp,"stdcall (out, const std::string* key), RET 8; out = {pair+0x1C, 0, 0, 0} through Localisation_GetRef / Localisation_GetOrInsert. The value is {owner, vector<variant*>}; a variant (0x34 bytes) is 4 selector ints + a parsed RichText at +0x10, with no plain std::string of the text. A missing key is inserted with its own text (Localisation_AddVariant), so it is shown verbatim; 2421 callers"
 0x00988FA0,String_Concat,C,util,cp,"fastcall (out, const char* prefix) + stack std::string*: prefix + string"
 0x0070A340,CInGameIdler_BuildTooltip,I,ui,cp,tooltip dispatcher by widget name; mapmode_<n> -> Localize(MAPMODE_<n>) at 0x0070C5C8
 0x009BCBF0,TextureManager_GetOrLoad,C,render,cp,"EAX = manager (render+0x158), stack (std::string* path, logIfMissing), RET 8; returns the index, cached by path"
 0x007F4BF0,CProvinceManager_LoadTerrainTextures,C,render,cp,"stripes.dds index -> +0xC0 (colormap +0xB8, political +0xBC, water +0xC4, terrainalpha +0xD0)"
 0x007F9040,CProvinceManager_DrawTerrain,C,render,cp,"ESI = province manager; every pass: SetTexture(""tex7"", textures[+0xC0]) at 0x007F95C9 when the map style (CSettings+0xF0) != 0"
+0x00A727A0,StringHashMap_Find,C,util,cp,"EAX = table, stack const std::string* key, RET 4; h = (h + c) * 0x3D over the bytes, bucket h % [table+4], buckets at [table+8], nodes {pair*, next}; returns pair* (key std::string at +0) or 0; g_localisation+0x48 and 21 other callers"
+0x009AD930,Localisation_GetOrInsert,C,ui,cp,"ESI = const std::string* key, EDI = localisation; returns pair+0x1C (value: owner at +0, vector<variant*> at +4/+8/+0xC); a missing key is inserted by Localisation_InsertPair; an empty key returns localisation+0x24"
+0x009AD900,Localisation_GetRef,I,ui,cp,"(out) for Localize: out = {Localisation_GetOrInsert(), 0, 0, 0}, then FUN_009AB9E0"
+0x009AD870,Localisation_InsertPair,I,ui,cp,"(localisation, key, value): new 0x30-byte pair {std::string key, value at +0x1C} into the +0x48 table"
+0x009AB900,Localisation_AddVariant,C,ui,cp,"(value = pair+0x1C, const std::string* text, 16-byte selector): new 0x34-byte variant = selector + RichText_Parse(text) at +0x10, appended to the value's vector; called by the CSV loader FUN_009AB610 and by Localize for a missing key (the key text itself)"
+0x009AA7C0,RichText_Parse,I,ui,cp,"(out, const std::string* text): localisation text -> vectors of polymorphic segment objects; also called by FUN_009ACD20 and FUN_009ACE40"
+0x009AA260,RichText_Copy,I,ui,cp,copy of a parsed RichText; segments cloned through vt+4
+0x009AB9F0,Localisation_SelectVariant,I,ui,cp,matches the four selector ints of each variant when a value has several
+0x00679D30,ButtonObserverGlue_ctor,C,ui,cp,"EAX = glue, ECX = object (stored at +4), stack 9 pairs {handler, this-adjust} -> +0x08..+0x4C; vtable CButtonObserverGlue_CInGameIdler_vftable; 63 callers (CInGameIdler_ctor)"
+0x009C7290,Sound_Get,I,ui,cp,returns the sound object; vt[0x60](std::string* name) plays a UI sound (str_click in the map-mode handlers)

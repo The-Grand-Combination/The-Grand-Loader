@@ -21,6 +21,7 @@ struct Key {
 // Every ini key, in the order of Config. `flag` keys take 0/1, `value` keys an integer.
 constexpr Key kKeys[] = {
     {"building_map_mode", &Config::building_map_mode, nullptr},
+    {"country_upgrade", &Config::country_upgrade, nullptr},
 };
 
 std::string_view trim(std::string_view s) {

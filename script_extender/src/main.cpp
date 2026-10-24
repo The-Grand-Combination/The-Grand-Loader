@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "features/building_map_mode.h"
+#include "features/country_upgrade.h"
 #include "hooks/memory.h"
 #include "log.h"
 
@@ -25,5 +26,6 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
 
     se::Config config = se::load_config(host->config_file);
     se::features::install_building_map_mode(config);
+    se::features::install_country_upgrade(config);
     return 0;
 }

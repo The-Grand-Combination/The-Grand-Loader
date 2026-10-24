@@ -3,3 +3,4 @@
 *.bat text eol=crlf
 *.dll binary
 *.exe binary
+script_extender/mod/**/*.csv text eol=crlf

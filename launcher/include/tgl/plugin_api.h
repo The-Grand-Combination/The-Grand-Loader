@@ -15,7 +15,7 @@ typedef struct TGL_HostApi {
     uint32_t api_version;
     uint32_t struct_size;
 
-    const char* plugin_name;     // ini file stem, e.g. "performance_patch"
+    const char* plugin_name;     // ini file stem, e.g. "Performance Patch"
     const wchar_t* game_dir;     // directory containing v2game.exe, no trailing separator
     const wchar_t* config_file;  // absolute path of mod\<name>.ini
     const wchar_t* plugin_dir;   // absolute path of mod\<name>

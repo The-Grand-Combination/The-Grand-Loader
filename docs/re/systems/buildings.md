@@ -82,20 +82,26 @@ building probably keeps only one of them (TGC `naval_base` and `bank` have two).
 Per country, the tech state `country+0xBCC` holds two arrays indexed by `bld+0x58`:
 
 - `+0x2FC`: byte "building activated" (`activate_building`);
-- `+0x08`: int max level (`max_<building>`).
+- `+0x08`: **a pointer** to an `int[]` of max levels (`max_<building>`). `MapColor_Infrastructure` reads
+  `*(*(country+0xBCC) + 8) + idx*4`. **[C]**
 
 The terrain reduction (`min_build_<building>`) is the byte at `prov+0x5C -> +0x14 -> +0x34 [bld+0x58]`.
 **[I]**
+
+The highest level a country can reach in a province right now is therefore
+`min(max_level, techMax − terrain reduction)`, the limit that `Building_CanBuildInProvince` applies
+(condition 3 below). The Script Extender's building map mode colours a province solid blue at that level.
+**[C]** formula, from the checks.
 
 ## In the province
 
 | `CProvince` | content | conf |
 |---|---|---|
-| `+0xD8/+0xDC/+0xE0` | constructions (head, tail, count) | C |
+| `+0xD8/+0xDC/+0xE0` | constructions (head, tail, count); nodes `{entry, ?, next}`, see below | C |
 | `+0x110` | must be 0 for a foreign railroad investment | ? |
 | `+0x118` | `vector<CProvinceBuilding*>`, indexed by `bld+0x134` | C |
 | `+0x128` | owner tag (index at `+0x12C`) | C |
-| `+0x158` | coastal | I |
+| `+0x158` | coastal (a 32-bit int, non-zero: the `port` check) | I |
 | `+0x188` | `CState*`: `+0x48` province ids, `+0x60` state buildings, `+0x84` colonial, `+0x1C8` pop projects | C/I |
 | `+0x2B8` | infrastructure value (shown by the infrastructure tooltip) | C |
 
@@ -123,6 +129,11 @@ Helpers: `Province_HasBuilding` (ECX = province, EAX = building; level > 0), `Pr
 | `+0x58` | `CBuilding*` |
 
 All **[C]**.
+
+The province's construction list can hold other kinds of entries, so readers test each entry through its
+vtable: slot 12 (`+0x30`, thiscall, returns bool) is "is a building construction" and returns 1 for
+`CBuildingConstruction`; only then is `entry+0x58` a `CBuilding*`. `MapColor_Infrastructure` also calls
+slot 13 (`+0x34`), which returns 0 for `CBuildingConstruction`; its meaning is **[?]**. **[C]** slots.
 
 Every day, on every machine, `Province_DailyUpdate` advances each construction:
 
