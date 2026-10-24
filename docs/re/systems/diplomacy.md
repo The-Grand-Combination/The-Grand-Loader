@@ -1,8 +1,8 @@
 # Diplomatic actions, peace offers and the diplomacy UI
 
 This page covers how a diplomatic action is built, sent, answered and applied, and what the peace offer
-and its dialogs do. It also lists the engine pieces a mod-made treaty can use; the treaty design itself
-is in [treaties.md](treaties.md).
+and its dialogs do. It also lists the engine pieces a mod-made treaty can use; the treaty feature built on them (Script
+Extender `treaty`) is in [treaties.md](treaties.md).
 
 Sources: this repo's session of 2026-10-24 (decompilation and disassembly). Addresses, names and
 confidence for every function are in [functions.csv](../symbols/functions.csv) (areas `diplomacy`,
@@ -73,6 +73,13 @@ confidence for every function are in [functions.csv](../symbols/functions.csv) (
 | 36 | 0x90 | class-specific CanPerform, the last step of the gate | `0x009193A0` |
 | 37 | 0x94 | localised "cannot send" reason | `0x00918C90` |
 
+**Calling conventions (2026-10-24, confirmed by the Script Extender's `CTreatyAction`)** **[C]**: every slot
+is thiscall. Slots 7, 9 and 16 take `(std::string* out)`, RET 4. Slot 37 takes `(out, int)`, RET 8. Slot 36
+takes `(bool)`, RET 4. Slots 32 and 34 take `(ctx)`, RET 4, where `ctx` is the message-token context that
+`Message_MakeContext` `0x005061E0` builds for the player country **[I]**. Base slots that need no war: 13
+`0x00913020`, 18 / 19 `DiplomaticAction_SetRecipient` / `SetActor` `0x0092C720` / `0x0092C700`, 20–23
+`DiplomaticAction_NoDefine` `0x00424B40` (0x15B), 37 `DiplomaticAction_EmptyReason` `0x00928300`.
+
 `DiplomaticAction_CanPerform` `0x00911760` (ESI = action, `(bool)`, RET 4) is the generic gate. It
 fails on any of: diplomat still travelling (slot 28, `relation+0x64`); actor == recipient; at war (slot
 26); actor REB or without provinces; the vassal rules (slots 29–31); influence (slot 21) or diplomatic
@@ -107,7 +114,7 @@ points (slot 20) short. Otherwise it returns slot 36. **[C]**
    - new: status 1, slot 35, then `Country_AddPendingAction` (`0x005164C0`) appends a clone to
      `recipient+0xCE4`, but only on the machine that runs the recipient's AI or is the recipient. The
      costs are paid and the diplomat travel date is set;
-   - status 2: OnDecline (slot 34), relation on decline, messages;
+   - status 2: OnDecline (slot 34), relation on decline, messages (keys in "Messages" below);
    - then a UI refresh, `world+0xB24 → vt[0xE0](6)`.
 4. **Answer.**
    - AI: `AI_ProcessPendingProposals` `0x00820DF0`, inside `AI_CountryFrameJob`, on the host only. It
@@ -120,6 +127,31 @@ points (slot 20) short. Otherwise it returns slot 36. **[C]**
      and send it. The dtor removes the pending action.
 5. **Save.** `CCountry_WriteFields` writes the pending list as `diplomatic_action` blocks; the loader
    rebuilds them through `CreateByType`. An id the game does not know loads as `CNullDiplomaticAction`.
+
+## Messages **[C]**
+
+- **Answer keys.** `CDiplomaticActionCommand_Execute` builds the key of an answer message from slot 10 (if
+  non-empty), else the slot 9 name, plus `_THEY_ACCEPT` / `_WE_ACCEPT` / `_OTHER_ACCEPT` (strings
+  `0x00E33864` / `0x00E33874` / `0x00E33880`, code from `0x009107C4`) or `_THEY_DECLINE` / `_WE_DECLINE` /
+  `_OTHER_DECLINE` (`0x00E338A4`..). A new action needs those message types and their texts.
+- **Message types are data.** `MessageTypes_Read` `0x006A4FA0` (stdcall `(manager, block)`, RET 8; deletes
+  the block) reads `interface/messagetypes.txt` (call at `0x0063C4AA`; manager from `MessageManager_Get`
+  `0x006A4F40`, singleton `g_messageManager` `0x01262EF4`). It needs `file_version >= 5` and makes one
+  `CMessageType` (0x3C bytes, vtable `0x00E0BF74`) per entry, looked up by name (hash) and inserted if
+  new. So a second file read through it adds types. The Script Extender reads
+  `interface/se_messagetypes.txt` that way (copies of the `PEACE_*` settings).
+- **Texts.** Each type reads `<TYPE>_1` .. `_6`, `_HEADER`, `_LOG`, `_BTN1..3`, `_MAP` and `_SETUP`.
+
+### Localisation injection **[C]**
+
+The game's CSV loader runs before a plugin could add texts, and `Localize` only serves the table. To add a
+key at run time, do what `Localize` does for a missing key:
+1. skip keys that exist (`StringHashMap_Find` `0x00A727A0` on `g_localisation+0x48`);
+2. `Localisation_GetOrInsert` `0x009AD930` (ESI = key, EDI = `g_localisation`) returns the value;
+3. `Localisation_AddVariant` `0x009AB900` (stdcall `(value, const std::string* text, selector*)`) with an
+   all-zero 16-byte selector (what `Localisation_MakeSelector` `0x009A9070` builds for an empty string).
+
+The Script Extender uses it for the treaty message texts and the treaty CB names.
 
 ## AI acceptance
 
@@ -226,7 +258,18 @@ receiverIdx)`, RET 0x10. No heap members; held by value.
 
 `WarGoal_IsValid(goal, 0, 0, 0)` checks only: the CB is real, the receiver owns provinces,
 `allowed_countries`, and `allowed_states` over `WarGoal_GetTargetStates` with each state owned by the
-receiver. It does not run `can_use` or `is_valid`. **[C]**
+receiver. It does not run `can_use` or `is_valid`, and with war and crisis 0 it returns true after these
+checks (`0x00952D1B`). **[C]** It keeps the third country (FROM) only in the THIS scope, so nested
+conditions on FROM fail (casus-belli.md, "Scopes"). **[C]**
+
+Options with a third country (`+0x10/+0x14`), from `WarGoal_Execute` **[C]**:
+
+| option | without the third | with it |
+|---|---|---|
+| `po_add_to_sphere` | the receiver joins the actor's sphere | the third leaves the receiver's sphere (influence reset, `MAX_INFLUENCE` define `+0x404`) and joins the actor's (`Sphere_Remove` / `Sphere_Add`) |
+| `po_release_puppet` | nothing | `Vassal_Release(&third, &receiver)` |
+| `po_make_puppet` | the receiver's vassals are released, then a new `CVassal` actor / receiver | – |
+| `po_install_communist_gov_type` | the receiver takes the actor's government type (`Country_SetGovernment` `0x00513A90` **[I]**) and joins the actor's sphere if the actor is a great power; the counter war goal for war allies only with a war | – |
 
 ## Defines
 
@@ -357,7 +400,10 @@ Other helpers **[C]**:
   2. `can_use` passes (vt 0x20);
   3. `WarGoal_IsPossible` passes.
 - **Rows.** Each is a `CGoalEntry` (`wargoal_item`): the name via `CCasusBelliType_GetDisplayName`, the
-  icon frame from `cb+0x0C` **[?]**.
+  icon frame from `cb+0x0C` (`sprite_index`; `months` is `+0x134`). **[C]**
+- **Scopes.** `can_use` runs on the target scope with THIS = the actor (`0x00940205..0x00940256`). The
+  country list (`CWarGoalDialog_FillCountryList` `0x009456C0`) evaluates `allowed_countries` the same way,
+  with the candidate as FROM in the THIS scope (`+0x2C/+0x30`). **[C]**
 - **Click** (`CWarGoalDialog_SelectCb`): opens the country list (`allowed_countries`), the state list
   (`allowed_states`, unless `all_allowed_states`) or the substate list.
 - **State list** (`0x009452A0`): the target's states whose first province passes `allowed_states` and
@@ -370,7 +416,10 @@ Other helpers **[C]**:
 - `CDiplomacyView_Setup` `0x00622270` creates 17 `diplomacy_option` windows, attaches them as
   `action<i>` and binds every `action_option` button to `CDiplomacyView_OnActionClick`.
 - The button text is `<NAME>_BUTTON`: "Justify war" is `MAKE_CB_BUTTON` (vanilla `housedivided.csv`). **[C]**
-- `CDiplomacyView_RefreshActions` re-enables the buttons from `CanPerform`.
+  `CDiplomacyView_MakeAction` keeps 0x931 (its alternative is also 0x931). TGC renames the text "Diplomatic
+  Play" in its own localisation.
+- `CDiplomacyView_RefreshActions` re-enables the buttons from `CanPerform` (call at `0x0062B9FC`, ESI =
+  action; the Script Extender's `se_treaty_button` site).
 
 ### Widgets **[C]**
 
@@ -392,16 +441,22 @@ Other helpers **[C]**:
 
 | slot | does |
 |---|---|
+| `0x34` / `0x38` | show / hide |
+| `0x48` | SetFrame (`CPeaceDialog_Update` sets a tab to frame 2 when active, 1 when not) |
 | `0xB8` / `0xBC` | enable / disable |
 | `0xCC` | SetText |
 | `0xD4` | SetUserIndex |
 | `0xE0` | SetSprite |
 | `+0x54` | observer list (`vt[4]` add) |
 
-- Text boxes: assign `tb+0xDC`, then `TextSprite_SetText` `0x00A5ECC0` (ESI = `tb+0xA0`).
+- Icons share `0x34` / `0x38` / `0x48` with buttons (`Icon_vftable` `0x00E3A930`: `Icon_Show` `0x009C43C0`,
+  `Icon_Hide` `0x009C43F0`, `Icon_SetFrame` `0x009C4410`).
+- Text boxes: assign `tb+0xDC` (`0x00408ED0`, thiscall `(const std::string*, pos, count)`), then
+  `TextSprite_SetText` `0x00A5ECC0` (ESI = `tb+0xA0`).
 - Listbox: `vt[0x5C]` clear, `vt[0x10](item, 1)` add.
 - Button glue (0x2C bytes, vtable `0x00E086E0` and its folded twins): `+4` owner, `+0x08` click `()`,
-  `+0x20` click `(button)`, `+0x24` right click.
+  `+0x20` click `(button)`, `+0x24` right click. The slots null-check their handler, so a glue with only `+0x20`
+  set is safe. **[C]**
 - Slider: the template is `transfer_slider` (invest_project.gui). Range via `ScrollbarRange_Make`,
   `(sb+0x54)->vt[0x1C](value, 1, 1)`, and `vt[0x10]()` returns the float value.
 - Flags: `Country_GetFlagTexture` `0x0052FC10` → sprite `vt[0x150]`.
@@ -417,13 +472,26 @@ Other helpers **[C]**:
   `mod/script_extender/interface/x.gui`, or a `texturefile` under `mod/script_extender/gfx/`, resolves
   **[I, high]**.
 - The exe exports PhysFS 2.0 (`PHYSFS_enumerateFiles`, `PHYSFS_exists`, ...).
+- **Confirmed by the Script Extender (2026-10-24)** **[C]**:
+  - the per-file sequence: `FileReader_ctor` `0x0098FFC0`, the reader's vtable set to `CTokenReader`
+    `0x00E37C3C`, `ParserBlock_ctor` `0x009A0BF0` (EDX = name; `(mem, reader, 1)`, RET 0xC), then
+    `(target+4)->vt[0xC](block)` and delete the block;
+  - **a `.gfx` must be parsed before the end of the game's `.gfx` loop** (`0x00635D89`). Parsed later
+    (for example at `Gui_Finalize`), its sprite's texture at `+0xD0` stays null and drawing it crashes
+    (`Sprite_Draw` `0x00A28990` at `0x00A28A6B`). A `.gui` parsed before `Gui_Finalize` works;
+  - a gui type is looked up with `owner->vt[0x34]()` (the GUI) `+0x34` → `vt[4](const std::string*)`,
+    0 when unknown. `CEU3Dialog_ctor` would crash on an unknown type, so check first;
+  - `TextureManager_LoadFile` replaces `\` with `/` (`String_ReplaceAll` `0x00989720`) and tries `.dds`
+    before `.tga`. `texturefile` paths are relative to the game folder.
 
 ## Open questions
 
 1. The save key of the status (+0x24), and whether a status-1 action is re-processed after loading.
-2. RTTI or `dynamic_cast` on diplomatic actions (it matters for a DLL vtable without RTTI).
+2. RTTI or `dynamic_cast` on diplomatic actions (it matters for a DLL vtable without RTTI). The treaty
+   vtable carries `CDiplomaticAction`'s locator; no problem seen so far.
 3. `CCountry+0xDA8` read as "at war with" against the older "vassals"; `Relation +0x20/+0x28/+0x30`.
 4. Whether `TransferProvinces` / `Country_Annex` in peacetime leave units or wars in a bad state.
-5. Whether calling `Gui_Finalize` again, or parsing a `.gfx` block late, is safe.
-6. The meaning of `cb+0x0C` as the war goal icon frame (structs.csv names it `months`).
+5. Whether calling `Gui_Finalize` again, or parsing a `.gfx` block late, is safe. **Answered for `.gfx`
+   (2026-10-24):** not safe after the `.gfx` loop (see "Loading"). A `.gui` before `Gui_Finalize` is fine.
+6. The meaning of `cb+0x0C`. **Answered (2026-10-24):** `sprite_index`, the icon frame; `months` is `+0x134`.
 7. Whether `CConquerProvinceCommand` round-trips in multiplayer (never exercised by vanilla).

@@ -470,7 +470,14 @@ bool goal_valid_scoped(uintptr_t g) {
     if (read<uintptr_t>(cb + kCbAllowedStatesChildren + 4) == read<uintptr_t>(cb + kCbAllowedStatesChildren)) {
         return true;
     }
-    std::vector<uintptr_t> states = target_states(g);  // all_allowed_states: already filtered by the game
+    // all_allowed_states: the game's WarGoal_GetTargetStates (already filtered by allowed_states);
+    // otherwise the state of the chosen province.
+    std::vector<uintptr_t> states;
+    if (read<uint8_t>(cb + kCbAllAllowedStates)) {
+        states = target_states(g);
+    } else if (uint32_t id = read<uint32_t>(g + kGoalProvince)) {
+        states.push_back(read<uintptr_t>(game::province(id) + kProvinceState));
+    }
     if (states.empty()) {
         return false;
     }
@@ -510,7 +517,12 @@ std::string term_problem(uintptr_t action, uintptr_t g) {
         // Provinces move: the giver keeps at least one state, and its capital.
         uintptr_t giver = game::country(gives);
         uintptr_t capital_state = read<uintptr_t>(game::province(read<uint32_t>(giver + kCountryCapital)) + kProvinceState);
-        std::vector<uintptr_t> states = target_states(g);
+        std::vector<uintptr_t> states;
+        if (read<uint8_t>(cb + kCbAllAllowedStates)) {
+            states = target_states(g);
+        } else if (uint32_t id = read<uint32_t>(g + kGoalProvince)) {
+            states.push_back(read<uintptr_t>(game::province(id) + kProvinceState));
+        }
         for (uintptr_t st : states) {
             if (st == capital_state) {
                 return text("SE_TREATY_TERM_LAST_STATE");

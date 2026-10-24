@@ -707,11 +707,24 @@ void compute_options(Editor& e) {
     uintptr_t giver = game::country(e.gives());
     auto begin = read<const int*>(giver + kCountryProvinces);
     auto end = read<const int*>(giver + kCountryProvinces + 4);
+    std::map<std::string, int> refusals;
     for (const int* p = begin; p < end; ++p) {
         treaty::Term term{e.picked_cb, e.gains(), e.gives(), static_cast<uint32_t>(*p), e.picked_third};
-        if (treaty::check_term(e.action, term).empty()) {
+        std::string why = treaty::check_term(e.action, term);
+        if (why.empty()) {
             e.province_options.push_back(term.province);
+        } else {
+            ++refusals[why];
         }
+    }
+    if (e.picked_third) {
+        std::string summary;
+        for (const auto& [why, n] : refusals) {
+            summary += " [" + std::to_string(n) + "x " + why + "]";
+        }
+        logf("treaty: %s for country %d: %u of %u provinces%s", GameString::copy(e.picked_cb + kCbName).c_str(),
+             e.picked_third, static_cast<unsigned>(e.province_options.size()), static_cast<unsigned>(end - begin),
+             summary.c_str());
     }
 }
 

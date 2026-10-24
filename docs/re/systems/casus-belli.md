@@ -1,7 +1,8 @@
 # Casus belli evaluation
 
 How `cb_types.txt` is loaded, when `can_use` runs, and how a war goal's peace options are carried out. Features built
-on it: [docs/cull-cb-checks.md](../../cull-cb-checks.md); Script Extender `demand_province` ("po_demand_province").
+on it: [docs/cull-cb-checks.md](../../cull-cb-checks.md); Script Extender `demand_province` ("po_demand_province") and
+`treaty` ([treaties.md](treaties.md)).
 
 Sources: this repo's sessions (2026-10-01..04). This page started as
 `Engine/Casus_Belli_Evaluation.md`, written in these sessions for the maxioten repo, and is
@@ -14,7 +15,8 @@ maintained here now.
 - A type's `can_use` runs for a pair only if the type has `always = yes` **or** the attacker already
   holds a CB of that type against that target. Everything else stops before any trigger runs.
 - `CanUse` is `can_use.Evaluate(scope)` with no cache. Scope country = attacker, THIS = defender,
-  FROM unset.
+  FROM unset, as named at the AI call sites; the war-goal dialog shows the scope is the CB's target and THIS
+  the actor (see "Scopes", 2026-10-24).
 - Measured (1836, TGC): the AI scans cost ~11 ms/day, only 4.8 ms of it in `can_use`. The rest is
   `IsCBUsable` walking the held-CB list and building two scopes for every type. `cull_cb_checks` v3
   removes almost all 11 ms.
@@ -51,18 +53,42 @@ evaluate:
 }
 ```
 
-`relation` is `defender+0xBE8[attackerIndex]` at the AI call sites. **Scope check (2026-10-24):** `CWarGoalDialog_FillCbList` evaluates `can_use` on the *target* scope with
-THIS = the actor (scopes built at `0x00940205`..`0x00940256`), which matches the script convention (`THIS = {
-...}` is the attacker). So in the pseudo-code above, the evaluated outer scope holds the CB's target; the names
-`attackerRef` / `defenderRef` follow the call sites and may be swapped. `WarGoal_IsValid` and the dialog's
-country list do the same for `allowed_countries`, with the candidate (goal `+0x10`) as FROM, kept in the THIS
-scope at `+0x2C/+0x30`. Nested scopes are copies of the current one (`EventScope_Copy` `0x008A88D0`, used by
-`any_owned_province` `0x008C6C20`), and `is_core = FROM` reads `+0x2C/+0x30` of the scope it runs in, so a FROM
-kept only in THIS is lost inside `any_owned_province`: free_peoples / liberate_country never pass that way.
-`WarGoal_GetTargetStates` (`0x0094E4D0`, what the peace's execution uses) instead puts FROM in the evaluated
-scope itself, a province scope (`+0x18` = the state's first province) with THIS = the actor. The Script
-Extender's treaties evaluate third-country CBs that way (`treaty.cpp`, `goal_valid_scoped`). `is_valid`, `allowed_*`, `months`
-and `is_triggered_only` are not consulted. `is_triggered_only` does not affect the cost; `always` does.
+`relation` is `defender+0xBE8[attackerIndex]` at the AI call sites. **Scope check (2026-10-24):** see
+"Scopes" below: the evaluated scope holds the CB's *target* and THIS the actor, so the names `attackerRef` /
+`defenderRef` above follow the call sites and may be swapped. `is_valid`, `allowed_*`, `months` and
+`is_triggered_only` are not consulted. `is_triggered_only` does not affect the cost; `always` does.
+
+## Scopes of `can_use`, `allowed_countries`, `allowed_states` (2026-10-24) **[C]**
+
+Found while building the Script Extender's treaties ([treaties.md](treaties.md), "Scopes").
+
+| block | evaluated by | scope | THIS | FROM |
+|---|---|---|---|---|
+| `can_use` | `CWarGoalDialog_FillCbList` (scopes at `0x00940205`..`0x00940256`) | the target | the actor | unset |
+| `allowed_countries` | `CWarGoalDialog_FillCountryList` `0x009456C0`, `WarGoal_IsValid` | the target | the actor | the candidate (goal `+0x10`), **in the THIS scope only** (`+0x2C` tag / `+0x30` index) |
+| `allowed_states` | `WarGoal_GetTargetStates` `0x0094E4D0` (what the peace's execution uses) | a province scope: `+0x18` = the state's first province, no country | the actor | the third country, in the evaluated scope |
+
+This matches the script convention (`THIS = { ... }` is the attacker).
+
+**How FROM gets lost.** `CEventScope` keeps FROM at `+0x2C` (tag) / `+0x30` (index). A nested scope is a copy
+of the current one (`EventScope_Copy` `0x008A88D0`: copies `+0x08..+0x3C`, sets `+0x40 = 1`). Country
+reference triggers read their flag `+0x18` = THIS through `EventScope_ResolveThis` `0x008A8DC0` (via
+`[scope+0x24]`), but flag `+0x19` = FROM from `+0x2C/+0x30` of the scope they run in (`CIsCoreTrigger_Evaluate`
+`0x008BDE30`). `any_owned_province` (`CAnyOwnedProvinceTrigger_Evaluate` `0x008C6C20`) iterates the state's
+provinces when the scope has a province at `+0x18`, else the country's `+0x9D8`, each in a copy of the
+current scope. So with FROM kept only in THIS, `any_owned_province = { is_core = FROM }` never sees it:
+`free_peoples` / `liberate_country` goals never pass `WarGoal_IsValid` that way. `WarGoal_GetTargetStates`
+puts FROM in the evaluated scope and works. The Script Extender's treaties set FROM in both scopes
+(`treaty.cpp`, `goal_valid_scoped`).
+
+## CB layout used by the dialog **[C]**
+
+| field | offset | meaning |
+|---|---|---|
+| `allowed_states` | `CAndTrigger` `+0xA0`, children vector `+0xA8/+0xAC` | children non-empty and not `all_allowed_states`: the dialog asks for a state |
+| `allowed_countries` | `CAndTrigger` `+0xD8`, children vector `+0xE0/+0xE4` | children non-empty: the dialog asks for a third country |
+| `all_allowed_states` | u8 `+0x1DC` | `WarGoal_GetTargetStates` takes every receiver state that passes `allowed_states` |
+| `sprite_index` | `+0x0C` | the icon frame on `GFX_diplo_wargoal_icons` (`CGoalEntry`); `months` is `+0x134` |
 
 ## Who calls it
 
@@ -109,7 +135,7 @@ the peace code tests both. Every user walks the list and compares tokens: `CB_Ha
 | offset | field |
 |---|---|
 | `+0x0C` | `CCasusBelliType*` |
-| `+0x10/+0x14` | country ref `{tag, index}` |
+| `+0x10/+0x14` | third country `{tag, index}`: sphere member, released puppet, liberated country (FROM of `allowed_countries`) |
 | `+0x18/+0x1C` | `actor`: the holder, who receives the provinces |
 | `+0x20/+0x24` | `receiver` (save key): the target, who loses them |
 | `+0x28` | province id: the target of state war goals (`po_demand_state`) |
@@ -220,4 +246,5 @@ whole state. Patch sites: [patch_sites.csv](../symbols/patch_sites.csv) (`se_dem
    province**, so `po_demand_province` from the dialog takes that one (see treaties.md). Since 2026-10-24
    the Script Extender lists provinces instead for a `po_demand_province` CB (see above). The AI's
    choice is still open.
-5. Fields `+0x10` and `+0x20` of `CWarGoal`, and the third argument of `WarGoal_PeaceCost`.
+5. Fields `+0x10` and `+0x20` of `CWarGoal`, and the third argument of `WarGoal_PeaceCost`. `+0x10` answered
+   (2026-10-24): the third country (see "War goal" and diplomacy.md); `+0x20` is the receiver.
