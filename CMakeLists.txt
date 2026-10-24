@@ -36,8 +36,8 @@ endif()
 
 # Release packages: `cpack --preset x86-release` writes one zip per component into out/release/:
 #   the-grand-loader-<loader version>.zip       dinput8.dll + readme
-#   performance-patch-<patch version>.zip       mod/Performance Patch.ini + mod/Performance Patch/Performance Patch.dll
-#   script-extender-<extender version>.zip    mod/Script Extender.ini + mod/Script Extender/ (DLL, localisation/)
+#   performance-patch-<patch version>.zip       mod/performance_patch.ini + mod/performance_patch/performance_patch.dll
+#   script-extender-<extender version>.zip    mod/script_extender.ini + mod/script_extender/ (DLL, localisation/)
 #   the-grand-loader-sdk-<loader version>.zip   include/tgl/plugin_api.h + PLUGINS.md
 set(CPACK_GENERATOR ZIP)
 set(CPACK_PACKAGE_NAME "the-grand-loader")

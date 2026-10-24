@@ -1,6 +1,6 @@
 # Victoria II Performance Patch: how each optimisation works
 
-One page per option of `mod/Performance Patch.ini`, each with its Source, Why and How. Unless a page says
+One page per option of `mod/performance_patch.ini`, each with its Source, Why and How. Unless a page says
 otherwise, an optimisation gives **the same results** as the unpatched game. Timings:
 [timings.md](timings.md).
 

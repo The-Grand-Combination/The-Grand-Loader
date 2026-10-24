@@ -19,7 +19,7 @@ The interval is capped at 100 ms.
   a `CALL` whose target contains the younger frame (this drops most stale addresses left in locals).
 - Each stack is added, leaf first, to a collapsed-stack table. Exe addresses are written as listing VAs
   (base `0x00400000`; the exe itself is relocated by ASLR), leaves in other DLLs as their nearest export,
-  and leaves in `Performance Patch.dll` as `cp+0x<RVA>`.
+  and leaves in `performance_patch.dll` as `cp+0x<RVA>`.
 - Every 30 game days the table is rewritten to `performance_patch_samples.tsv` next to `v2game.exe`.
 - `annotate_samples.sh <file> [function]` maps it to functions through `docs/re/decomp/index.tsv` and the
   DLL's link map (`out/x86-release/bin/performance_patch.map`, or `CP_MAP=<map>`): time by module,

@@ -7,9 +7,9 @@ A plugin for The Grand Loader that extends the game's script for The Grand Combi
 
 ```
 dinput8.dll                                The Grand Loader
-mod/Script Extender.ini                          settings (its presence enables the plugin)
-mod/Script Extender/Script Extender.dll          the plugin
-mod/Script Extender/localisation/*.csv           its texts, in the game's CSV format (a mod may override a key)
+mod/script_extender.ini                    settings (its presence enables the plugin)
+mod/script_extender/script_extender.dll    the plugin
+mod/script_extender/localisation/*.csv     its texts, in the game's CSV format (a mod may override a key)
 ```
 
 ## Features

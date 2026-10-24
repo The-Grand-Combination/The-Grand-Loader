@@ -52,7 +52,7 @@ function find(a,    lo, hi, mid) {
     return lo
 }
 function cp_name(r,    lo, hi, mid) {
-    if (cpn == 0 || r < cpa[1]) return sprintf("[Performance Patch.dll+0x%X]", r)
+    if (cpn == 0 || r < cpa[1]) return sprintf("[performance_patch.dll+0x%X]", r)
     lo = 1; hi = cpn
     while (lo < hi) { mid = int((lo + hi + 1) / 2); if (cpa[mid] <= r) lo = mid; else hi = mid - 1 }
     return sprintf("[cp!%s]", cps[lo])
@@ -80,7 +80,7 @@ $1 == "stack" {
     leaf = name[1]
     excl[leaf] += w
     if (fr[1] ~ /^cp[+]0x/) {
-        module["[Performance Patch.dll]"] += w
+        module["[performance_patch.dll]"] += w
         if (cnt > 1) external[leaf " <- " name[2]] += w
     } else if (fr[1] ~ /^m[0-9]+/ || fr[1] == "?") {
         split(fr[1], mp, ":"); modkey = fr[1] == "?" ? "[unknown]" : "[" modname[mp[1]] "]"

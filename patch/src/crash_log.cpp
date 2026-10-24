@@ -141,7 +141,7 @@ void log_cxx_throw(const EXCEPTION_POINTERS* info) {
 }
 
 // Exe addresses as listing VAs (base 0x00400000, as in docs/re/decomp/), others as module+offset
-// (Performance Patch.dll offsets match its link map).
+// (performance_patch.dll offsets match its link map).
 void log_fault_location(DWORD code, uintptr_t eip) {
     if (in_exe(eip)) {
         logf("crash: %s (0x%08lX) at %08X = v2game.exe listing %08X", code_name(code), code, eip,
