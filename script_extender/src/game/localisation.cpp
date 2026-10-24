@@ -136,4 +136,16 @@ std::map<std::string, std::string> read_localisation(const std::vector<std::stri
     return found;
 }
 
+std::wstring game_file(const std::wstring& relative) {
+    std::wstring game_dir = host().game_dir;
+    for (const std::wstring& folder : mod_folders(game_dir).folders) {
+        std::wstring path = folder + L"\\" + relative;
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            return path;
+        }
+    }
+    std::wstring path = game_dir + L"\\" + relative;
+    return GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES ? path : std::wstring();
+}
+
 }  // namespace se::game

@@ -51,7 +51,17 @@ evaluate:
 }
 ```
 
-`relation` is `defender+0xBE8[attackerIndex]` at the AI call sites. `is_valid`, `allowed_*`, `months`
+`relation` is `defender+0xBE8[attackerIndex]` at the AI call sites. **Scope check (2026-10-24):** `CWarGoalDialog_FillCbList` evaluates `can_use` on the *target* scope with
+THIS = the actor (scopes built at `0x00940205`..`0x00940256`), which matches the script convention (`THIS = {
+...}` is the attacker). So in the pseudo-code above, the evaluated outer scope holds the CB's target; the names
+`attackerRef` / `defenderRef` follow the call sites and may be swapped. `WarGoal_IsValid` and the dialog's
+country list do the same for `allowed_countries`, with the candidate (goal `+0x10`) as FROM, kept in the THIS
+scope at `+0x2C/+0x30`. Nested scopes are copies of the current one (`EventScope_Copy` `0x008A88D0`, used by
+`any_owned_province` `0x008C6C20`), and `is_core = FROM` reads `+0x2C/+0x30` of the scope it runs in, so a FROM
+kept only in THIS is lost inside `any_owned_province`: free_peoples / liberate_country never pass that way.
+`WarGoal_GetTargetStates` (`0x0094E4D0`, what the peace's execution uses) instead puts FROM in the evaluated
+scope itself, a province scope (`+0x18` = the state's first province) with THIS = the actor. The Script
+Extender's treaties evaluate third-country CBs that way (`treaty.cpp`, `goal_valid_scoped`). `is_valid`, `allowed_*`, `months`
 and `is_triggered_only` are not consulted. `is_triggered_only` does not affect the cost; `always` does.
 
 ## Who calls it

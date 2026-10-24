@@ -10,7 +10,7 @@ spriteTypes = {
 	# The peace dialog's tab (diplo_peacetab) narrowed from 128 to 104 pixels per frame: two fit the narrow panel.
 	spriteType = {
 		name = "GFX_se_treaty_tab"
-		texturefile = "mod\script_extender\gfx\interface\se_treaty_tab.tga"
+		texturefile = "mod\\script_extender\\gfx\\interface\\se_treaty_tab.tga"
 		noOfFrames = 2
 	}
 

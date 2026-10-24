@@ -10,4 +10,12 @@ namespace se::features::treaty_ui {
 // match; nothing is changed then.
 bool install(const Config& config);
 
+// Puts the texts of the treaty answer messages into the game's localisation table if they are not there
+// (cheap when they are). Called before an answer can be shown.
+void ensure_message_texts();
+
+// A parser block over the game's cb_types.txt with the plugin's common/se_treaty_cbs.txt appended, for
+// CBManager_Load; 0 when there is no such file or the merge failed (then the game's block is used).
+uintptr_t merged_cb_block();
+
 }  // namespace se::features::treaty_ui

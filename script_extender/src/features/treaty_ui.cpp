@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -22,6 +24,15 @@
 //   plugin's interface/*.gfx at the end of the game's .gfx loop (0x00635D89), so the sprites get the same
 //   later setup as the game's (parsed after it, a sprite has no texture at +0xD0 and drawing it
 //   crashes); its interface/*.gui before the CALL Gui_Finalize at 0x0063690D.
+// - Answers: the accepted / declined messages are keyed SE_TREATY_<THEY|WE|OTHER>_<ACCEPT|DECLINE> (the
+//   action's name + the suffix CDiplomaticActionCommand_Execute adds). interface/se_messagetypes.txt adds
+//   those types (copies of the PEACE_* ones) right after interface/messagetypes.txt is read, and their
+//   texts (<type>_1.._6, _HEADER, _LOG, ...) go from our CSV into the game's localisation table, as
+//   Localize does for a missing key (Localisation_GetOrInsert, then Localisation_AddVariant).
+// - Treaty CBs: common/se_treaty_cbs.txt of the plugin is appended to the cb_types.txt the game would read
+//   (the -mod= folder's, else the game's; game::game_file), into common/se_cb_types.generated.txt, which CBManager_Load then parses
+//   (it clears the CB list first, so a second call cannot add to it). Their names and descriptions come
+//   from our CSV into the game's localisation table, as the message texts do.
 // - "Diplomatic Play": CMakeCBAction's slot 14 (vtable entry 0x00E3440C) returns a chooser built on the
 //   vanilla "DefaultDialog" box instead: Agree opens the vanilla Justify-war dialog, Decline the editor.
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
@@ -40,6 +51,14 @@ using game::read;
 constexpr uint32_t kGfxLoopEnd = 0x00635D89;  // after the last .gfx: MOV EDX,[EBP-0x40]; MOV ECX,[EDX+0x128]
 constexpr uint8_t kGfxLoopEndBytes[] = {0x8B, 0x55, 0xC0, 0x8B, 0x8A, 0x28, 0x01, 0x00, 0x00};
 constexpr uint32_t kGuiFinalizeCall = 0x0063690D;  // CALL Gui_Finalize; EDI = the application
+constexpr uint32_t kMessageTypesCall = 0x0063C4AA;  // CALL MessageTypes_Read for interface/messagetypes.txt
+constexpr uint32_t kMessageTypesRead = 0x006A4FA0;  // stdcall (manager, block); deletes the block when done
+constexpr uint32_t kMessageManager = 0x006A4F40;    // () -> the message-type manager
+constexpr uint32_t kLocalisation = 0x0131C99C;      // g_localisation
+constexpr uint32_t kLocalisationTable = 0x48;
+constexpr uint32_t kStringHashMapFind = 0x00A727A0;     // EAX = table, (const std::string*) -> pair or 0
+constexpr uint32_t kLocalisationGetOrInsert = 0x009AD930;  // ESI = key, EDI = localisation -> value
+constexpr uint32_t kLocalisationAddVariant = 0x009AB900;   // stdcall (value, const std::string* text, selector*)
 constexpr uint32_t kGuiFinalize = 0x009A4190;
 constexpr uint32_t kAppGfx = 0x11C;
 constexpr uint32_t kAppGui = 0x120;
@@ -99,6 +118,7 @@ constexpr uint32_t kCountryTag = 0x1C;
 constexpr uint32_t kCountryProvinces = 0x9D8;
 constexpr uint32_t kCountryTreasury = 0xE78;
 constexpr uint32_t kCbName = 0x14;
+constexpr uint32_t kCountryManagerVa = 0x012587E4;  // g_countryManager: +0 country count, +4 CCountry*[]
 constexpr int64_t kMoneyOne = 32768;
 
 constexpr const char* kEditorType = "se_treaty_dialog";
@@ -113,6 +133,7 @@ constexpr uint32_t kButtonSetFrame = 0x48;  // Button_SetFrame: the tabs show fr
 Config g_config;
 uintptr_t g_gui_finalize = 0;
 uintptr_t g_gfx_back = 0;  // kGfxLoopEnd + 9
+uintptr_t g_message_types_read = 0;
 uintptr_t g_can_perform = 0;
 uintptr_t g_make_cb_vtable = 0;
 uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
@@ -169,12 +190,12 @@ std::vector<std::string> files(const wchar_t* pattern) {
     return out;
 }
 
-// One file into `target` (the sprite database or the GUI), as EU3App_LoadResources does.
-void parse_file(uintptr_t target, const std::string& path) {
+// A parser block over the file at `path` (a PhysFS path), as EU3App_LoadResources makes one; 0 on failure.
+uintptr_t make_block(const std::string& path) {
     void* block_memory = game_new(kParserBlockSize);
     void* reader = game_new(kFileReaderSize);
     if (!block_memory || !reader) {
-        return;
+        return 0;
     }
     GameString game_path(path);
     using ReaderCtorFn = void(__fastcall*)(void*, void*, const GameString*);
@@ -193,6 +214,15 @@ void parse_file(uintptr_t target, const std::string& path) {
         call ctor
         mov block, eax
     }
+    return block;
+}
+
+// One file into `target` (the sprite database or the GUI), as EU3App_LoadResources does.
+void parse_file(uintptr_t target, const std::string& path) {
+    uintptr_t block = make_block(path);
+    if (!block) {
+        return;
+    }
     uintptr_t reader_iface = target + 4;
     using ReadFn = void(__fastcall*)(uintptr_t, void*, uintptr_t);
     vt<ReadFn>(reader_iface, kReadBlock)(reader_iface, nullptr, block);
@@ -200,6 +230,133 @@ void parse_file(uintptr_t target, const std::string& path) {
     vt<DeleteFn>(block, 0)(block, nullptr, 1);
     logf("treaty: loaded %s", path.c_str());
 }
+
+// --- Treaty answer messages ----------------------------------------------------------------------
+
+const char* const kMessageTypes[] = {"SE_TREATY_THEY_ACCEPT", "SE_TREATY_WE_ACCEPT", "SE_TREATY_OTHER_ACCEPT",
+                                     "SE_TREATY_THEY_DECLINE", "SE_TREATY_WE_DECLINE", "SE_TREATY_OTHER_DECLINE"};
+const char* const kMessageSuffixes[] = {"_HEADER", "_1", "_2", "_3", "_4", "_5", "_6", "_LOG",
+                                        "_BTN1", "_BTN2", "_BTN3", "_MAP", "_SETUP"};
+
+// Replaces the CALL MessageTypes_Read of interface/messagetypes.txt: reads ours after it.
+int __stdcall read_message_types(uintptr_t manager, uintptr_t block) {
+    using ReadFn = int(__stdcall*)(uintptr_t, uintptr_t);
+    int result = reinterpret_cast<ReadFn>(g_message_types_read)(manager, block);
+    std::string path = plugin_physfs_dir() + "/interface/se_messagetypes.txt";
+    if (uintptr_t ours = make_block(path)) {
+        uintptr_t mgr = fn<uintptr_t(__cdecl*)()>(kMessageManager)();
+        int r = reinterpret_cast<ReadFn>(g_message_types_read)(mgr, ours);
+        logf("treaty: loaded %s (%d)", path.c_str(), r);
+    }
+    return result;
+}
+
+uintptr_t localisation_find(uintptr_t localisation, const std::string& key) {
+    GameString game_key(key);
+    const GameString* key_ptr = &game_key;
+    uintptr_t table = localisation + kLocalisationTable;
+    uintptr_t find = hooks::exe_va(kStringHashMapFind);
+    uintptr_t pair;
+    __asm {
+        mov eax, table
+        push key_ptr
+        call find
+        mov pair, eax
+    }
+    return pair;
+}
+
+}  // namespace
+
+// The texts of the answer messages and of the treaty CBs (name, _desc, _setup, _short), from our CSV into
+// the game's table; keys the game already has stay. Cheap when they are all there; called before anything
+// can show one.
+void ensure_message_texts() {
+    uintptr_t localisation = read<uintptr_t>(hooks::exe_va(kLocalisation));
+    if (!localisation) {
+        return;
+    }
+    std::vector<std::string> keys;
+    for (const char* type : kMessageTypes) {
+        for (const char* suffix : kMessageSuffixes) {
+            keys.push_back(std::string(type) + suffix);
+        }
+    }
+    for (uintptr_t cb : treaty::treaty_cbs()) {
+        std::string name = GameString::copy(cb + kCbName);
+        for (const char* suffix : {"", "_desc", "_setup", "_short"}) {
+            keys.push_back(name + suffix);
+        }
+    }
+    std::vector<std::string> missing;
+    for (const std::string& key : keys) {
+        if (!localisation_find(localisation, key)) {
+            missing.push_back(key);
+        }
+    }
+    if (missing.empty()) {
+        return;
+    }
+    std::map<std::string, std::string> texts = game::read_localisation(missing);
+    uintptr_t get_or_insert = hooks::exe_va(kLocalisationGetOrInsert);
+    uintptr_t add_variant = hooks::exe_va(kLocalisationAddVariant);
+    int added = 0;
+    for (const auto& [key, text] : texts) {
+        GameString game_key(key);
+        const GameString* key_ptr = &game_key;
+        uintptr_t value;
+        __asm {
+            push esi
+            push edi
+            mov esi, key_ptr
+            mov edi, localisation
+            call get_or_insert
+            mov value, eax
+            pop edi
+            pop esi
+        }
+        GameString game_text(text);
+        uint32_t selector[4] = {0, 0, 0, 0};  // what Localize passes for a key it inserts
+        using AddFn = void(__stdcall*)(uintptr_t, const GameString*, const uint32_t*);
+        reinterpret_cast<AddFn>(add_variant)(value, &game_text, selector);
+        ++added;
+    }
+    logf("treaty: %d texts added to the localisation", added);
+}
+
+uintptr_t merged_cb_block() {
+    std::wstring plugin = host().plugin_dir;
+    std::ifstream ours_in(plugin + L"\\common\\se_treaty_cbs.txt", std::ios::binary);
+    if (!ours_in) {
+        logf("treaty: no common/se_treaty_cbs.txt in the plugin folder; only the mod's treaty CBs");
+        return 0;
+    }
+    std::string ours((std::istreambuf_iterator<char>(ours_in)), std::istreambuf_iterator<char>());
+    // The cb_types.txt the game reads: the mod's (from -mod= on the command line), else the game's.
+    std::wstring windows_source = game::game_file(L"common\\cb_types.txt");
+    std::string source;
+    for (wchar_t c : windows_source) {
+        source += static_cast<char>(c);
+    }
+    std::ifstream game_in(windows_source, std::ios::binary);
+    if (windows_source.empty() || !game_in) {
+        logf("treaty: no cb_types.txt found; treaty CBs of the plugin not loaded");
+        return 0;
+    }
+    std::string game((std::istreambuf_iterator<char>(game_in)), std::istreambuf_iterator<char>());
+    std::ofstream out(plugin + L"\\common\\se_cb_types.generated.txt", std::ios::binary | std::ios::trunc);
+    out << game << "\r\n\r\n# --- Script Extender: common/se_treaty_cbs.txt ---\r\n" << ours << "\r\n";
+    out.close();
+    if (!out) {
+        logf("treaty: could not write common/se_cb_types.generated.txt; treaty CBs of the plugin not loaded");
+        return 0;
+    }
+    std::string merged = plugin_physfs_dir() + "/common/se_cb_types.generated.txt";
+    logf("treaty: CBs from %s + common/se_treaty_cbs.txt", source.c_str());
+    return make_block(merged);
+}
+
+namespace {
 
 void __stdcall load_gfx(uintptr_t app) {
     std::string dir = plugin_physfs_dir() + "/interface/";
@@ -224,6 +381,7 @@ __declspec(naked) void gfx_thunk() {
 }
 
 void __stdcall load_files(uintptr_t app) {
+    ensure_message_texts();
     std::string dir = plugin_physfs_dir() + "/interface/";
     uintptr_t gui = read<uintptr_t>(app + kAppGui);
     if (gui) {
@@ -424,6 +582,8 @@ struct Editor {
     // picker
     Mode mode = kDemand;
     uintptr_t picked_cb = 0;  // 0: choosing a CB; kMoneyOption: choosing an amount
+    int picked_third = 0;     // the third country chosen for picked_cb (CBs with allowed_countries)
+    std::vector<int> country_options;
     int page = 0;
     int term_page = 0;
     std::vector<uintptr_t> cb_options;
@@ -461,13 +621,17 @@ std::string country_name(const Editor& e, int index) {
 void compute_options(Editor& e) {
     e.cb_options.clear();
     e.province_options.clear();
+    e.country_options.clear();
     if (!e.picked_cb) {
         e.cb_options.push_back(kMoneyOption);
         for (uintptr_t cb : treaty::treaty_cbs()) {
             if (treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, e.gains(), e.gives())) {
+                logf("treaty: %s not offered (%d gains from %d): %s", GameString::copy(cb + kCbName).c_str(), e.gains(),
+                     e.gives(), treaty::cb_unsupported(cb) ? "unsupported peace option" : "can_use fails");
                 continue;
             }
-            if (!treaty::cb_needs_province(cb) && !treaty::check_term(e.action, {cb, e.gains(), e.gives(), 0}).empty()) {
+            if (!treaty::cb_needs_province(cb) && !treaty::cb_needs_country(cb) &&
+                !treaty::check_term(e.action, {cb, e.gains(), e.gives(), 0}).empty()) {
                 continue;
             }
             e.cb_options.push_back(cb);
@@ -485,18 +649,79 @@ void compute_options(Editor& e) {
         }
         return;
     }
+    if (treaty::cb_needs_country(e.picked_cb) && !e.picked_third) {
+        int count = read<int>(read<uintptr_t>(hooks::exe_va(kCountryManagerVa)));
+        int allowed = 0;
+        std::string first_problem;
+        for (int c = 1; c < count; ++c) {
+            if (c == e.me || c == e.them) {
+                continue;
+            }
+            if (!treaty::country_allowed(e.picked_cb, e.gains(), e.gives(), c)) {
+                continue;
+            }
+            ++allowed;
+            // with a province still to choose, the whole term is checked then
+            std::string why = treaty::cb_needs_province(e.picked_cb)
+                                  ? std::string()
+                                  : treaty::check_term(e.action, {e.picked_cb, e.gains(), e.gives(), 0, c});
+            if (why.empty()) {
+                e.country_options.push_back(c);
+            } else if (first_problem.empty()) {
+                first_problem = why;
+            }
+        }
+        // Diagnostics: every country with cores in the giver's provinces, and what allowed_countries says.
+        {
+            uintptr_t giver = game::country(e.gives());
+            std::map<int, int> cores;  // country -> provinces of the giver with its core
+            for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
+                uintptr_t province = game::province(static_cast<uint32_t>(*p));
+                for (uintptr_t c = read<uintptr_t>(province + 0x148); c < read<uintptr_t>(province + 0x14C); c += 8) {
+                    int idx = read<int>(c + 4);
+                    if (idx != e.gives()) {
+                        ++cores[idx];
+                    }
+                }
+            }
+            for (const auto& [idx, n] : cores) {
+                uint32_t tag = read<uint32_t>(game::country(idx) + kCountryTag);
+                logf("treaty:   core holder %.3s (%d) on %d provinces: allowed_countries %s", reinterpret_cast<const char*>(&tag),
+                     idx, n, treaty::country_allowed(e.picked_cb, e.gains(), e.gives(), idx) ? "yes" : "no");
+                static int detailed = 0;
+                if (detailed < 3) {
+                    ++detailed;
+                    treaty::log_country_conditions(e.picked_cb, e.gains(), e.gives(), idx);
+                }
+            }
+        }
+        logf("treaty: %s, %d gains from %d: %d of %d countries pass allowed_countries, %u usable%s%s",
+             GameString::copy(e.picked_cb + kCbName).c_str(), e.gains(), e.gives(), allowed, count - 1,
+             static_cast<unsigned>(e.country_options.size()), first_problem.empty() ? "" : "; first refusal: ",
+             first_problem.c_str());
+        return;
+    }
+    if (!treaty::cb_needs_province(e.picked_cb)) {
+        return;
+    }
     uintptr_t giver = game::country(e.gives());
     auto begin = read<const int*>(giver + kCountryProvinces);
     auto end = read<const int*>(giver + kCountryProvinces + 4);
     for (const int* p = begin; p < end; ++p) {
-        treaty::Term term{e.picked_cb, e.gains(), e.gives(), static_cast<uint32_t>(*p)};
+        treaty::Term term{e.picked_cb, e.gains(), e.gives(), static_cast<uint32_t>(*p), e.picked_third};
         if (treaty::check_term(e.action, term).empty()) {
             e.province_options.push_back(term.province);
         }
     }
 }
 
-size_t option_count(const Editor& e) { return e.picked_cb ? e.province_options.size() : e.cb_options.size(); }
+bool choosing_country(const Editor& e) {
+    return e.picked_cb && e.picked_cb != kMoneyOption && treaty::cb_needs_country(e.picked_cb) && !e.picked_third;
+}
+
+size_t option_count(const Editor& e) {
+    return !e.picked_cb ? e.cb_options.size() : choosing_country(e) ? e.country_options.size() : e.province_options.size();
+}
 
 std::string option_name(const Editor& e, uintptr_t cb) { return cb == kMoneyOption ? e.t("SE_TREATY_MONEY") : cb_name(e, cb); }
 
@@ -539,7 +764,7 @@ void refresh(Editor& e) {
             continue;
         }
         if (static_cast<size_t>(i) < money_rows) {
-            std::string label = e.t("SE_TREATY_MONEY") + ": " + pounds_of(m);
+            std::string label = e.t("SE_TREATY_MONEY") + " " + pounds_of(m);
             show(e.terms[row], true);
             cb_icon(e.term_icons[row], 0);
             button_text(e.terms[row], replace(e.t(m < 0 ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label));
@@ -547,8 +772,11 @@ void refresh(Editor& e) {
         }
         const treaty::Term& term = terms[i - money_rows];
         std::string label = cb_name(e, term.cb);
+        if (term.third) {
+            label += " " + country_name(e, term.third);
+        }
         if (term.province) {
-            label += ": " + province_name(e, term.province);
+            label += " " + province_name(e, term.province);
         }
         char cost[16];
         std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_cost(term));
@@ -563,6 +791,7 @@ void refresh(Editor& e) {
     int pages = static_cast<int>((count + kPickRows - 1) / kPickRows);
     e.page = std::max(0, std::min(e.page, pages - 1));
     std::string pick_label = e.picked_cb == kMoneyOption ? e.t("SE_TREATY_PICK_MONEY")
+                             : choosing_country(e) ? replace(e.t("SE_TREATY_PICK_COUNTRY"), "$CB$", cb_name(e, e.picked_cb))
                              : e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
                              : e.t(e.mode == kDemand ? "SE_TREATY_PICK_CB_DEMAND" : "SE_TREATY_PICK_CB_OFFER");
     if (count == 0) {
@@ -577,6 +806,7 @@ void refresh(Editor& e) {
         cb_icon(e.pick_icons[i], row_cb);
         if (visible) {
             button_text(e.picks[i], e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
+                                    : choosing_country(e)     ? country_name(e, e.country_options[index])
                                     : e.picked_cb             ? province_name(e, e.province_options[index])
                                                               : option_name(e, e.cb_options[index]));
         }
@@ -592,7 +822,7 @@ void refresh(Editor& e) {
     std::string why = treaty::problem(e.action);
     std::string acceptance = why;
     if (why.empty() && !treaty::is_human(e.them)) {
-        acceptance = treaty::ai_score(e.action, e.them) >= 0 ? e.t("SE_TREATY_WILL_ACCEPT") : e.t("SE_TREATY_WILL_NOT_ACCEPT");
+        acceptance = treaty::ai_accepts(e.action, e.them) ? e.t("SE_TREATY_WILL_ACCEPT") : e.t("SE_TREATY_WILL_NOT_ACCEPT");
     }
     set_text(e.acceptance, replace(acceptance, "$COUNTRY$", country_name(e, e.them)));
     enable(e.agree, why.empty() && treaty::can_send(e.action));
@@ -623,22 +853,33 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
         }
         if (button == e->picks[i]) {
             size_t index = static_cast<size_t>(e->page * kPickRows + i);
-            if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
+            if (choosing_country(*e) && index < e->country_options.size()) {
+                e->picked_third = e->country_options[index];
+                if (!treaty::cb_needs_province(e->picked_cb)) {
+                    treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), 0, e->picked_third});
+                    e->term_page = 1 << 20;  // show the last page, where the new term is
+                    e->picked_cb = 0;
+                    e->picked_third = 0;
+                }
+            } else if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
                 int64_t amount = static_cast<int64_t>(e->province_options[index]) * kMoneyOne;
                 treaty::set_money(e->action, treaty::money(e->action) + (e->mode == kGive ? amount : -amount));
                 e->picked_cb = 0;
+                e->picked_third = 0;
             } else if (!e->picked_cb && index < e->cb_options.size()) {
                 uintptr_t cb = e->cb_options[index];
-                if (cb == kMoneyOption || treaty::cb_needs_province(cb)) {
+                if (cb == kMoneyOption || treaty::cb_needs_province(cb) || treaty::cb_needs_country(cb)) {
                     e->picked_cb = cb;
+                    e->picked_third = 0;
                 } else {
                     treaty::add_term(e->action, {cb, e->gains(), e->gives(), 0});
                     e->term_page = 1 << 20;  // show the last page, where the new term is
                 }
             } else if (e->picked_cb && index < e->province_options.size()) {
-                treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), e->province_options[index]});
+                treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), e->province_options[index], e->picked_third});
                 e->term_page = 1 << 20;  // show the last page, where the new term is
                 e->picked_cb = 0;
+                e->picked_third = 0;
             }
             reset_picker(*e);
             return;
@@ -647,9 +888,11 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     if (button == e->mode_demand || button == e->mode_give) {
         e->mode = button == e->mode_demand ? kDemand : kGive;
         e->picked_cb = 0;
+        e->picked_third = 0;
         reset_picker(*e);
     } else if (button == e->back) {
         e->picked_cb = 0;
+        e->picked_third = 0;
         reset_picker(*e);
     } else if (button == e->term_prev || button == e->term_next) {
         e->term_page += button == e->term_next ? 1 : -1;
@@ -692,6 +935,7 @@ void __fastcall editor_agree(uintptr_t dialog, void*) {
 void __fastcall dialog_close(uintptr_t dialog, void*) { *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1; }
 
 void open_editor(uintptr_t owner, int me, int them) {
+    ensure_message_texts();
     uintptr_t action = treaty::create(me, them);
     if (!action) {
         return;
@@ -717,9 +961,12 @@ void open_editor(uintptr_t owner, int me, int them) {
     for (uintptr_t cb : treaty::treaty_cbs()) {
         keys.push_back(GameString::copy(cb + kCbName));
     }
-    for (int c : {me, them}) {
+    int country_count = read<int>(read<uintptr_t>(hooks::exe_va(kCountryManagerVa)));
+    for (int c = 1; c < country_count; ++c) {
         uint32_t tag = read<uint32_t>(game::country(c) + kCountryTag);
         keys.emplace_back(reinterpret_cast<const char*>(&tag), 3);
+    }
+    for (int c : {me, them}) {
         uintptr_t country = game::country(c);
         for (const int* p = read<const int*>(country + kCountryProvinces); p < read<const int*>(country + kCountryProvinces + 4); ++p) {
             keys.push_back("PROV" + std::to_string(*p));
@@ -905,6 +1152,11 @@ bool install(const Config& config) {
     build_vtable(g_chooser_vtable_storage, reinterpret_cast<uintptr_t>(&chooser_dtor), 0,
                  reinterpret_cast<uintptr_t>(&chooser_justify), reinterpret_cast<uintptr_t>(&chooser_treaty));
     g_gui_finalize = hooks::exe_va(kGuiFinalize);
+    g_message_types_read = hooks::exe_va(kMessageTypesRead);
+    if (!hooks::redirect_call(hooks::exe_va(kMessageTypesCall), g_message_types_read,
+                              reinterpret_cast<uintptr_t>(&read_message_types))) {
+        logf("treaty: the message types call at %08X is not the expected one; no answer messages", kMessageTypesCall);
+    }
     g_gfx_back = hooks::exe_va(kGfxLoopEnd) + sizeof(kGfxLoopEndBytes);
     if (!hooks::jump_hook(hooks::exe_va(kGfxLoopEnd), kGfxLoopEndBytes, sizeof(kGfxLoopEndBytes),
                           reinterpret_cast<uintptr_t>(&gfx_thunk))) {

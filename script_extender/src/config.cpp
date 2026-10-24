@@ -28,10 +28,17 @@ constexpr Key kKeys[] = {
     {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own},
     {"treaty", &Config::treaty, nullptr},
     {"treaty_infamy", &Config::treaty_infamy, nullptr},
+    {"treaty_ai_reluctance", nullptr, &Config::treaty_ai_reluctance},
     {"treaty_ai_give_weight", nullptr, &Config::treaty_ai_give_weight},
     {"treaty_ai_money_per_point", nullptr, &Config::treaty_ai_money_per_point},
     {"treaty_ai_relation", nullptr, &Config::treaty_ai_relation},
-    {"treaty_ai_reluctance", nullptr, &Config::treaty_ai_reluctance},
+    {"treaty_ai_core_gain", nullptr, &Config::treaty_ai_core_gain},
+    {"treaty_ai_core_give", nullptr, &Config::treaty_ai_core_give},
+    {"treaty_ai_power", nullptr, &Config::treaty_ai_power},
+    {"treaty_ai_power_cap", nullptr, &Config::treaty_ai_power_cap},
+    {"treaty_ai_neighbour", nullptr, &Config::treaty_ai_neighbour},
+    {"treaty_ai_coerce_ratio", nullptr, &Config::treaty_ai_coerce_ratio},
+    {"treaty_ai_hostile", nullptr, &Config::treaty_ai_hostile},
 };
 
 std::string_view trim(std::string_view s) {

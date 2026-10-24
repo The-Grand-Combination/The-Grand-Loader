@@ -1,0 +1,440 @@
+# Script Extender: treaty CBs (treaty = 1 in script_extender.ini). Appended by the plugin to the
+# cb_types.txt the game reads (the mod's, else the game's). Same syntax as cb_types.txt; is_treaty_cb =
+# yes makes a CB a treaty term. Names and descriptions: localisation/00_script_extender.csv.
+
+treaty_cede_state = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	allowed_states = {
+		is_colonial = no
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_state = yes
+
+	war_name = WAR_TAKE_NAME
+}
+
+treaty_cede_province = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	allowed_states = {
+		is_colonial = no
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_province = yes # needs demand_province = 1
+
+	war_name = WAR_TAKE_NAME
+}
+
+treaty_cede_colony = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	allowed_states = {
+		is_colonial = yes
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_state = yes
+
+	war_name = WAR_TAKE_NAME
+}
+
+# Copy of war_reparations: the giver pays a share of its income for some years.
+treaty_pay_tributes = {
+	sprite_index = 8
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.1
+	prestige_factor = 0
+	peace_cost_factor = 20
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	po_reparations = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of install_communist_gov_cb: the giver takes the gaining country's government type
+# (and joins its sphere when the gaining country is a great power).
+treaty_install_government = {
+	sprite_index = 12
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		THIS = { is_greater_power = yes }
+		is_greater_power = no
+	}
+
+	po_install_communist_gov_type = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of add_to_sphere: negotiated with the country itself, which joins the gaining country's sphere.
+treaty_add_to_sphere = {
+	sprite_index = 3
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 50
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+		THIS = { is_greater_power = yes }
+		is_greater_power = no
+		is_independant = yes
+		part_of_sphere = no
+	}
+
+	po_add_to_sphere = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of make_puppet: negotiated with the country itself, which becomes the gaining country's puppet.
+treaty_make_puppet = {
+	sprite_index = 10
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+		NOT = { number_of_states = 4 }
+		is_greater_power = no
+		is_vassal = no
+	}
+
+	po_make_puppet = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of take_from_sphere: negotiated with the sphere leader, which hands one of its sphere
+# members (the chosen country) to the gaining country's sphere.
+treaty_take_from_sphere = {
+	sprite_index = 4
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 20
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+		THIS = { is_greater_power = yes }
+		is_greater_power = yes
+	}
+
+	allowed_countries = {
+		is_sphere_leader_of = FROM
+		OR = {
+			FROM = { is_vassal = no }
+			THIS = { is_our_vassal = FROM }
+		}
+	}
+
+	po_add_to_sphere = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of release_puppet: negotiated with the overlord, which frees one of its puppets (the chosen
+# country), which then joins the gaining country's sphere.
+treaty_release_puppet = {
+	sprite_index = 10
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 15
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+		num_of_vassals_no_substates = 1
+	}
+
+	allowed_countries = {
+		is_our_vassal = FROM
+		FROM = { is_substate = no }
+	}
+
+	po_release_puppet = yes
+	po_add_to_sphere = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of free_peoples: the owner hands one state with cores of the chosen country to it (released if
+# it does not exist).
+treaty_free_peoples = {
+	sprite_index = 9
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+	}
+
+	allowed_countries = {
+		number_of_states = 2
+		NOT = {
+			tag = FROM
+			this_culture_union = FROM
+		}
+		any_owned_province = {
+			is_core = FROM
+			NOT = { is_core = THIS }
+		}
+		is_releasable_vassal = FROM
+	}
+
+	allowed_states = {
+		any_owned_province = { is_core = FROM }
+	}
+
+	po_transfer_provinces = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of liberate_country: the owner hands every state with cores of the chosen country to it
+# (released if it does not exist), and loses its cores there.
+treaty_liberate_country = {
+	sprite_index = 15
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.7
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+	}
+
+	allowed_countries = {
+		number_of_states = 2
+		NOT = {
+			tag = FROM
+			this_culture_union = FROM
+		}
+		any_owned_province = {
+			is_core = FROM
+			NOT = { is_core = THIS }
+		}
+		is_releasable_vassal = FROM
+	}
+
+	allowed_states = {
+		any_owned_province = { is_core = FROM }
+	}
+	all_allowed_states = yes
+
+	po_transfer_provinces = yes
+	po_remove_cores = yes
+
+	war_name = WAR_NAME
+}

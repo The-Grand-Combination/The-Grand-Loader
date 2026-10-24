@@ -26,8 +26,8 @@ SE_TREATY_WILL_ACCEPT;$COUNTRY$ will accept this treaty.;;;;;;;;;;;;;x
 SE_TREATY_WILL_NOT_ACCEPT;$COUNTRY$ will not accept this treaty.;;;;;;;;;;;;;x
 SE_TREATY_SEND;Propose;;;;;;;;;;;;;x
 SE_TREATY_CANCEL;Cancel;;;;;;;;;;;;;x
-SE_TREATY_TERM_GAIN;+ $TERM$;;;;;;;;;;;;;x
-SE_TREATY_TERM_GIVE;- $TERM$;;;;;;;;;;;;;x
+SE_TREATY_TERM_GAIN;Demand: $TERM$;;;;;;;;;;;;;x
+SE_TREATY_TERM_GIVE;Offer: $TERM$;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_TITLE;Diplomatic Play;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_DESC;Justify a casus belli against them, or open negotiations for a treaty.;;;;;;;;;;;;;x
 SE_TREATY_CHOOSER_JUSTIFY;Justify Casus Belli;;;;;;;;;;;;;x
@@ -37,3 +37,127 @@ SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
 SE_TREATY_MONEY;Money;;;;;;;;;;;;;x
 SE_TREATY_PICK_MONEY;Money: choose the amount;;;;;;;;;;;;;x
 SE_TREATY_TERM_DUPLICATE;That state is already part of the treaty.;;;;;;;;;;;;;x
+
+SE_TREATY_THEY_ACCEPT_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_3;accepted our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_4;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_LOG;$RECIPIENT$ accepted our treaty proposal.;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_SETUP;When a nation accepts our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_1;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_2;We have accepted a treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_3;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_4;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_LOG;We accepted the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_SETUP;When we accept a treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_3;accepted a treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_4;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_LOG;$RECIPIENT$ accepted the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_SETUP;When a nation accepts another nation's treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_3;rejected our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_4;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_LOG;$RECIPIENT$ rejected our treaty proposal.;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_SETUP;When a nation declines our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_1;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_2;We have declined the treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_3;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_4;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_LOG;We declined the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_SETUP;When we decline a treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_3;rejected the treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_4;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_LOG;$RECIPIENT$ rejected the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_SETUP;When a nation declines another nation's treaty proposal;;;;;;;;;;;;;x
+treaty_cede_state;Cede state;;;;;;;;;;;;;x
+treaty_cede_state_desc;Hand over a 即state劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_state_setup;Cession of $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_state_short;Cession of $STATE$;;;;;;;;;;;;;x
+treaty_cede_province;Cede province;;;;;;;;;;;;;x
+treaty_cede_province_desc;Hand over one 即province劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_province_setup;Cession of a province of $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_province_short;Cession of a province of $STATE$;;;;;;;;;;;;;x
+treaty_cede_colony;Cede colony;;;;;;;;;;;;;x
+treaty_cede_colony_desc;Hand over a 即colony劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_colony_setup;Cession of the colony $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_colony_short;Cession of the colony $STATE$;;;;;;;;;;;;;x
+treaty_pay_tributes;Pay Tributes;;;;;;;;;;;;;x
+treaty_pay_tributes_desc;Pay 即tribute劬 for some years;;;;;;;;;;;;;x
+treaty_pay_tributes_setup;Tributes from $RECIPIENT$;;;;;;;;;;;;;x
+treaty_pay_tributes_short;Tributes;;;;;;;;;;;;;x
+treaty_install_government;Install Government;;;;;;;;;;;;;x
+treaty_install_government_desc;Adopt our 即government劬;;;;;;;;;;;;;x
+treaty_install_government_setup;$RECIPIENT$ adopts our government;;;;;;;;;;;;;x
+treaty_install_government_short;Install government;;;;;;;;;;;;;x
+treaty_add_to_sphere;Join Sphere;;;;;;;;;;;;;x
+treaty_add_to_sphere_desc;Join our 即sphere of influence劬;;;;;;;;;;;;;x
+treaty_add_to_sphere_setup;$RECIPIENT$ joins our sphere;;;;;;;;;;;;;x
+treaty_add_to_sphere_short;Join sphere;;;;;;;;;;;;;x
+treaty_make_puppet;Become Puppet;;;;;;;;;;;;;x
+treaty_make_puppet_desc;Become our 即puppet劬;;;;;;;;;;;;;x
+treaty_make_puppet_setup;$RECIPIENT$ becomes our puppet;;;;;;;;;;;;;x
+treaty_make_puppet_short;Become puppet;;;;;;;;;;;;;x
+treaty_take_from_sphere;Cede Sphere Member;;;;;;;;;;;;;x
+treaty_take_from_sphere_desc;Hand a member of their 即sphere劬 to ours;;;;;;;;;;;;;x
+treaty_take_from_sphere_setup;$RECIPIENT$ hands over a sphere member;;;;;;;;;;;;;x
+treaty_take_from_sphere_short;Cede sphere member;;;;;;;;;;;;;x
+treaty_release_puppet;Release Puppet;;;;;;;;;;;;;x
+treaty_release_puppet_desc;Free one of their 即puppets劬;;;;;;;;;;;;;x
+treaty_release_puppet_setup;$RECIPIENT$ releases a puppet;;;;;;;;;;;;;x
+treaty_release_puppet_short;Release puppet;;;;;;;;;;;;;x
+treaty_free_peoples;Free Peoples;;;;;;;;;;;;;x
+treaty_free_peoples_desc;Hand a 即state劬 to the people who hold its cores;;;;;;;;;;;;;x
+treaty_free_peoples_setup;$RECIPIENT$ frees a people;;;;;;;;;;;;;x
+treaty_free_peoples_short;Free peoples;;;;;;;;;;;;;x
+treaty_liberate_country;Liberate Country;;;;;;;;;;;;;x
+treaty_liberate_country_desc;Hand every 即state劬 with its cores to a nation;;;;;;;;;;;;;x
+treaty_liberate_country_setup;$RECIPIENT$ liberates a nation;;;;;;;;;;;;;x
+treaty_liberate_country_short;Liberate country;;;;;;;;;;;;;x
+SE_TREATY_PICK_COUNTRY;$CB$: choose the country;;;;;;;;;;;;;x

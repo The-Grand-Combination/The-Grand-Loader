@@ -14,4 +14,8 @@ namespace se::game {
 // result. Reads the files once per call.
 std::map<std::string, std::string> read_localisation(const std::vector<std::string>& keys);
 
+// The file the game reads for `relative` (e.g. L"common\cb_types.txt"): the first mod folder given with
+// -mod= that has it (the order read_localisation uses), else the game's. Absolute; empty when neither has it.
+std::wstring game_file(const std::wstring& relative);
+
 }  // namespace se::game
