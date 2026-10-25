@@ -39,6 +39,7 @@ constexpr Key kKeys[] = {
     {"treaty_ai_neighbour", nullptr, &Config::treaty_ai_neighbour},
     {"treaty_ai_coerce_ratio", nullptr, &Config::treaty_ai_coerce_ratio},
     {"treaty_ai_hostile", nullptr, &Config::treaty_ai_hostile},
+    {"treaty_ai_third_party", nullptr, &Config::treaty_ai_third_party},
 };
 
 std::string_view trim(std::string_view s) {

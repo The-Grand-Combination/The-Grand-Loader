@@ -102,6 +102,7 @@ constexpr uint32_t kAiChanceDone = 0x0082102B;  // CMP EAX, 0x32: the chance dec
 constexpr uint32_t kWarGoalSize = 0x40;
 constexpr uint32_t kWarGoalCtor = 0x0094BDB0;     // EAX = this, ECX = cb, (actorTag, actorIdx, recTag, recIdx)
 constexpr uint32_t kWarGoalExecute = 0x0094E660;  // stdcall (goal)
+constexpr uint32_t kVassalRelease = 0x0094FF30;   // (CountryRef* vassal, CountryRef* overlord)
 constexpr uint32_t kWarGoalPeaceCost = 0x00951920;  // stdcall (goal, int* out, bool)
 constexpr uint32_t kWarGoalInfamy = 0x009500E0;     // EDI = int* out, stdcall (goal)
 constexpr uint32_t kWarGoalIsValid = 0x00952850;    // thiscall ECX = goal, (war, crisis, 0) -> AL
@@ -121,6 +122,10 @@ constexpr uint32_t kCountryProvinces = 0x9D8;  // vector<int>; empty = the count
 constexpr uint32_t kCountryControlled = 0x9E8;  // list {id, ?, next}
 constexpr uint32_t kCountryRelations = 0xBE8;
 constexpr uint32_t kCountryNeighbours = 0xD08;  // u8 per country index (the neighbour trigger)
+constexpr uint32_t kCountryIsSubstate = 0xCF4;
+constexpr uint32_t kCountryIsVassal = 0xCF5;
+constexpr uint32_t kCountryOverlord = 0xCFC;      // index, with the tag at +0xCF8
+constexpr uint32_t kCountrySphereLeader = 0x142C;  // index, with the tag at +0x1428
 constexpr uint32_t kCountryStateCount = 0xE4C;
 constexpr uint32_t kCountryCapital = 0xBE4;
 constexpr uint32_t kCountryTreasury = 0xE78;   // i64, 2^15 fixed point
@@ -157,14 +162,17 @@ constexpr uint32_t kSessionQueueCommand = 0x18;
 constexpr const char* kKeyword = "is_treaty_cb";
 constexpr const char* kActionKeyword = "treaty_action";
 constexpr const char* kMoneyKeyword = "se_treaty_money";
+constexpr const char* kTransferPuppetKeyword = "po_transfer_puppet";
 constexpr int64_t kMoneyOne = 32768;  // 1.0 in the treasury's fixed point
 
 Config g_config;
 int g_token = 0;         // is_treaty_cb
 int g_action_token = 0;  // treaty_action
 int g_money_token = 0;   // se_treaty_money
+int g_transfer_puppet_token = 0;  // po_transfer_puppet
 std::vector<uintptr_t> g_cbs;
-uintptr_t g_prev_load = 0;        // what the CBManager_Load call called before us
+std::vector<uintptr_t> g_transfer_puppet_cbs;  // the chosen puppet of the giver becomes the gainer's
+uintptr_t g_prev_load = 0;       // what the CBManager_Load call called before us
 uintptr_t g_prev_on_keyword = 0;  // CCasusBelliType slot 4 before us
 uintptr_t g_create_trampoline = 0;
 uintptr_t g_ai_back = 0;  // kAiTypeSwitch + 7
@@ -291,7 +299,27 @@ void set_vector(uintptr_t at, const void* data, size_t count, size_t size) {
     }
 }
 
+bool transfers_puppet(uintptr_t cb) {
+    return std::find(g_transfer_puppet_cbs.begin(), g_transfer_puppet_cbs.end(), cb) != g_transfer_puppet_cbs.end();
+}
+
+void build_goal(void* out, const treaty::Term& term);
+
+// For a po_transfer_puppet term, the po_make_puppet goal it amounts to: the gainer over the third country.
+// Priced, infamy counted and executed as that one.
+uintptr_t puppet_goal(uintptr_t g, uint8_t (&buffer)[kWarGoalSize]) {
+    uintptr_t cb = read<uintptr_t>(g + kGoalCb);
+    int third = read<int>(g + kGoalThirdIndex);
+    if (!transfers_puppet(cb) || !third) {
+        return g;
+    }
+    build_goal(buffer, {cb, read<int>(g + kGoalActorIndex), third, 0, 0});
+    return reinterpret_cast<uintptr_t>(buffer);
+}
+
 int peace_cost(uintptr_t goal_ptr) {
+    uint8_t buffer[kWarGoalSize];
+    goal_ptr = puppet_goal(goal_ptr, buffer);
     int out = 0;
     using CostFn = int*(__stdcall*)(uintptr_t, int*, bool);
     fn<CostFn>(kWarGoalPeaceCost)(goal_ptr, &out, false);
@@ -299,6 +327,8 @@ int peace_cost(uintptr_t goal_ptr) {
 }
 
 int infamy(uintptr_t goal_ptr) {
+    uint8_t buffer[kWarGoalSize];
+    goal_ptr = puppet_goal(goal_ptr, buffer);
     int out = 0;
     int* out_ptr = &out;
     uintptr_t f = hooks::exe_va(kWarGoalInfamy);
@@ -479,11 +509,17 @@ bool goal_valid_scoped(uintptr_t g) {
         states.push_back(read<uintptr_t>(game::province(id) + kProvinceState));
     }
     if (states.empty()) {
+        logf("treaty:   goal check, third %d: no target states (all_allowed_states %d)", third,
+             read<uint8_t>(cb + kCbAllAllowedStates));
         return false;
     }
     for (uintptr_t st : states) {
         uintptr_t ids = st + kStateProvinceIds;
         if (read<uintptr_t>(ids) == read<uintptr_t>(ids + 4) || read<int>(st + kStateOwnerIndex) != gives) {
+            logf("treaty:   goal check, third %d: one of %u states has %d provinces, owner %d (giver %d)", third,
+                 static_cast<unsigned>(states.size()),
+                 static_cast<int>((read<uintptr_t>(ids + 4) - read<uintptr_t>(ids)) / 4),
+                 read<int>(st + kStateOwnerIndex), gives);
             return false;
         }
         if (!read<uint8_t>(cb + kCbAllAllowedStates) &&
@@ -613,6 +649,35 @@ bool is_core_of(uint32_t province_id, int country) {
     return false;
 }
 
+// Whether `self` cares about a term that benefits the third country: it borders it, leads its sphere or
+// is its overlord, or the land the term moves holds cores of `self`.
+bool has_stake(int self, int third, uintptr_t g) {
+    uintptr_t t = game::country(third);
+    uintptr_t neighbours = read<uintptr_t>(t + kCountryNeighbours);  // none for a country yet to be released
+    if ((neighbours && read<uint8_t>(neighbours + self)) || read<int>(t + kCountrySphereLeader) == self) {
+        return true;
+    }
+    if ((read<uint8_t>(t + kCountryIsVassal) || read<uint8_t>(t + kCountryIsSubstate)) &&
+        read<int>(t + kCountryOverlord) == self) {
+        return true;
+    }
+    uintptr_t cb = read<uintptr_t>(g + kGoalCb);
+    std::vector<uintptr_t> states;
+    if (read<uint8_t>(cb + kCbAllAllowedStates)) {
+        states = target_states(g);
+    } else if (uint32_t id = read<uint32_t>(g + kGoalProvince)) {
+        states.push_back(read<uintptr_t>(game::province(id) + kProvinceState));
+    }
+    for (uintptr_t st : states) {
+        for (uintptr_t p = read<uintptr_t>(st + kStateProvinceIds); p < read<uintptr_t>(st + kStateProvinceIds + 4); p += 4) {
+            if (is_core_of(read<uint32_t>(p), self)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 Score score_details(uintptr_t action, int self) {
     const Config& k = g_config;
     int a = read<int>(action + kActorIndex);
@@ -628,6 +693,10 @@ Score score_details(uintptr_t action, int self) {
         int64_t cost = peace_cost(g) / 10;  // x1000 -> x100
         bool core = is_core_of(read<uint32_t>(g + kGoalProvince), self);
         if (read<int>(g + kGoalActorIndex) == self) {
+            int third = read<int>(g + kGoalThirdIndex);
+            if (third && !has_stake(self, third, g)) {
+                cost = cost * k.treaty_ai_third_party / 100;  // it goes to someone the AI does not care about
+            }
             s.gain += core ? cost * k.treaty_ai_core_gain / 100 : cost;
         } else if (read<int>(g + kGoalReceiverIndex) == self) {
             give += core ? cost * k.treaty_ai_core_give / 100 : cost;
@@ -729,6 +798,23 @@ uintptr_t __fastcall slot_offer_text(uintptr_t self, void*, uintptr_t out) {
 
 bool __fastcall slot_can_perform(uintptr_t self, void*, bool) { return treaty_problem(self).empty(); }
 
+// Vassal_Release(&vassal, &overlord) as po_release_puppet calls it; ESP is restored here, so the
+// convention does not matter.
+void release_vassal(int vassal, int overlord) {
+    uint32_t vassal_ref[2] = {read<uint32_t>(game::country(vassal) + kCountryTag), static_cast<uint32_t>(vassal)};
+    uint32_t overlord_ref[2] = {read<uint32_t>(game::country(overlord) + kCountryTag), static_cast<uint32_t>(overlord)};
+    uint32_t* v = vassal_ref;
+    uint32_t* o = overlord_ref;
+    uintptr_t f = hooks::exe_va(kVassalRelease);
+    __asm {
+        mov esi, esp
+        push o
+        push v
+        call f
+        mov esp, esi
+    }
+}
+
 void __fastcall slot_execute(uintptr_t self, void*, void*) {
     treaty_ui::ensure_message_texts();
     int a = read<int>(self + kActorIndex);
@@ -753,7 +839,12 @@ void __fastcall slot_execute(uintptr_t self, void*, void*) {
             uintptr_t gainer = game::country(read<int>(g + kGoalActorIndex));
             *reinterpret_cast<int*>(gainer + kCountryInfamy) += infamy(g);
         }
-        fn<void(__stdcall*)(uintptr_t)>(kWarGoalExecute)(g);
+        uint8_t buffer[kWarGoalSize];
+        uintptr_t run = puppet_goal(g, buffer);
+        if (run != g) {
+            release_vassal(read<int>(g + kGoalThirdIndex), read<int>(g + kGoalReceiverIndex));
+        }
+        fn<void(__stdcall*)(uintptr_t)>(kWarGoalExecute)(run);
         ++applied;
     }
     int64_t m = read<int64_t>(self + kMoney);
@@ -899,8 +990,9 @@ void __stdcall register_tokens() {
     g_token = add_token(kKeyword);
     g_action_token = add_token(kActionKeyword);
     g_money_token = add_token(kMoneyKeyword);
-    logf("treaty: tokens %s 0x%X, %s 0x%X, %s 0x%X", kKeyword, g_token, kActionKeyword, g_action_token,
-         kMoneyKeyword, g_money_token);
+    g_transfer_puppet_token = add_token(kTransferPuppetKeyword);
+    logf("treaty: tokens %s 0x%X, %s 0x%X, %s 0x%X, %s 0x%X", kKeyword, g_token, kActionKeyword, g_action_token,
+         kMoneyKeyword, g_money_token, kTransferPuppetKeyword, g_transfer_puppet_token);
 }
 
 // Replaces the CALL CBManager_Load(manager, block) (stdcall; it deletes the block): registers our words,
@@ -926,6 +1018,13 @@ void __stdcall load_cbs(uintptr_t manager, uintptr_t block) {
 using OnKeywordFn = void(__fastcall*)(uintptr_t cb, void*, uintptr_t parser, int token);
 
 void __fastcall on_keyword(uintptr_t cb, void*, uintptr_t parser, int token) {
+    if (g_transfer_puppet_token && token == g_transfer_puppet_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !transfers_puppet(cb)) {
+            g_transfer_puppet_cbs.push_back(cb);
+            logf("treaty: %s hands over a puppet", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
     if (!g_token || token != g_token) {
         reinterpret_cast<OnKeywordFn>(g_prev_on_keyword)(cb, nullptr, parser, token);
         return;

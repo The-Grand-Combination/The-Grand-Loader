@@ -116,6 +116,9 @@ constexpr uint32_t kActionRecipientIndex = 0x14;
 // Countries, provinces
 constexpr uint32_t kCountryTag = 0x1C;
 constexpr uint32_t kCountryProvinces = 0x9D8;
+constexpr uint32_t kProvinceState = 0x188;
+constexpr uint32_t kStateGetName = 0x004CECE0;  // CState vt[0x20]: thiscall (std::string* out) -> out
+constexpr uint32_t kStringDtor = 0x00408AD0;    // std_string_dtor, fastcall (std::string*)
 constexpr uint32_t kCountryTreasury = 0xE78;
 constexpr uint32_t kCbName = 0x14;
 constexpr uint32_t kCountryManagerVa = 0x012587E4;  // g_countryManager: +0 country count, +4 CCountry*[]
@@ -266,7 +269,59 @@ uintptr_t localisation_find(uintptr_t localisation, const std::string& key) {
     return pair;
 }
 
+// CBs with `po_demand_province = yes` (demand_province): their terms take one province, so the editor
+// lists provinces for them and states for the others. Read from the cb_types.txt text CBManager_Load gets,
+// since after loading such a CB has the same peace options as a po_demand_state one.
+std::vector<std::string> g_province_cbs;
+
+void find_province_cbs(const std::string& text) {
+    g_province_cbs.clear();
+    std::vector<std::string> words;
+    std::string word;
+    bool comment = false;
+    for (char c : text + "\n") {
+        if (comment) {
+            comment = c != '\n';
+            continue;
+        }
+        bool separator = c == '#' || c == '=' || c == '{' || c == '}' || static_cast<unsigned char>(c) <= ' ';
+        if (!separator) {
+            word += c;
+            continue;
+        }
+        if (!word.empty()) {
+            words.push_back(word);
+            word.clear();
+        }
+        comment = c == '#';
+        if (c == '=' || c == '{' || c == '}') {
+            words.push_back(std::string(1, c));
+        }
+    }
+    // each CB is a top-level `name = { ... }` block
+    int depth = 0;
+    std::string cb;
+    for (size_t i = 0; i < words.size(); ++i) {
+        if (words[i] == "{") {
+            if (depth == 0 && i >= 2 && words[i - 1] == "=") {
+                cb = words[i - 2];
+            }
+            ++depth;
+        } else if (words[i] == "}") {
+            depth = depth > 0 ? depth - 1 : 0;
+        } else if (depth == 1 && words[i] == "po_demand_province" && i + 2 < words.size() && words[i + 1] == "=" &&
+                   words[i + 2] == "yes") {
+            g_province_cbs.push_back(cb);
+        }
+    }
+}
+
 }  // namespace
+
+bool takes_one_province(uintptr_t cb) {
+    std::string name = GameString::copy(cb + kCbName);
+    return std::find(g_province_cbs.begin(), g_province_cbs.end(), name) != g_province_cbs.end();
+}
 
 // The texts of the answer messages and of the treaty CBs (name, _desc, _setup, _short), from our CSV into
 // the game's table; keys the game already has stay. Cheap when they are all there; called before anything
@@ -344,6 +399,8 @@ uintptr_t merged_cb_block() {
         return 0;
     }
     std::string game((std::istreambuf_iterator<char>(game_in)), std::istreambuf_iterator<char>());
+    find_province_cbs(game + "\n" + ours);
+    logf("treaty: %u CBs with po_demand_province (listed by province)", static_cast<unsigned>(g_province_cbs.size()));
     std::ofstream out(plugin + L"\\common\\se_cb_types.generated.txt", std::ios::binary | std::ios::trunc);
     out << game << "\r\n\r\n# --- Script Extender: common/se_treaty_cbs.txt ---\r\n" << ours << "\r\n";
     out.close();
@@ -613,6 +670,26 @@ std::string province_name(const Editor& e, uint32_t id) {
     return name_of(e, key);
 }
 
+// The name of the province's state, as the war goal dialog shows it (CState_GetName).
+std::string state_name(uint32_t province) {
+    uintptr_t state = read<uintptr_t>(game::province(province) + kProvinceState);
+    if (!state) {
+        return {};
+    }
+    alignas(4) uint8_t out[sizeof(GameString)];
+    using NameFn = void*(__thiscall*)(uintptr_t, void*);
+    fn<NameFn>(kStateGetName)(state, out);
+    std::string name = GameString::copy(reinterpret_cast<uintptr_t>(out));
+    fn<void(__fastcall*)(void*)>(kStringDtor)(out);
+    return name;
+}
+
+// What a pick or term of `cb` at `province` is called: the province for po_demand_province CBs, else
+// the state the term takes.
+std::string place_name(const Editor& e, uintptr_t cb, uint32_t province) {
+    return takes_one_province(cb) ? province_name(e, province) : state_name(province);
+}
+
 std::string country_name(const Editor& e, int index) {
     uint32_t tag = read<uint32_t>(game::country(index) + kCountryTag);
     return name_of(e, std::string(reinterpret_cast<const char*>(&tag), 3));
@@ -726,11 +803,18 @@ void compute_options(Editor& e) {
     auto begin = read<const int*>(giver + kCountryProvinces);
     auto end = read<const int*>(giver + kCountryProvinces + 4);
     std::map<std::string, int> refusals;
+    bool per_state = !takes_one_province(e.picked_cb);
+    std::vector<uintptr_t> listed_states;
     for (const int* p = begin; p < end; ++p) {
         treaty::Term term{e.picked_cb, e.gains(), e.gives(), static_cast<uint32_t>(*p), e.picked_third};
+        uintptr_t state = read<uintptr_t>(game::province(term.province) + kProvinceState);
+        if (per_state && std::find(listed_states.begin(), listed_states.end(), state) != listed_states.end()) {
+            continue;  // the term takes the whole state: one row for it
+        }
         std::string why = treaty::check_term(e.action, term);
         if (why.empty()) {
             e.province_options.push_back(term.province);
+            listed_states.push_back(state);
         } else {
             ++refusals[why];
         }
@@ -807,7 +891,7 @@ void refresh(Editor& e) {
             label += " " + country_name(e, term.third);
         }
         if (term.province) {
-            label += " " + province_name(e, term.province);
+            label += " " + place_name(e, term.cb, term.province);
         }
         char cost[16];
         std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_cost(term));
@@ -838,7 +922,7 @@ void refresh(Editor& e) {
         if (visible) {
             button_text(e.picks[i], e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
                                     : choosing_country(e)     ? country_name(e, e.country_options[index])
-                                    : e.picked_cb             ? province_name(e, e.province_options[index])
+                                    : e.picked_cb             ? place_name(e, e.picked_cb, e.province_options[index])
                                                               : option_name(e, e.cb_options[index]));
         }
     }

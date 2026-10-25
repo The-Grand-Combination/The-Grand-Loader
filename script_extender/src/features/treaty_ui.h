@@ -18,4 +18,7 @@ void ensure_message_texts();
 // CBManager_Load; 0 when there is no such file or the merge failed (then the game's block is used).
 uintptr_t merged_cb_block();
 
+// Whether the CB has `po_demand_province = yes` in that text: its term takes one province, not the state.
+bool takes_one_province(uintptr_t cb);
+
 }  // namespace se::features::treaty_ui

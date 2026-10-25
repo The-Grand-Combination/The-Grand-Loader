@@ -152,6 +152,10 @@ treaty_release_puppet;Release Puppet;;;;;;;;;;;;;x
 treaty_release_puppet_desc;Free one of their §Ypuppets§W;;;;;;;;;;;;;x
 treaty_release_puppet_setup;$RECIPIENT$ releases a puppet;;;;;;;;;;;;;x
 treaty_release_puppet_short;Release puppet;;;;;;;;;;;;;x
+treaty_cede_puppet;Cede Puppet;;;;;;;;;;;;;x
+treaty_cede_puppet_desc;Hand one of their §Ypuppets§W over to us;;;;;;;;;;;;;x
+treaty_cede_puppet_setup;$RECIPIENT$ hands over a puppet;;;;;;;;;;;;;x
+treaty_cede_puppet_short;Cede puppet;;;;;;;;;;;;;x
 treaty_free_peoples;Free Peoples;;;;;;;;;;;;;x
 treaty_free_peoples_desc;Hand a §Ystate§W to the people who hold its cores;;;;;;;;;;;;;x
 treaty_free_peoples_setup;$RECIPIENT$ frees a people;;;;;;;;;;;;;x

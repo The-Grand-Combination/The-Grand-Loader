@@ -24,6 +24,7 @@ struct Config {
     int treaty_ai_neighbour = 200;   // percent: the power term when the two border each other
     int treaty_ai_coerce_ratio = 300;  // percent: from this strength ratio a bad relation helps the proposer
     int treaty_ai_hostile = 100;     // percent: how much a bad relation then helps
+    int treaty_ai_third_party = 0;   // percent: a gained term for a third country the AI has no stake in
 };
 
 // Reads mod/script_extender.ini: `key = value` lines, `;` comments. Unknown keys are logged.

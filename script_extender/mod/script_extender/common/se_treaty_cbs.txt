@@ -335,6 +335,47 @@ treaty_release_puppet = {
 	war_name = WAR_NAME
 }
 
+# Negotiated with the overlord, which hands one of its puppets (the chosen country) over to the
+# gaining country as its puppet (po_transfer_puppet: the Script Extender's; priced as make_puppet).
+treaty_cede_puppet = {
+	sprite_index = 10
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+		num_of_vassals_no_substates = 1
+	}
+
+	allowed_countries = {
+		is_our_vassal = FROM
+		FROM = { is_substate = no }
+	}
+
+	po_make_puppet = yes
+	po_transfer_puppet = yes
+
+	war_name = WAR_NAME
+}
+
 # Copy of free_peoples: the owner hands one state with cores of the chosen country to it (released if
 # it does not exist).
 treaty_free_peoples = {
