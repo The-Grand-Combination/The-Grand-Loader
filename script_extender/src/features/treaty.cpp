@@ -911,13 +911,16 @@ void __stdcall load_cbs(uintptr_t manager, uintptr_t block) {
     uintptr_t merged = g_token ? treaty_ui::merged_cb_block() : 0;
     if (!merged) {
         reinterpret_cast<LoadFn>(g_prev_load)(manager, block);
-        return;
+    } else {
+        reinterpret_cast<LoadFn>(g_prev_load)(manager, merged);
+        if (block) {
+            using DeleteFn = void(__fastcall*)(uintptr_t, void*, int);
+            read<DeleteFn>(read<uintptr_t>(block))(block, nullptr, 1);
+        }
     }
-    reinterpret_cast<LoadFn>(g_prev_load)(manager, merged);
-    if (block) {
-        using DeleteFn = void(__fastcall*)(uintptr_t, void*, int);
-        read<DeleteFn>(read<uintptr_t>(block))(block, nullptr, 1);
-    }
+    // The treaty CBs' names and terms now, before the game can look one up: a key it looks up while
+    // missing is inserted with the key as its text, and that one would then stay.
+    treaty_ui::ensure_message_texts();
 }
 
 using OnKeywordFn = void(__fastcall*)(uintptr_t cb, void*, uintptr_t parser, int token);

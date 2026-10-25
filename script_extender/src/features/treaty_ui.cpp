@@ -547,7 +547,7 @@ const char* const kUiKeys[] = {
     "SE_TREATY_BACK",         "SE_TREATY_MONEY",       "SE_TREATY_PICK_MONEY",     "SE_TREATY_SCORE",
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
     "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
-    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY",
+    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_PICK_COUNTRY",
 };
 
 std::string replace(std::string s, const std::string& token, const std::string& value) {
@@ -693,6 +693,24 @@ void compute_options(Editor& e) {
                     ++detailed;
                     treaty::log_country_conditions(e.picked_cb, e.gains(), e.gives(), idx);
                 }
+            }
+            // and the giver's sphere: its member list (+0x1418) and every country naming it leader (+0x142C)
+            std::map<int, int> sphere;  // country -> 1 in the list, 2 names it, 3 both
+            for (uintptr_t m = read<uintptr_t>(giver + 0x1418); m < read<uintptr_t>(giver + 0x141C); m += 8) {
+                sphere[read<int>(m + 4)] |= 1;
+            }
+            for (int c = 1; c < count; ++c) {
+                if (c != e.gives() && read<int>(game::country(c) + 0x142C) == e.gives()) {
+                    sphere[c] |= 2;
+                }
+            }
+            logf("treaty:   %d sphere members of the giver", static_cast<int>(sphere.size()));
+            for (const auto& [idx, how] : sphere) {
+                uint32_t tag = read<uint32_t>(game::country(idx) + kCountryTag);
+                logf("treaty:   sphere member %.3s (%d) [%s]: allowed_countries %s", reinterpret_cast<const char*>(&tag), idx,
+                     how == 3 ? "list+leader" : how == 1 ? "list only" : "leader only",
+                     treaty::country_allowed(e.picked_cb, e.gains(), e.gives(), idx) ? "yes" : "no");
+                treaty::log_country_conditions(e.picked_cb, e.gains(), e.gives(), idx);
             }
         }
         logf("treaty: %s, %d gains from %d: %d of %d countries pass allowed_countries, %u usable%s%s",
