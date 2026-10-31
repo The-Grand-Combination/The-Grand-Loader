@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -14,6 +15,7 @@
 #include "features/treaty.h"
 #include "game/localisation.h"
 #include "game/objects.h"
+#include "game/script.h"
 #include "hooks/memory.h"
 #include "hooks/thunk.h"
 #include "log.h"
@@ -62,11 +64,6 @@ constexpr uint32_t kLocalisationAddVariant = 0x009AB900;   // stdcall (value, co
 constexpr uint32_t kGuiFinalize = 0x009A4190;
 constexpr uint32_t kAppGfx = 0x11C;
 constexpr uint32_t kAppGui = 0x120;
-constexpr uint32_t kFileReaderCtor = 0x0098FFC0;   // thiscall (const std::string* path)
-constexpr uint32_t kFileReaderSize = 0x114;
-constexpr uint32_t kTokenReaderVtable = 0x00E37C3C;
-constexpr uint32_t kParserBlockCtor = 0x009A0BF0;  // EDX = const std::string* name, (mem, reader, 1)
-constexpr uint32_t kParserBlockSize = 0x360;
 constexpr uint32_t kReadBlock = 0x0C;              // (target+4)->vt[0xC](block)
 
 // Dialogs
@@ -141,6 +138,7 @@ uintptr_t g_can_perform = 0;
 uintptr_t g_make_cb_vtable = 0;
 uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
 uintptr_t g_chooser_vtable_storage[kDialogSlots + 1];
+uintptr_t g_forced_vtable_storage[kDialogSlots + 1];  // the dismantle editor: no way out but sending
 
 template <class T>
 T fn(uint32_t va) {
@@ -193,32 +191,8 @@ std::vector<std::string> files(const wchar_t* pattern) {
     return out;
 }
 
-// A parser block over the file at `path` (a PhysFS path), as EU3App_LoadResources makes one; 0 on failure.
-uintptr_t make_block(const std::string& path) {
-    void* block_memory = game_new(kParserBlockSize);
-    void* reader = game_new(kFileReaderSize);
-    if (!block_memory || !reader) {
-        return 0;
-    }
-    GameString game_path(path);
-    using ReaderCtorFn = void(__fastcall*)(void*, void*, const GameString*);
-    fn<ReaderCtorFn>(kFileReaderCtor)(reader, nullptr, &game_path);
-    *reinterpret_cast<uintptr_t*>(reader) = hooks::exe_va(kTokenReaderVtable);
-    std::string session = "UNNAMED_SESSION";
-    GameString game_session(session);
-    const GameString* session_ptr = &game_session;
-    uintptr_t ctor = hooks::exe_va(kParserBlockCtor);
-    uintptr_t block;
-    __asm {
-        push 1
-        push reader
-        push block_memory
-        mov edx, session_ptr
-        call ctor
-        mov block, eax
-    }
-    return block;
-}
+// A parser block over the file at `path` (a PhysFS path); 0 on failure.
+uintptr_t make_block(const std::string& path) { return game::parser_block(path); }
 
 // One file into `target` (the sprite database or the GUI), as EU3App_LoadResources does.
 void parse_file(uintptr_t target, const std::string& path) {
@@ -605,6 +579,8 @@ const char* const kUiKeys[] = {
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
     "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
     "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_PICK_COUNTRY",
+    "SE_TREATY_DISMANTLE_TITLE", "SE_TREATY_DISMANTLE_POINTS", "SE_TREATY_DISMANTLE_INFAMY", "SE_TREATY_DISMANTLE_FORCED",
+    "SE_TREATY_IMPOSE",       "SE_TREATY_NOTICE_TITLE", "SE_TREATY_NOTICE",       "SE_TREATY_OK",
 };
 
 std::string replace(std::string s, const std::string& token, const std::string& value) {
@@ -624,12 +600,15 @@ struct Editor {
     uintptr_t action = 0;
     int me = 0;
     int them = 0;
+    uintptr_t invitation = 0;  // forced: the pending action that opened it
+    int budget = 0;            // forced: its points; 0 = an ordinary editor
     Glue glue{};
     std::map<std::string, std::string> texts;
     // children
     uintptr_t window = 0;
     uintptr_t terms[kMaxRows] = {};
     uintptr_t picks[kMaxRows] = {};
+    uintptr_t picks_red[kMaxRows] = {};  // se_pick_red_<i>: the same rows with the red frame
     uintptr_t term_icons[kMaxRows] = {};
     uintptr_t pick_icons[kMaxRows] = {};
     uintptr_t term_prev = 0, term_next = 0, term_page_text = 0, mode_demand_text = 0, mode_give_text = 0;
@@ -644,6 +623,7 @@ struct Editor {
     int page = 0;
     int term_page = 0;
     std::vector<uintptr_t> cb_options;
+    std::vector<bool> cb_enabled;  // parallel to cb_options: grey when false
     std::vector<uint32_t> province_options;  // or amounts in pounds
     bool dirty = true;
 
@@ -695,23 +675,72 @@ std::string country_name(const Editor& e, int index) {
     return name_of(e, std::string(reinterpret_cast<const char*>(&tag), 3));
 }
 
+// The places of the giver a term of `cb` can name: one province per state, or every province for a
+// po_demand_province CB.
+std::vector<uint32_t> giver_places(const Editor& e, uintptr_t cb) {
+    std::vector<uint32_t> places;
+    std::vector<uintptr_t> states;
+    bool per_state = !takes_one_province(cb);
+    uintptr_t giver = game::country(e.gives());
+    for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
+        uintptr_t state = read<uintptr_t>(game::province(static_cast<uint32_t>(*p)) + kProvinceState);
+        if (per_state && std::find(states.begin(), states.end(), state) != states.end()) {
+            continue;
+        }
+        states.push_back(state);
+        places.push_back(static_cast<uint32_t>(*p));
+    }
+    return places;
+}
+
+// Whether a term of `cb` could be added now: some third country and place it needs that pass. Stops at
+// the first.
+bool cb_has_options(const Editor& e, uintptr_t cb) {
+    if (!treaty::cb_usable(cb, e.gains(), e.gives())) {
+        return false;
+    }
+    std::vector<int> thirds{0};
+    if (treaty::cb_needs_country(cb)) {
+        thirds.clear();
+        int count = read<int>(read<uintptr_t>(hooks::exe_va(kCountryManagerVa)));
+        for (int c = 1; c < count; ++c) {
+            if (c != e.me && c != e.them && treaty::country_allowed(cb, e.gains(), e.gives(), c)) {
+                thirds.push_back(c);
+            }
+        }
+    }
+    std::vector<uint32_t> places{0};
+    if (treaty::cb_needs_province(cb)) {
+        places = giver_places(e, cb);
+    }
+    for (int third : thirds) {
+        for (uint32_t place : places) {
+            if (treaty::check_term(e.action, {cb, e.gains(), e.gives(), place, third}).empty()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void compute_options(Editor& e) {
     e.cb_options.clear();
+    e.cb_enabled.clear();
     e.province_options.clear();
     e.country_options.clear();
+    if (e.budget < 0) {
+        return;  // a notice: nothing to pick
+    }
     if (!e.picked_cb) {
+        // Every treaty CB is listed; one with nothing to take now is grey.
         e.cb_options.push_back(kMoneyOption);
+        e.cb_enabled.push_back(true);
         for (uintptr_t cb : treaty::treaty_cbs()) {
-            if (treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, e.gains(), e.gives())) {
-                logf("treaty: %s not offered (%d gains from %d): %s", GameString::copy(cb + kCbName).c_str(), e.gains(),
-                     e.gives(), treaty::cb_unsupported(cb) ? "unsupported peace option" : "can_use fails");
-                continue;
-            }
-            if (!treaty::cb_needs_province(cb) && !treaty::cb_needs_country(cb) &&
-                !treaty::check_term(e.action, {cb, e.gains(), e.gives(), 0}).empty()) {
-                continue;
+            if (treaty::cb_unsupported(cb) || (e.budget && !treaty::is_dismantling(cb))) {
+                continue;  // a forced treaty lists only the is_dismantling_cb ones
             }
             e.cb_options.push_back(cb);
+            e.cb_enabled.push_back(cb_has_options(e, cb));
         }
         return;
     }
@@ -738,56 +767,21 @@ void compute_options(Editor& e) {
                 continue;
             }
             ++allowed;
-            // with a province still to choose, the whole term is checked then
-            std::string why = treaty::cb_needs_province(e.picked_cb)
-                                  ? std::string()
-                                  : treaty::check_term(e.action, {e.picked_cb, e.gains(), e.gives(), 0, c});
+            // Listed only with something left to take: a place that passes, when the CB needs one (the
+            // states already in the treaty no longer do).
+            std::string why = treaty::check_term(e.action, {e.picked_cb, e.gains(), e.gives(), 0, c});
+            if (treaty::cb_needs_province(e.picked_cb)) {
+                for (uint32_t place : giver_places(e, e.picked_cb)) {
+                    why = treaty::check_term(e.action, {e.picked_cb, e.gains(), e.gives(), place, c});
+                    if (why.empty()) {
+                        break;
+                    }
+                }
+            }
             if (why.empty()) {
                 e.country_options.push_back(c);
             } else if (first_problem.empty()) {
                 first_problem = why;
-            }
-        }
-        // Diagnostics: every country with cores in the giver's provinces, and what allowed_countries says.
-        {
-            uintptr_t giver = game::country(e.gives());
-            std::map<int, int> cores;  // country -> provinces of the giver with its core
-            for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
-                uintptr_t province = game::province(static_cast<uint32_t>(*p));
-                for (uintptr_t c = read<uintptr_t>(province + 0x148); c < read<uintptr_t>(province + 0x14C); c += 8) {
-                    int idx = read<int>(c + 4);
-                    if (idx != e.gives()) {
-                        ++cores[idx];
-                    }
-                }
-            }
-            for (const auto& [idx, n] : cores) {
-                uint32_t tag = read<uint32_t>(game::country(idx) + kCountryTag);
-                logf("treaty:   core holder %.3s (%d) on %d provinces: allowed_countries %s", reinterpret_cast<const char*>(&tag),
-                     idx, n, treaty::country_allowed(e.picked_cb, e.gains(), e.gives(), idx) ? "yes" : "no");
-                static int detailed = 0;
-                if (detailed < 3) {
-                    ++detailed;
-                    treaty::log_country_conditions(e.picked_cb, e.gains(), e.gives(), idx);
-                }
-            }
-            // and the giver's sphere: its member list (+0x1418) and every country naming it leader (+0x142C)
-            std::map<int, int> sphere;  // country -> 1 in the list, 2 names it, 3 both
-            for (uintptr_t m = read<uintptr_t>(giver + 0x1418); m < read<uintptr_t>(giver + 0x141C); m += 8) {
-                sphere[read<int>(m + 4)] |= 1;
-            }
-            for (int c = 1; c < count; ++c) {
-                if (c != e.gives() && read<int>(game::country(c) + 0x142C) == e.gives()) {
-                    sphere[c] |= 2;
-                }
-            }
-            logf("treaty:   %d sphere members of the giver", static_cast<int>(sphere.size()));
-            for (const auto& [idx, how] : sphere) {
-                uint32_t tag = read<uint32_t>(game::country(idx) + kCountryTag);
-                logf("treaty:   sphere member %.3s (%d) [%s]: allowed_countries %s", reinterpret_cast<const char*>(&tag), idx,
-                     how == 3 ? "list+leader" : how == 1 ? "list only" : "leader only",
-                     treaty::country_allowed(e.picked_cb, e.gains(), e.gives(), idx) ? "yes" : "no");
-                treaty::log_country_conditions(e.picked_cb, e.gains(), e.gives(), idx);
             }
         }
         logf("treaty: %s, %d gains from %d: %d of %d countries pass allowed_countries, %u usable%s%s",
@@ -842,26 +836,82 @@ std::string option_name(const Editor& e, uintptr_t cb) { return cb == kMoneyOpti
 
 std::string pounds_of(int64_t fixed) { return std::to_string((fixed < 0 ? -fixed : fixed) / kMoneyOne); }
 
-void refresh(Editor& e) {
+// A notice: the terms an AI dismantler imposed on us, read only, and OK. No points: they were reckoned
+// on the map before the terms moved it.
+void refresh_notice(Editor& e) {
     e.dirty = false;
-    set_text(e.title, e.t("SE_TREATY_TITLE"));
+    set_text(e.title, replace(e.t("SE_TREATY_NOTICE_TITLE"), "$COUNTRY$", country_name(e, e.them)));
+    set_text(e.terms_label, e.t("SE_TREATY_TERMS"));
+    set_text(e.mode_demand_text, std::string());
+    set_text(e.mode_give_text, std::string());
+    for (uintptr_t b : {e.mode_demand, e.mode_give, e.decline, e.back, e.prev, e.next}) {
+        show(b, false);
+    }
+    for (int i = 0; i < kPickRows; ++i) {
+        show(e.picks[i], false);
+        show(e.picks_red[i], false);
+        cb_icon(e.pick_icons[i], 0);
+    }
+    set_text(e.pick_label, replace(e.t("SE_TREATY_NOTICE"), "$COUNTRY$", country_name(e, e.them)));
+    set_text(e.score, std::string());
+    set_text(e.acceptance, std::string());
+    button_text(e.agree, e.t("SE_TREATY_OK"));
+    enable(e.agree, true);
+
+    std::vector<treaty::Term> terms = treaty::terms(e.action);
+    int pages = std::max(1, static_cast<int>((terms.size() + kTermRows - 1) / kTermRows));
+    e.term_page = std::max(0, std::min(e.term_page, pages - 1));
+    show(e.term_prev, e.term_page > 0);
+    show(e.term_next, e.term_page + 1 < pages);
+    set_text(e.term_page_text, pages > 1 ? std::to_string(e.term_page + 1) + "/" + std::to_string(pages) : "");
+    for (int row = 0; row < kTermRows; ++row) {
+        size_t i = static_cast<size_t>(e.term_page * kTermRows + row);
+        if (i >= terms.size()) {
+            show(e.terms[row], false);
+            cb_icon(e.term_icons[row], 0);
+            continue;
+        }
+        const treaty::Term& term = terms[i];
+        std::string label = cb_name(e, term.cb);
+        if (term.third) {
+            label += " " + country_name(e, term.third);
+        }
+        if (term.province) {
+            label += " " + place_name(e, term.cb, term.province);
+        }
+        show(e.terms[row], true);
+        cb_icon(e.term_icons[row], term.cb);
+        button_text(e.terms[row], replace(e.t(term.actor == e.me ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label));
+    }
+}
+
+void refresh(Editor& e) {
+    if (e.budget < 0) {
+        refresh_notice(e);
+        return;
+    }
+    e.dirty = false;
+    set_text(e.title, e.budget ? replace(e.t("SE_TREATY_DISMANTLE_TITLE"), "$COUNTRY$", country_name(e, e.them))
+                               : e.t("SE_TREATY_TITLE"));
     set_text(e.terms_label, e.t("SE_TREATY_TERMS"));
     set_text(e.mode_demand_text, e.t("SE_TREATY_MODE_DEMAND"));
-    set_text(e.mode_give_text, e.t("SE_TREATY_MODE_GIVE"));
+    set_text(e.mode_give_text, e.budget ? std::string() : e.t("SE_TREATY_MODE_GIVE"));
     using FrameFn = void(__fastcall*)(uintptr_t, void*, int);
     if (e.mode_demand && e.mode_give) {
         vt<FrameFn>(e.mode_demand, kButtonSetFrame)(e.mode_demand, nullptr, e.mode == kDemand ? 2 : 1);
         vt<FrameFn>(e.mode_give, kButtonSetFrame)(e.mode_give, nullptr, e.mode == kGive ? 2 : 1);
     }
+    show(e.mode_give, !e.budget);  // a forced treaty only takes
+    show(e.decline, !e.budget);    // and is not cancelled
     button_text(e.back, e.t("SE_TREATY_BACK"));
-    button_text(e.agree, e.t("SE_TREATY_SEND"));
+    button_text(e.agree, e.t(e.budget ? "SE_TREATY_IMPOSE" : "SE_TREATY_SEND"));
     button_text(e.decline, e.t("SE_TREATY_CANCEL"));
 
     // Terms
     std::vector<treaty::Term> terms = treaty::terms(e.action);
     int gain = 0, give = 0;
-    for (const treaty::Term& term : terms) {
-        (term.actor == e.me ? gain : give) += treaty::term_cost(term);
+    for (size_t i = 0; i < terms.size(); ++i) {
+        (terms[i].actor == e.me ? gain : give) += treaty::term_points(e.action, i);
     }
     int64_t m = treaty::money(e.action);
     size_t money_rows = m != 0 ? 1 : 0;
@@ -894,8 +944,11 @@ void refresh(Editor& e) {
             label += " " + place_name(e, term.cb, term.province);
         }
         char cost[16];
-        std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_cost(term));
+        std::snprintf(cost, sizeof(cost), " (%d)", treaty::term_points(e.action, i - money_rows));
         label = replace(e.t(term.actor == e.me ? "SE_TREATY_TERM_GAIN" : "SE_TREATY_TERM_GIVE"), "$TERM$", label + cost);
+        if (e.budget && treaty::costs_infamy_when_forced(term.cb)) {
+            label = "\xA7R" + label + "\xA7W";  // red: it costs infamy even here
+        }
         show(e.terms[row], true);
         cb_icon(e.term_icons[row], term.cb);
         button_text(e.terms[row], label);
@@ -916,14 +969,24 @@ void refresh(Editor& e) {
     for (int i = 0; i < kPickRows; ++i) {
         size_t index = static_cast<size_t>(e.page * kPickRows + i);
         bool visible = index < count;
-        show(e.picks[i], visible);
         uintptr_t row_cb = visible && !e.picked_cb && e.cb_options[index] != kMoneyOption ? e.cb_options[index] : 0;
+        // In a forced treaty, the rows of a CB that costs infamy there have the red frame (the war goal
+        // dialog's invalid one); the plain button is hidden under it.
+        uintptr_t frame_cb = e.picked_cb && e.picked_cb != kMoneyOption ? e.picked_cb : row_cb;
+        bool red = visible && e.picks_red[i] && e.budget && frame_cb && treaty::costs_infamy_when_forced(frame_cb);
+        bool usable = !visible || e.picked_cb || index >= e.cb_enabled.size() || e.cb_enabled[index];
+        show(e.picks[i], visible && !red);
+        show(e.picks_red[i], red);
+        enable(e.picks[i], usable);
+        enable(e.picks_red[i], usable);
         cb_icon(e.pick_icons[i], row_cb);
         if (visible) {
-            button_text(e.picks[i], e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
-                                    : choosing_country(e)     ? country_name(e, e.country_options[index])
-                                    : e.picked_cb             ? place_name(e, e.picked_cb, e.province_options[index])
-                                                              : option_name(e, e.cb_options[index]));
+            std::string label = e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
+                                : choosing_country(e)     ? country_name(e, e.country_options[index])
+                                : e.picked_cb             ? place_name(e, e.picked_cb, e.province_options[index])
+                                                          : option_name(e, e.cb_options[index]);
+            button_text(e.picks[i], label);
+            button_text(e.picks_red[i], label);
         }
     }
     show(e.prev, e.page > 0);
@@ -931,10 +994,35 @@ void refresh(Editor& e) {
     show(e.back, e.picked_cb != 0);
 
     // Summary
+    std::string why = treaty::problem(e.action);
+    if (e.budget) {
+        // Forced, one short line each (the boxes hold one line): the points spent of the budget (red past
+        // it); then a problem, else the infamy it costs (past the budget and the red terms), else that they
+        // must accept.
+        int spent = treaty::points(e.action);
+        std::string spent_text = spent > e.budget ? "\xA7R" + std::to_string(spent) + "\xA7W" : std::to_string(spent);
+        set_text(e.score, replace(replace(e.t("SE_TREATY_DISMANTLE_POINTS"), "$SPENT$", spent_text), "$BUDGET$",
+                                  std::to_string(e.budget)));
+        int infamy = treaty::infamy_past_budget(spent - e.budget) + treaty::forced_terms_infamy(e.action);
+        std::string line = why;
+        if (line.empty() && infamy > 0) {
+            char amount[32];
+            std::snprintf(amount, sizeof(amount), "%d.%02d", infamy / 1000, infamy % 1000 / 10);
+            line = replace(e.t("SE_TREATY_DISMANTLE_INFAMY"), "$INFAMY$", amount);
+        } else if (line.empty()) {
+            line = e.t("SE_TREATY_DISMANTLE_FORCED");
+        }
+        set_text(e.acceptance, replace(line, "$COUNTRY$", country_name(e, e.them)));
+        bool gone = !treaty::possible(e.me, e.them);  // Impose then only closes it
+        if (gone) {
+            button_text(e.agree, e.t("SE_TREATY_CANCEL"));
+        }
+        enable(e.agree, gone || (why.empty() && treaty::can_send(e.action)));
+        return;
+    }
     std::string score = e.t("SE_TREATY_SCORE");
     score = replace(replace(score, "$GAIN$", std::to_string(gain)), "$GIVE$", std::to_string(give));
     set_text(e.score, score);
-    std::string why = treaty::problem(e.action);
     std::string acceptance = why;
     if (why.empty() && !treaty::is_human(e.them)) {
         acceptance = treaty::ai_accepts(e.action, e.them) ? e.t("SE_TREATY_WILL_ACCEPT") : e.t("SE_TREATY_WILL_NOT_ACCEPT");
@@ -954,6 +1042,9 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     if (!e) {
         return;
     }
+    if (e->budget < 0 && button != e->term_prev && button != e->term_next) {
+        return;  // a notice is read only
+    }
     for (int i = 0; i < kMaxRows; ++i) {
         if (button == e->terms[i]) {
             size_t money_rows = treaty::money(e->action) != 0 ? 1 : 0;
@@ -966,14 +1057,15 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
             reset_picker(*e);
             return;
         }
-        if (button == e->picks[i]) {
+        if (button == e->picks[i] || (button && button == e->picks_red[i])) {
             size_t index = static_cast<size_t>(e->page * kPickRows + i);
+            // A country or a place picked: the term is added and the list stays, without it, for the next
+            // one (Back, or an emptied list, returns to the CBs).
             if (choosing_country(*e) && index < e->country_options.size()) {
                 e->picked_third = e->country_options[index];
                 if (!treaty::cb_needs_province(e->picked_cb)) {
                     treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), 0, e->picked_third});
                     e->term_page = 1 << 20;  // show the last page, where the new term is
-                    e->picked_cb = 0;
                     e->picked_third = 0;
                 }
             } else if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
@@ -981,6 +1073,8 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
                 treaty::set_money(e->action, treaty::money(e->action) + (e->mode == kGive ? amount : -amount));
                 e->picked_cb = 0;
                 e->picked_third = 0;
+            } else if (!e->picked_cb && index < e->cb_options.size() && !e->cb_enabled[index]) {
+                return;  // grey: nothing to take with it now
             } else if (!e->picked_cb && index < e->cb_options.size()) {
                 uintptr_t cb = e->cb_options[index];
                 if (cb == kMoneyOption || treaty::cb_needs_province(cb) || treaty::cb_needs_country(cb)) {
@@ -993,12 +1087,26 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
             } else if (e->picked_cb && index < e->province_options.size()) {
                 treaty::add_term(e->action, {e->picked_cb, e->gains(), e->gives(), e->province_options[index], e->picked_third});
                 e->term_page = 1 << 20;  // show the last page, where the new term is
-                e->picked_cb = 0;
-                e->picked_third = 0;
             }
+            int page = e->page;
             reset_picker(*e);
+            if (e->picked_cb && e->picked_cb != kMoneyOption && option_count(*e) == 0 && e->picked_third &&
+                treaty::cb_needs_country(e->picked_cb)) {
+                e->picked_third = 0;  // this country's places are all taken: back to the countries
+                reset_picker(*e);
+            }
+            if (e->picked_cb && e->picked_cb != kMoneyOption && option_count(*e) == 0) {
+                e->picked_cb = 0;  // nothing left to pick for this CB
+                e->picked_third = 0;
+                reset_picker(*e);
+            } else if (e->picked_cb && option_count(*e) > 0) {
+                e->page = page;  // stay where the picked row was (refresh clamps it)
+            }
             return;
         }
+    }
+    if (button == e->mode_give && e->budget) {
+        return;  // a forced treaty only takes
     }
     if (button == e->mode_demand || button == e->mode_give) {
         e->mode = button == e->mode_demand ? kDemand : kGive;
@@ -1006,8 +1114,12 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
         e->picked_third = 0;
         reset_picker(*e);
     } else if (button == e->back) {
-        e->picked_cb = 0;
-        e->picked_third = 0;
+        if (e->picked_third && treaty::cb_needs_country(e->picked_cb)) {
+            e->picked_third = 0;  // from a country's places back to the countries
+        } else {
+            e->picked_cb = 0;
+            e->picked_third = 0;
+        }
         reset_picker(*e);
     } else if (button == e->term_prev || button == e->term_next) {
         e->term_page += button == e->term_next ? 1 : -1;
@@ -1018,7 +1130,13 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     }
 }
 
+uintptr_t g_forced_dialog = 0;                                // the dismantle editor on screen
+std::deque<std::pair<uintptr_t, uintptr_t>> g_forced_waiting;  // {gui owner, invitation} to show next
+
 uintptr_t __fastcall editor_dtor(uintptr_t dialog, void*, int flags) {
+    if (g_forced_dialog == dialog) {
+        g_forced_dialog = 0;
+    }
     if (Editor* e = editor_of(dialog)) {
         for (uintptr_t b : e->observed) {
             observe(b, &e->glue, false);
@@ -1049,22 +1167,56 @@ void __fastcall editor_agree(uintptr_t dialog, void*) {
 
 void __fastcall dialog_close(uintptr_t dialog, void*) { *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1; }
 
-void open_editor(uintptr_t owner, int me, int them) {
-    ensure_message_texts();
-    uintptr_t action = treaty::create(me, them);
-    if (!action) {
+void open_next_forced();
+
+// The dismantle editor's Impose: sends (accepted at once), drops the invitation, opens the next one. When
+// the loser is gone or at war again, it only drops the invitation.
+void __fastcall forced_agree(uintptr_t dialog, void*) {
+    Editor* e = editor_of(dialog);
+    if (!e) {
         return;
     }
-    uintptr_t dialog = new_dialog(owner, kEditorType, g_editor_vtable_storage, sizeof(Editor*));
+    bool possible = e->budget > 0 && treaty::possible(e->me, e->them);  // a notice (budget < 0) only closes
+    if (possible && !treaty::can_send(e->action)) {
+        return;  // stays open until the terms are fixed
+    }
+    if (possible) {
+        treaty::send(e->action, e->owner);
+    }
+    if (e->invitation) {
+        treaty::remove_pending(e->me, e->invitation);
+        e->invitation = 0;
+    }
+    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
+    g_forced_dialog = 0;
+    open_next_forced();
+}
+
+void __fastcall forced_stay(uintptr_t, void*) {}  // no way to cancel it
+
+bool open_editor(uintptr_t owner, int me, int them, uintptr_t invitation = 0, int budget = 0) {
+    ensure_message_texts();
+    // A notice shows a copy of its own terms; any other editor starts a treaty of its own.
+    uintptr_t action = budget < 0 ? treaty::clone(invitation) : treaty::create(me, them);
+    if (!action) {
+        return false;
+    }
+    treaty::set_budget(action, budget);
+    if (budget > 0) {
+        treaty::add_free_terms(action);  // a forced treaty starts with them
+    }
+    uintptr_t dialog = new_dialog(owner, kEditorType, budget ? g_forced_vtable_storage : g_editor_vtable_storage, sizeof(Editor*));
     if (!dialog) {
         delete_action(action);
-        return;
+        return false;
     }
     auto* e = new Editor;
     *reinterpret_cast<Editor**>(dialog + kDialogState) = e;
     e->dialog = dialog;
     e->owner = owner;
     e->action = action;
+    e->invitation = invitation;
+    e->budget = budget;
     e->me = me;
     e->them = them;
     e->glue.vtable = hooks::exe_va(kGlueVtable);
@@ -1085,6 +1237,11 @@ void open_editor(uintptr_t owner, int me, int them) {
         uintptr_t country = game::country(c);
         for (const int* p = read<const int*>(country + kCountryProvinces); p < read<const int*>(country + kCountryProvinces + 4); ++p) {
             keys.push_back("PROV" + std::to_string(*p));
+        }
+    }
+    for (const treaty::Term& term : treaty::terms(action)) {
+        if (term.province) {
+            keys.push_back("PROV" + std::to_string(term.province));  // a notice's: no longer the loser's
         }
     }
     e->texts = game::read_localisation(keys);
@@ -1108,6 +1265,7 @@ void open_editor(uintptr_t owner, int me, int them) {
         }
         if (i < kPickRows) {
             e->picks[i] = button("se_pick_" + std::to_string(i));
+            e->picks_red[i] = button("se_pick_red_" + std::to_string(i));
             e->pick_icons[i] = find(w, kFindIcon, "se_pick_icon_" + std::to_string(i));
         }
     }
@@ -1133,7 +1291,31 @@ void open_editor(uintptr_t owner, int me, int them) {
     reset_picker(*e);
     refresh(*e);
     add_dialog(owner, dialog);
-    logf("treaty: editor %d -> %d (%u treaty CBs)", me, them, static_cast<unsigned>(treaty::treaty_cbs().size()));
+    if (budget) {
+        g_forced_dialog = dialog;
+    }
+    logf("treaty: editor %d -> %d (%u treaty CBs%s)", me, them, static_cast<unsigned>(treaty::treaty_cbs().size()),
+         budget > 0 ? ", forced" : budget < 0 ? ", notice" : "");
+    return true;
+}
+
+void open_next_forced() {
+    while (!g_forced_dialog && !g_forced_waiting.empty()) {
+        auto [owner, invitation] = g_forced_waiting.front();
+        g_forced_waiting.pop_front();
+        // A dismantle invitation is in the winner's (the actor's) pending list; a notice in the loser's.
+        bool notice = treaty::is_notice(invitation);
+        int me = read<int>(invitation + (notice ? kActionRecipientIndex : kActionActorIndex));
+        int them = read<int>(invitation + (notice ? kActionActorIndex : kActionRecipientIndex));
+        if (!treaty::is_pending(me, invitation)) {
+            continue;  // already dealt with
+        }
+        if (!notice && !treaty::possible(me, them)) {
+            treaty::remove_pending(me, invitation);  // the loser is gone, or at war again
+            continue;
+        }
+        open_editor(owner, me, them, invitation, treaty::budget(invitation));
+    }
 }
 
 // The vanilla gate of an action (DiplomaticAction_CanPerform), e.g. whether a CB may be justified.
@@ -1259,8 +1441,16 @@ void build_vtable(uintptr_t* storage, uintptr_t dtor, uintptr_t update, uintptr_
 
 }  // namespace
 
+void show_forced(uintptr_t owner, uintptr_t invitation) {
+    g_forced_waiting.emplace_back(owner, invitation);
+    open_next_forced();
+}
+
 bool install(const Config& config) {
     g_config = config;
+    build_vtable(g_forced_vtable_storage, reinterpret_cast<uintptr_t>(&editor_dtor),
+                 reinterpret_cast<uintptr_t>(&editor_update), reinterpret_cast<uintptr_t>(&forced_agree),
+                 reinterpret_cast<uintptr_t>(&forced_stay));
     build_vtable(g_editor_vtable_storage, reinterpret_cast<uintptr_t>(&editor_dtor),
                  reinterpret_cast<uintptr_t>(&editor_update), reinterpret_cast<uintptr_t>(&editor_agree),
                  reinterpret_cast<uintptr_t>(&dialog_close));

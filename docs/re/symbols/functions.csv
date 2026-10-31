@@ -26,7 +26,7 @@ va,name,conf,area,src,note
 0x008A67B0,EventManager_LoadResources,C,events,re,"loads event files via PhysFS; old Ghidra name EventManager_CargarRecursos"
 0x008A5AC0,Event_ctor,C,events,re,"constructs the 0x1C4-byte event object; old name EventManager_Initialize"
 0x008A5C70,Event_InitSubobject4C,C,events,re,"initialises event+0x4C; old name EventManager_InitializeEventRegistry"
-0x009A1440,EventFile_ReadHeader,C,events,re,"reads the 3 header tokens; old name InitializeEventObject"
+0x009A1440,EventFile_ReadHeader,C,events,re,"reads key = value: copies each 0x104-byte token record (type, text) to parser+0x20 (key), +0x124 (=), +0x228 (value); old name InitializeEventObject"
 0x008A6010,Event_GetMainName,C,events,re,
 0x008A60F0,Event_GetSecondaryName,C,events,re,
 0x008A6070,Event_GetThirdString,I,events,re,used by the event window
@@ -341,12 +341,12 @@ va,name,conf,area,src,note
 0x0057C130,ConstructStateBuildingCommand_ctor,C,factories,cp,EDI = state-id source; type 0x84E
 0x0057C400,ConstructStateBuildingCommand_Execute,C,factories,cp,
 0x0057CAF0,ConstructStateBuildingCommand_Validate,C,factories,cp,"Factory_CanBuildNow, or FUN_0052D150 for an expansion"
-0x008569A0,AI_ConstructionUpdate,C,ai,cp,"fastcall, ECX = AI object (+0x34 tag, +0x38 index); caches province buildings type 2/4/3 at +0x78/+0x7C/+0x80; one uncounted world-MT roll vs g_economyDefines+0x60"
+0x008569A0,AI_ConstructionUpdate,C,ai,cp,"slot 6 of the job vtable 0x00E284EC; fastcall ECX = job (+0x34 tag, +0x38 index); caches first province building of type 2/4/3 at +0x78/+0x7C/+0x80; rule flags +0x6C..+0x74; nothing at war (country+0x67C); one world-MT roll vs the CHANCE_* defines (g_economyDefines+0x60 +0x34..+0x44); see buildings.md"
 0x00858560,AI_BuildFort,C,ai,cp,needs money > 2x cost; posts ConstructBuildingCommand
 0x00857E60,AI_PickFortProvince,C,ai,cp,"owned, not colonial, Province_CanExpandBuilding; scored by capital and borders"
-0x00858460,AI_BuildNavalBase,C,ai,cp,province from FUN_008577B0
-0x008582D0,AI_BuildRailroad,C,ai,cp,also invests abroad
-0x008580E0,AI_PickRailroadProvince,C,ai,cp,state with the most factories
+0x00858460,AI_BuildNavalBase,C,ai,cp,"province from AI_PickNavalBaseProvince; money > cost; posts ConstructBuildingCommand with job+0x80"
+0x008582D0,AI_BuildRailroad,C,ai,cp,"ECX = country whose states are searched (own or a foreign investment target), EDI = job; own: money > cost; abroad: money > 3x cost"
+0x008580E0,AI_PickRailroadProvince,C,ai,cp,"(job, country); per state the first affordable controlled province passing Building_CanBuildInProvince; best state+0x68 (factory count, I)"
 0x00902790,CCanBuildInProvinceTrigger_Evaluate,C,triggers,cp,"Building_CanBuildInProvince(country, prov, 0, unciv, 0, unciv, unciv); +0x1C limit_to_world_greatest_level; no money or occupation check"
 0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,db+0x34 or db+0x38 (TGC: bank)
 0x008CE600,CHasBuildingTrigger_Evaluate,C,triggers,cp,level > 0
@@ -421,6 +421,7 @@ va,name,conf,area,src,note
 0x004B52E0,Province_SetOwner,C,provinces,cp,"thiscall ECX = prov, (ref*, date*, bool cultureEffects, bool skipOwnedList) RET 0x10; moves the id between owners' +0x9D8, sets +0x128/+0x12C, dirty bytes 0x01267970, map refresh; REB ignored"
 0x004B5730,Province_SetController,C,provinces,cp,"stdcall (prov, ref*, date*, bool setDate) RET 0x10; +0x358 = date; moves the id between controllers' +0x9E8; sets the owner too when unowned"
 0x004B6290,Province_RemoveCore,C,provinces,cp,"(prov, ref*, bool history); erases from prov+0x148 and country+0x9F8; CRemoveCoreChange in the history when set"
+0x004B61A0,Province_AddCore,C,provinces,cp,"stdcall (prov, ref*, bool history) RET 0xC; no-op when the core exists; appends to prov+0x148, a history change when set (I); the add_core effect (0x0087E760) passes 1 and then sets country+0x1434"
 0x00521560,Country_RebuildStates,C,provinces,cp,"stdcall (country, bool) RET 8; after TransferProvinces (receiver): join or create a CState per region, move the factories of an emptied state, on_state_conquest, delete the empty old state"
 0x0050E540,Country_ValidateCapital,C,provinces,cp,"stdcall (country) RET 4; capital 0 or not owned -> owned province with the most (pops+1) x100 if core; daily from Country_PrePass, after Country_Release"
 0x0050E4C0,Country_SetCapital,C,provinces,cp,"EDI = country, (provId, bool history); writes +0xBE4, history via +0x9B4 vt[0x18]"
@@ -531,6 +532,8 @@ va,name,conf,area,src,note
 0x00929480,PeaceOffer_GetTermsText,C,peace,cp,"ECX = offer, out: one bullet per selected goal; PEACE_WHITEPEACE when empty; thiscall (std::string* out) RET 4; reads no war (CTreatyAction slot 16)"
 0x0083DE70,AI_EvaluatePeaceOffer,C,ai,cp,"EAX = CPeaceAction, cdecl (tag, idx, bool asActor) -> 0 / 100; 0 without a war; accept a demand iff cost <= theirWarscore + willingness/2"
 0x0083C7D0,AI_ManagePeace,I,ai,cp,"AI peace proposals (greedy goal pruning, both sides must evaluate 100) and war-goal additions"
+0x00845AD0,AI_PickWarGoal,I,ai,cp,"(out best value, self, target relation side, bool mustHold, ...) over every CB: held or always (+0x132), constructing_cb (+0x1CD), crisis (+0x133) when asked, can_use; value AI_WarGoalValue + per-state/country terms; at war: goals already held + this <= 100 war score and this <= ONE_SIDE_MAX_WARSCORE (AI define +0x24); AI_ManagePeace adds it when the value > 20000"
+0x00846C40,AI_WarGoalValue,I,ai,cp,"base AI value of a war goal: 1000 + a term per peace option (switch on the option token: 0x8A1 annex / 0x942 by states, 0x8A4 po_disarmament by relative strength, 0x975/0x976 +100000, po_clear_union_sphere +1000000, ...)"
 0x00847B60,AI_GetWarGoalStateValue,I,ai,cp,"AI desirability of (CB, state) for target selection; not used for peace acceptance"
 0x00936FC0,War_GetWarScore,C,war,cp,"stdcall (war, &a, &b, ?) RET 0x10; -100..100; MAX_WARSCORE_FROM_BATTLES"
 0x0093BCC0,War_CountWarGoals,C,war,cp,fastcall war; goals in the +0xE0 map
@@ -684,3 +687,19 @@ va,name,conf,area,src,note
 0x00989720,String_ReplaceAll,I,util,cp,"EDI = string, (string, const char* with); TextureManager_LoadFile replaces '\' with '/' through it"
 0x009A9070,Localisation_MakeSelector,I,ui,cp,builds the 16-byte variant selector for Localisation_AddVariant; all zero for an empty string
 0x00408ED0,std_string_assign_from,C,util,cp,"thiscall ECX = std::string*, (const std::string* src, pos, count) RET 0xC; text boxes: assign textbox+0xDC before TextSprite_SetText"
+0x008CD8C0,HasCountryModifierTrigger_Evaluate,C,triggers,cp,"CHasCountryModifierTrigger vt+0x18; scans country +0x4D8 / +0x4E8 for +0x1C; null never matches"
+0x008CD930,HasCountryModifierTrigger_Tooltip,C,triggers,cp,"vt+0x28, thiscall (out, scope, bool, int) RET 0x10 -> out; calls modifier vt[0x18] unchecked (crash 0x008CDC09 on null)"
+0x008CDFC0,HasProvinceModifierTrigger_Evaluate,C,triggers,cp,"vt+0x18; scans province +0xC8 for +0x1C; null never matches"
+0x008CE000,HasProvinceModifierTrigger_Tooltip,C,triggers,cp,"vt+0x28, same as the country one; unchecked modifier"
+0x008B7F70,TriggerList_Tooltip,I,triggers,cp,"AND/OR children tooltip: calls each child's vt+0x28 (return address 0x008B7FFD)"
+0x00639120,App_LoadGameData,I,loading,cp,"one-time setup: pop types, issues, then static/event modifiers ('Static Modifiers Initialized' at 0x0063C345), buildings, technologies, CBs, ..."
+0x008577B0,AI_PickNavalBaseProvince,C,ai,cp,"arg = job; upgrade of an existing coastal base first, else the coastal province in the emptiest of 8 directions x 3 distances from the capital (+ worldMT() % 3 per candidate)"
+0x008571A0,AI_FactoryScore,I,ai,cp,"(building, country): output price against input prices, plus factory modifiers; also ranks factories to delete"
+0x00857430,AI_PickFactoryType,I,ai,cp,"(country): best AI_FactoryScore over buildings whose vt[0x24] is true"
+0x00857530,AI_PickFactoryState,I,ai,cp,"(job, building, country): state to build or expand the factory type in"
+0x00858670,AI_BuildFactory,C,ai,cp,"arg = job; reopen (open_factory, cmd 0x005827F0), expand (expand_factory, CConstructStateBuildingCommand 0x0057C130) or build (build_factory, civilized, 0x0057C080)"
+0x008589B0,AI_ForeignInvest,C,ai,cp,"arg = job; factory in AI_PickInvestTarget's country, then AI_BuildRailroad(target) with build_railway_invest"
+0x00858D90,AI_PickInvestTarget,I,ai,cp,"civilized non-GP allowing foreign investment (+0xB60), not at war with the investor; best score >= 11"
+0x00859180,AI_InvestPopProject,I,ai,cp,"arg = job; funds the neediest state pop project, capped by POP_PROJECT_INVESTMENT_MAX_BUDGET_FACTOR (AI define +0x28) x money; cmd 0x00588650"
+0x008AE8A0,CMeanTimeToHappen_OnToken,C,events,cp,"vt slot 4: factor 0x3BE / base 0x56A / days 0x3C0 set +8 (x1000), months 0x3BF x30, years 0x3C1 x365, modifier 0x3B8 appends a 0x24-byte modifier; else 'unknown command ... for MTTH'"
+0x008AE250,CMtthModifier_ctor,C,events,cp,"ESI = this (0x24 bytes): vtable 0x00E2CE78, factor +0x20 = 1000"

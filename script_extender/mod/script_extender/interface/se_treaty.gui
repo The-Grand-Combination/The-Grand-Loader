@@ -82,16 +82,22 @@ guiTypes = {
 		instantTextBoxType = { name = "se_pick_label" position = { x = 311 y = 112 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }
 		iconType = { name = "se_pick_icon_0" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 140 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_0" position = { x = 347 y = 140 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_0" position = { x = 347 y = 140 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		iconType = { name = "se_pick_icon_1" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 165 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_1" position = { x = 347 y = 165 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_1" position = { x = 347 y = 165 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		iconType = { name = "se_pick_icon_2" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 190 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_2" position = { x = 347 y = 190 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_2" position = { x = 347 y = 190 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		iconType = { name = "se_pick_icon_3" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 215 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_3" position = { x = 347 y = 215 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_3" position = { x = 347 y = 215 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		iconType = { name = "se_pick_icon_4" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 240 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_4" position = { x = 347 y = 240 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_4" position = { x = 347 y = 240 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		iconType = { name = "se_pick_icon_5" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 265 } Orientation = "UPPER_LEFT" }
 		guiButtonType = { name = "se_pick_5" position = { x = 347 y = 265 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_5" position = { x = 347 y = 265 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		guiButtonType = { name = "se_pick_prev" position = { x = 318 y = 292 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" clicksound = click }
 		guiButtonType = { name = "se_pick_back" position = { x = 373 y = 293 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		guiButtonType = { name = "se_pick_next" position = { x = 486 y = 292 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" clicksound = click }

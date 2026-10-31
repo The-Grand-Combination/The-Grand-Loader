@@ -71,7 +71,7 @@ va,name,kind,conf,src,note
 0x00E059F0,CBudgetView_vftable,vtable,I,re,slot 10 tooltip
 0x00E0FECC,CProductionView_vftable,vtable,I,re,slot 10 tooltip
 0x00E2C834,CEvent_vftable,vtable,C,re,slot 3 = body parser
-0x00E2CEB0,CMtthBlock_vftable,vtable,C,re,
+0x00E2CEB0,CMeanTimeToHappen_vftable,vtable,C,re,"MTTH block and ai_will_do (CDecision+0x110): 0x18 bytes, +4 0x18D, +8 base x1000, +0xC modifier vector; slot 4 0x008AE8A0 reads factor/base/days (value), months (x30), years (x365), modifier"
 0x00E2C818,CEventSub4C_vftable,vtable,C,re,
 0x00E2CECC,CEventSub54_vftable,vtable,C,re,
 0x00DFA6EC,CEffectBlock_vftable,vtable,C,re,slot 0x2C = Execute
@@ -199,3 +199,4 @@ va,name,kind,conf,src,note
 0x00E338B4,str_WE_DECLINE,string,C,cp,_WE_DECLINE
 0x00E338C0,str_OTHER_DECLINE,string,C,cp,_OTHER_DECLINE
 0x00E080CC,str_interfaceMessagetypes,string,C,cp,interface/messagetypes.txt
+0x00E2CE78,CMtthModifier_vftable,vtable,C,cp,"modifier of a CMeanTimeToHappen (0x24 bytes, ctor 0x008AE250, ESI = this): a CAndTrigger (children +8/+0xC) with factor x1000 at +0x20"

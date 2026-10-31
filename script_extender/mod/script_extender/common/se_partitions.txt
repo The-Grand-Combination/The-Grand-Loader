@@ -1,0 +1,12 @@
+# Partitions: the countries a loser can be broken into by a po_partition treaty CB (treaty_partition),
+# whoever holds the land when it is imposed. A mod's common/se_partitions.txt replaces this file.
+#
+#   TAG = { REGION REGION ... provinces = { id id ... } }
+#
+# REGION: a region of map/region.txt (a state); provinces: single provinces. TAG is offered when the
+# loser holds any of them; a term takes one of the loser's states holding some (the whole state goes),
+# and the listed provinces in it become TAG's cores. TAG is released when it does not exist.
+#
+# Examples:
+#   BAH = { BRZ_2439 }                   # Bahia
+#   AMZ = { provinces = { 2401 2403 } }  # two provinces of Amazonas

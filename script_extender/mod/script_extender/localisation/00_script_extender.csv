@@ -160,8 +160,45 @@ treaty_free_peoples;Free Peoples;;;;;;;;;;;;;x
 treaty_free_peoples_desc;Hand a 即state劬 to the people who hold its cores;;;;;;;;;;;;;x
 treaty_free_peoples_setup;$RECIPIENT$ frees a people;;;;;;;;;;;;;x
 treaty_free_peoples_short;Free peoples;;;;;;;;;;;;;x
+treaty_partition;Partition;;;;;;;;;;;;;x
+treaty_partition_desc;Hand a 即state劬 to a country it could be split into, as its 即cores劬;;;;;;;;;;;;;x
+treaty_partition_setup;$RECIPIENT$ is partitioned;;;;;;;;;;;;;x
+treaty_partition_short;Partition;;;;;;;;;;;;;x
 treaty_liberate_country;Liberate Country;;;;;;;;;;;;;x
 treaty_liberate_country_desc;Hand every 即state劬 with its cores to a nation;;;;;;;;;;;;;x
 treaty_liberate_country_setup;$RECIPIENT$ liberates a nation;;;;;;;;;;;;;x
 treaty_liberate_country_short;Liberate country;;;;;;;;;;;;;x
 SE_TREATY_PICK_COUNTRY;$CB$: choose the country;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_TITLE;Dismantling $COUNTRY$;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_POINTS;Points: $SPENT$ / $BUDGET$;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_INFAMY;Infamy: 刪+$INFAMY$劬;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_FORCED;$COUNTRY$ must accept.;;;;;;;;;;;;;x
+SE_TREATY_IMPOSE;Impose;;;;;;;;;;;;;x
+SE_TREATY_NOTICE_TITLE;Peace dictated by $COUNTRY$;;;;;;;;;;;;;x
+SE_TREATY_NOTICE;$COUNTRY$ imposed these terms on us.;;;;;;;;;;;;;x
+SE_TREATY_OK;OK;;;;;;;;;;;;;x
+SE_DISMANTLE_EFFECT;$WINNER$ imposes a treaty worth up to $POINTS$ points on $COUNTRY$ (forced, accepted at once).;;;;;;;;;;;;;x
+treaty_dismantle_forts;Dismantle Forts;;;;;;;;;;;;;x
+treaty_dismantle_forts_desc;Destroy their 即forts劬 and 即naval bases劬;;;;;;;;;;;;;x
+treaty_dismantle_forts_setup;$RECIPIENT$ dismantles its fortifications;;;;;;;;;;;;;x
+treaty_dismantle_forts_short;Dismantle forts;;;;;;;;;;;;;x
+treaty_cede_core_state;Cede Core State;;;;;;;;;;;;;x
+treaty_cede_core_state_desc;Hand over a state with our 即cores劬;;;;;;;;;;;;;x
+treaty_cede_core_state_setup;$RECIPIENT$ returns a state of our cores;;;;;;;;;;;;;x
+treaty_cede_core_state_short;Cede core state;;;;;;;;;;;;;x
+treaty_cede_allied_core;Cede Allied Cores;;;;;;;;;;;;;x
+treaty_cede_allied_core_desc;Hand over the states with 即cores劬 of one of our 即allies劬 to it;;;;;;;;;;;;;x
+treaty_cede_allied_core_setup;$RECIPIENT$ returns its states with cores of an ally of ours;;;;;;;;;;;;;x
+treaty_cede_allied_core_short;Allied cores;;;;;;;;;;;;;x
+treaty_humiliate;Humiliate;;;;;;;;;;;;;x
+treaty_humiliate_desc;They lose 即prestige劬, and we gain it;;;;;;;;;;;;;x
+treaty_humiliate_setup;$RECIPIENT$ is humiliated;;;;;;;;;;;;;x
+treaty_humiliate_short;Humiliate;;;;;;;;;;;;;x
+treaty_cede_province_to_ally;Cede Province to Ally;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_desc;Hand over a 即province劬 to one of our 即allies劬;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_setup;$RECIPIENT$ cedes a province to an ally of ours;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_short;Province to ally;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally;Cede Colony to Ally;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_desc;Hand over a 即colony劬 to one of our 即allies劬;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_setup;$RECIPIENT$ cedes a colony to an ally of ours;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_short;Colony to ally;;;;;;;;;;;;;x

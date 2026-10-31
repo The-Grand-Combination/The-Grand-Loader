@@ -39,6 +39,38 @@ void add_term(uintptr_t action, const Term& term);
 // Removes the term at `index`.
 void remove_term(uintptr_t action, size_t index);
 std::vector<Term> terms(uintptr_t action);
+// A forced (dismantle) treaty: its budget in war-score points (0: an ordinary treaty). Forced treaties are
+// accepted at once, take only from the recipient, and cost infamy only past the budget.
+int budget(uintptr_t action);
+// The terms an AI dismantler imposed on a human, in its pending list to be shown (budget -1): already
+// applied, never sent.
+bool is_notice(uintptr_t action);
+// A copy of the treaty (game memory, as the game copies actions).
+uintptr_t clone(uintptr_t action);
+void set_budget(uintptr_t action, int points);
+// What a forced treaty takes, in war-score points (the terms' and the money demanded).
+int points(uintptr_t action);
+// Infamy (x1000) for `over` points past the budget.
+int infamy_past_budget(int over);
+// A CB with `is_dismantling_cb = yes`: only these may be terms of a forced treaty.
+bool is_dismantling(uintptr_t cb);
+// A CB with `dismantle_free = yes`: free in a forced treaty.
+bool is_free(uintptr_t cb);
+// A CB with `dismantle_infamy = yes`: costs its infamy in a forced treaty too.
+bool costs_infamy_when_forced(uintptr_t cb);
+// A term's points in a forced treaty: its war score x `dismantle_cost` (0 when free).
+int forced_cost(const Term& term);
+// The points of the treaty's term at `index` as it counts there: its war score (x dismantle_cost when
+// forced), x repeat_cost when an earlier term has the same CB and third country.
+int term_points(uintptr_t action, size_t index);
+// The infamy (x1000) the dismantle_infamy terms of a forced treaty cost.
+int forced_terms_infamy(uintptr_t action);
+// Adds the free terms that need no choice (no third country, no state) and can be taken now: a forced
+// treaty starts with them.
+void add_free_terms(uintptr_t action);
+bool is_pending(int country, uintptr_t action);
+// Takes `action` out of the country's pending list and deletes it.
+void remove_pending(int country, uintptr_t action);
 // Money the actor pays the recipient (negative: the recipient pays), in game fixed point (2^15).
 int64_t money(uintptr_t action);
 void set_money(uintptr_t action, int64_t amount);

@@ -22,6 +22,7 @@ struct Key {
 constexpr Key kKeys[] = {
     {"building_map_mode", &Config::building_map_mode, nullptr},
     {"country_upgrade", &Config::country_upgrade, nullptr},
+    {"buildings_ai", &Config::buildings_ai, nullptr},
     {"demand_province", &Config::demand_province, nullptr},
     {"event_background", &Config::event_background, nullptr},
     {"vassal_map_color", &Config::vassal_map_color, nullptr},
@@ -40,6 +41,17 @@ constexpr Key kKeys[] = {
     {"treaty_ai_coerce_ratio", nullptr, &Config::treaty_ai_coerce_ratio},
     {"treaty_ai_hostile", nullptr, &Config::treaty_ai_hostile},
     {"treaty_ai_third_party", nullptr, &Config::treaty_ai_third_party},
+    {"treaty_dismantle_leader", nullptr, &Config::treaty_dismantle_leader},
+    {"treaty_dismantle_gp", nullptr, &Config::treaty_dismantle_gp},
+    {"treaty_dismantle_secondary", nullptr, &Config::treaty_dismantle_secondary},
+    {"treaty_dismantle_other", nullptr, &Config::treaty_dismantle_other},
+    {"treaty_dismantle_gw", nullptr, &Config::treaty_dismantle_gw},
+    {"treaty_dismantle_infamy_min", nullptr, &Config::treaty_dismantle_infamy_min},
+    {"treaty_dismantle_infamy_max", nullptr, &Config::treaty_dismantle_infamy_max},
+    {"treaty_dismantle_infamy_half", nullptr, &Config::treaty_dismantle_infamy_half},
+    {"treaty_dismantle_ai_overspend", nullptr, &Config::treaty_dismantle_ai_overspend},
+    {"treaty_dismantle_ai_max_states", nullptr, &Config::treaty_dismantle_ai_max_states},
+    {"treaty_dismantle_ai_max_new", nullptr, &Config::treaty_dismantle_ai_max_new},
 };
 
 std::string_view trim(std::string_view s) {
@@ -100,7 +112,7 @@ void parse_line(std::string_view line, Config& config) {
 }
 
 void log_config(const Config& config) {
-    char line[1024] = "config:";
+    char line[2048] = "config:";
     size_t len = std::strlen(line);
     for (const Key& k : kKeys) {
         int value = k.flag ? (config.*k.flag ? 1 : 0) : config.*k.value;

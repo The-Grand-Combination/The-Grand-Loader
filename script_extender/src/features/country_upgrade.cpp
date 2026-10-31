@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 
+#include "game/buildings.h"
 #include "game/localisation.h"
 #include "game/objects.h"
 #include "hooks/memory.h"
@@ -16,8 +17,8 @@
 // - CProvinceView_OnExpandClick (0x0073D6D0) gets a pre-hook. With Ctrl and Shift held it posts one
 //   CConstructBuildingCommand per eligible province of the player's country, exactly as the vanilla
 //   Ctrl path does per province (Province_CanExpandBuilding, then ConstructBuildingCommand_ctor and
-//   NetSession_QueueCommand), and returns; otherwise the original handler runs. The commands are
-//   validated again on every machine before they execute, so multiplayer stays in sync.
+//   NetSession_QueueCommand: game/buildings.h), and returns; otherwise the original handler runs. The
+//   commands are validated again on every machine before they execute, so multiplayer stays in sync.
 // - The expand tooltip's Localize call for PROVINCE_VIEW_BUILD_ALL_TOOLTIP (0x00747956) gets that text
 //   and SE_PROVINCE_VIEW_BUILD_COUNTRY_TOOLTIP on the next line: a key that is not in the table, which
 //   Localize shows as it is.
@@ -35,28 +36,18 @@ constexpr uint32_t kExpandClick = 0x0073D6D0;  // CProvinceView_OnExpandClick, t
 constexpr unsigned char kExpandClickEntry[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
 constexpr uint32_t kTooltipLocalize = 0x00747956;  // CALL Localize with PROVINCE_VIEW_BUILD_ALL_TOOLTIP
 constexpr uint32_t kLocalize = 0x009A8EE0;         // stdcall (out, const std::string* key), RET 8
-constexpr uint32_t kCanExpand = 0x00511E70;        // Province_CanExpandBuilding: EDI = country, (bld, prov), RET 8
-constexpr uint32_t kExpandCost = 0x004DA790;  // Building_ComputeExpandCost: EDX = prov, ESI = i64 out, (bld, country, stockpile)
-constexpr uint32_t kOperatorNew = 0x00AAE9AF;           // cdecl (size)
-constexpr uint32_t kConstructCommandCtor = 0x0057B560;  // stdcall (this, bld, provId, tag, countryIdx), RET 0x14
-constexpr uint32_t kConstructCommandSize = 0x58;
 
-// CInGameIdler: +0x1C input (vt[0x30] Ctrl held, vt[0x28] Shift held); vt[0x44] -> +0x38 network session
+// CInGameIdler: +0x1C input (vt[0x30] Ctrl held, vt[0x28] Shift held)
 constexpr uint32_t kIdlerInput = 0x1C;
 constexpr uint32_t kInputCtrl = 0x30;
 constexpr uint32_t kInputShift = 0x28;
-constexpr uint32_t kIdlerSessionOwner = 0x44;
-constexpr uint32_t kSessionOwnerSession = 0x38;
-constexpr uint32_t kSessionQueueCommand = 0x18;  // NetSession_QueueCommand, thiscall (command)
 constexpr uint32_t kButtonRow = 0x80;            // expand button vt[0x80]: row = province-building index
 // CBuilding, CProvince, CCountry
 constexpr uint32_t kBuildingOnePerState = 0xBE;
-constexpr uint32_t kProvinceId = 0x58;
 constexpr uint32_t kProvinceOwner = 0x12C;
 constexpr uint32_t kProvinceState = 0x188;
 constexpr uint32_t kCountryOwnedProvinces = 0x9D8;  // vector<int> of province ids
 constexpr uint32_t kCountryMoney = 0xE78;           // i64
-constexpr uint32_t kCountryStockpile = 0x1184;
 
 constexpr const char* kBuildAllKey = "PROVINCE_VIEW_BUILD_ALL_TOOLTIP";
 constexpr const char* kBuildCountryKey = "SE_PROVINCE_VIEW_BUILD_COUNTRY_TOOLTIP";  // localisation/*.csv
@@ -66,66 +57,15 @@ bool g_handled = false;      // set by on_expand_click for the thunk; main threa
 
 using BoolMethod = bool(__fastcall*)(uintptr_t self, void*);
 using IntMethod = int(__fastcall*)(uintptr_t self, void*);
-using PtrMethod = uintptr_t(__fastcall*)(uintptr_t self, void*);
 
 template <class Fn>
 Fn method(uintptr_t object, uint32_t slot) {
     return read<Fn>(read<uintptr_t>(object) + slot);
 }
 
-bool can_expand(uintptr_t country, uintptr_t building, uintptr_t province) {
-    uintptr_t fn = hooks::exe_va(kCanExpand);
-    unsigned char result;
-    __asm {
-        push edi
-        mov edi, country
-        push province
-        push building
-        call fn
-        pop edi
-        mov result, al
-    }
-    return result != 0;
-}
-
-int64_t expand_cost(uintptr_t country, uintptr_t building, uintptr_t province) {
-    uintptr_t fn = hooks::exe_va(kExpandCost);
-    uintptr_t stockpile = country + kCountryStockpile;
-    int64_t cost = 0;
-    int64_t* cost_out = &cost;
-    __asm {
-        push esi
-        mov esi, cost_out
-        mov edx, province
-        push stockpile
-        push country
-        push building
-        call fn
-        pop esi
-    }
-    return cost;
-}
-
-// The command a click on `province`'s expand button posts: ConstructBuildingCommand into the session.
-void post_expand(uintptr_t idler, uintptr_t building, uintptr_t province) {
-    uintptr_t world = game::world();
-    auto* memory = reinterpret_cast<void*(__cdecl*)(size_t)>(hooks::exe_va(kOperatorNew))(kConstructCommandSize);
-    if (!memory) {
-        return;
-    }
-    using Ctor = uintptr_t(__stdcall*)(void*, uintptr_t, uint32_t, uint32_t, int);
-    uintptr_t command = reinterpret_cast<Ctor>(hooks::exe_va(kConstructCommandCtor))(
-        memory, building, read<uint32_t>(province + kProvinceId), read<uint32_t>(world + game::kWorldPlayerTag),
-        read<int>(world + game::kWorldPlayerIndex));
-    uintptr_t owner = method<PtrMethod>(idler, kIdlerSessionOwner)(idler, nullptr);
-    uintptr_t session = read<uintptr_t>(owner + kSessionOwnerSession);
-    using Queue = void(__fastcall*)(uintptr_t, void*, uintptr_t);
-    method<Queue>(session, kSessionQueueCommand)(session, nullptr, command);
-}
-
 // Every province of the player's country where `building` can be expanded, in province-id order, while
 // the treasury covers the running total; one per state for a one_per_state building.
-void expand_in_country(uintptr_t idler, uintptr_t building) {
+void expand_in_country(uintptr_t building) {
     int player = read<int>(game::world() + game::kWorldPlayerIndex);
     uintptr_t country = game::country(player);
     if (!country) {
@@ -145,16 +85,16 @@ void expand_in_country(uintptr_t idler, uintptr_t building) {
         if (one_per_state && states.count(state)) {
             continue;
         }
-        if (!can_expand(country, building, province)) {
+        if (!game::can_expand(country, building, province)) {
             continue;
         }
-        int64_t cost = expand_cost(country, building, province);
+        int64_t cost = game::expand_cost(country, building, province);
         if (cost > money) {
             continue;
         }
         money -= cost;
         states.insert(state);
-        post_expand(idler, building, province);
+        game::post_construction(building, province, read<uint32_t>(game::world() + game::kWorldPlayerTag), player);
         ++posted;
     }
     logf("country_upgrade: %s in %d provinces", game::building_name(building).c_str(), posted);
@@ -174,7 +114,7 @@ bool __stdcall on_expand_click(uintptr_t view, uintptr_t button) {
     if (row < 0 || static_cast<size_t>(row) >= buildings.size()) {
         return false;
     }
-    expand_in_country(idler, buildings.begin[row]);
+    expand_in_country(buildings.begin[row]);
     return true;
 }
 

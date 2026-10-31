@@ -21,4 +21,11 @@ uintptr_t merged_cb_block();
 // Whether the CB has `po_demand_province = yes` in that text: its term takes one province, not the state.
 bool takes_one_province(uintptr_t cb);
 
+// The local player's turn to dismantle a loser (`invitation`: a forced treaty in its pending list, shown
+// through slot 13): the editor in its forced form, which only sends. One at a time: while one is open,
+// the next waits, and opens when it is sent; the invitation then leaves the pending list. A notice (the
+// terms an AI dismantler imposed on the local player, in its pending list) opens the same way, read only,
+// and leaves on OK.
+void show_forced(uintptr_t owner, uintptr_t invitation);
+
 }  // namespace se::features::treaty_ui

@@ -36,9 +36,11 @@ other side accepts or refuses, as with a peace offer. Every multiplayer peer nee
 ### `CTreatyAction` **[C]**
 
 - Made by `CPeaceAction_CtorDefault` `0x00916A30` (stdcall `(this, date, actorTag, actorIdx, recTag,
-  recIdx)`, RET 0x18) in **0xA0** bytes. Then the vtable is replaced and `+0x98` zeroed.
+  recIdx)`, RET 0x18) in **0xA8** bytes. Then the vtable is replaced and `+0x98` / `+0xA0` zeroed.
 - `+0x28` the embedded `CPeaceOffer`; `+0x44` = `offer+0x1C` (flags); `+0x64` = `offer+0x3C` (goals).
 - `+0x98` i64 money, 2^15 fixed point: the actor pays the recipient when > 0, the recipient pays when < 0.
+- `+0xA0` int budget of a forced (dismantle) treaty in war-score points; 0 for an ordinary treaty. Saved and
+  sent as `se_treaty_budget`.
 - The vtable is a copy of `CPeaceAction_vftable` (38 slots). The RTTI locator at `[-1]` is the one of
   `CDiplomaticAction`, so a cast to `CPeaceAction` does not take a treaty for a peace offer.
 
@@ -46,21 +48,21 @@ All slots are thiscall. Overridden or replaced slots:
 
 | slot | value | does |
 |---|---|---|
-| 2 | ours | `CPeaceAction` WriteFields `0x00919660`, then `se_treaty_money = "<i64>"` when not 0: `CmdStream_WriteToken` `0x009A0940` + `CmdStream_WriteString` `0x0099F770` (thiscall `(std::string*, stream, 0)`, RET 8) |
+| 2 | ours | `CPeaceAction` WriteFields `0x00919660`, then `se_treaty_money = "<i64>"` and `se_treaty_budget` when not 0: `CmdStream_WriteToken` `0x009A0940` + `CmdStream_WriteString` `0x0099F770` (thiscall `(std::string*, stream, 0)`, RET 8) |
 | 4 | ours | `se_treaty_money` → `+0x98` (`strtoll` of `parser+0x22C`); anything else → `CPeaceAction` OnKeyword `0x00919690` |
 | 7 | ours | title `SE_TREATY_TITLE` (`(out)` RET 4) |
 | 8 | ours | the `treaty_action` token |
 | 9 | ours | name `"SE_TREATY"` (`(out)` RET 4): base of the message keys |
 | 12 | ours | Clone: `CPeaceAction_CopyCtor` `0x00916B50` (stdcall `(dst, src)`, RET 8: copies the offer, runs `PeaceOffer_SetupSides`, no `FillFromWar`) + the money |
-| 13 | `0x00913020` | base: the DefaultDialog box for a human recipient |
+| 13 | ours | a forced treaty (in the winner's own pending list): the dismantle editor (`treaty_ui::show_forced`); else `DiplomaticAction_ShowIncoming` `0x00913020`, the DefaultDialog box for a human recipient |
 | 14 | `0x00912E70` | base CreateDialog; never reached (the action is not in the view's table) |
 | 16 | ours | the offer text (`(out)` RET 4): `SE_TREATY_OFFER` + `PeaceOffer_GetTermsText` `0x00929480` (thiscall `(offer, std::string* out)`, reads no war) + a money line |
 | 17 | `0x00633620` | returns 0 (no third parties **[I]**) |
 | 18 / 19 | `0x0092C720` / `0x0092C700` | base SetRecipient / SetActor: no war lookup |
 | 20–23 | `0x00424B40` | returns 0x15B: no diplomatic or influence cost, no relation change |
 | 26 | `0x00A31490` | 1: not while at war with the recipient |
-| 27 | `0x0058CFD0` | 0: never auto-accepted |
-| 28 | `0x00A31490` | 1: diplomat travel time applies |
+| 27 | ours | auto-accepted only when forced |
+| 28 | ours | diplomat travel time, except when forced |
 | 32 | ours | Execute (`(ctx)` RET 4) |
 | 34 | ours | OnDecline (`(ctx)` RET 4): only makes sure the message texts exist |
 | 36 | ours | CanPerform (`(bool)` RET 4): the validation below is empty |
@@ -127,6 +129,7 @@ too. `se_treaty_ai_switch` failing only makes the AI refuse every treaty (vanill
 | `treaty_release_puppet` | `release_puppet` | `po_release_puppet` + `po_add_to_sphere` | a puppet of the receiver |
 | `treaty_free_peoples` | `free_peoples` | `po_transfer_provinces` | a country with cores, then one of its states |
 | `treaty_liberate_country` | `liberate_country` | `po_transfer_provinces` + `po_remove_cores`, `all_allowed_states` | a country with cores |
+| `treaty_partition` | – (new) | `po_transfer_provinces`, `po_partition` | a country of `common/se_partitions.txt`, then one of the giver's states with its land (see Partitions) |
 
 All have `is_triggered_only = yes`, `constructing_cb = no`, `truce_months = 0`, `prestige_factor = 0`,
 `penalty_factor = 0` and `can_use` with `NOT = { war_with = THIS }`.
@@ -377,3 +380,197 @@ Not supported: `po_annex`, `po_colony` (the CB is never listed).
 
 `treaty_cede_province` uses `po_demand_province` (Script Extender `demand_province`, casus-belli.md). The
 treaty chains onto the same two sites (`0x00E33734`, `0x0063DCD2`), after it.
+
+## The `dismantle` / `dismantle_gw` effects (forced treaties)
+
+**Script.** Both effects go in a country scope, and TAG may also be `THIS` or `FROM`:
+- `dismantle = TAG`: the scope's country dismantles TAG. `FRA = { dismantle = THIS }` makes France
+  dismantle us.
+- `dismantled_by = TAG`: TAG dismantles the scope's country.
+- `dismantle_gw` and `dismantled_by_gw` do the same with `treaty_dismantle_gw`% of the points.
+
+In a CB, `on_po_accepted = { dismantled_by = THIS }` makes the goal's holder dismantle the loser: there the
+scope is the receiver and THIS the actor (effects.md). Vic2 has no way to name that scope from inside
+`THIS = { }`, which is why the reversed form exists. The effect itself is built as described in
+[effects.md](effects.md) ("Recipe"). It is a `release_vassal` object with our vtable.
+
+**Budget.** It is computed when the effect runs:
+- `treaty_dismantle_leader` when the scope leads a side (it is first in `war+0x2C` / `+0x3C`) of the war
+  between the two;
+- else `_gp` for a great power (`country+0x31`), `_secondary` for a secondary power, `_other` for the rest.
+
+A secondary power follows `is_secondary_power` (`0x008EEC40`) **[C]**: civilized (`+0x12D0`), not a great
+power, and rank (`+0x1404`) up to `*(g_economyDefines+0x40)+0x50 / 1000`.
+
+**When.** A turn waits while the two are at war, which is the case in `on_po_accepted`, where the peace has
+not ended the war yet. `CPeaceAction` slot 32 (`0x00E344F4`, nothing calls `0x00916F00` directly) is wrapped
+and takes the waiting turns once the original returns. A turn whose countries are already at peace (an
+event, a decision) is taken at once.
+
+**The forced treaty** is a `CTreatyAction` with a budget (`+0xA0`):
+- It is auto-accepted (slot 27) and has no travel time (slot 28).
+- It may only take from the recipient: every term's gainer is the actor, and money can only be paid by
+  the recipient.
+- It may take nothing.
+- Its cost is the terms' war score plus the money at `treaty_ai_money_per_point`.
+- Terms of a treaty CB with `dismantle_free = yes` (a dynamic token handled in the CB `OnKeyword` hook)
+  cost nothing in it. Those that need no choice (no third country, no state) are added when it is made,
+  for the human editor and the AI alike (`treaty::add_free_terms`). In `se_treaty_cbs.txt` they are
+  `treaty_pay_tributes` (`po_reparations`), `treaty_humiliate` (`po_remove_prestige`) and `treaty_dismantle_forts` (`po_destroy_forts` +
+  `po_destroy_naval_bases` with `all_allowed_states`: `WarGoal_Execute` destroys them in every state
+  `WarGoal_GetTargetStates` returns, and without `all_allowed_states` it returns only the goal's state **[C]**).
+- The default budgets are 300 / 200 / 150 / 100 points.
+- `dismantle_cost = <factor>` (for example 0.1) scales a CB's points in a forced treaty. It is read as text
+  from `parser+0x22C` and stored in percent.
+- `dismantle_infamy = yes`: the term also costs its CB's infamy in a forced treaty (`WarGoal_Infamy`, as in
+  any treaty). The editor shows its term in red (`§R`), and its rows in the CB list (and its place lists)
+  get the red frame `GFX_diplo_wargoal_button_invalid` (buttons `se_pick_red_<i>` laid over
+  `se_pick_<i>`). The points line carries the infamy. The AI never picks
+  such terms.
+- `goes_to_third = yes` (any treaty): the term names a third country (allowed_countries), and what it takes
+  goes to that country. It is priced, its infamy counted and executed as the same CB's goal with the third
+  country as the actor, built the way `po_transfer_puppet` builds its goal. `po_demand_province` therefore
+  hands one province to the ally through `demand_province`. The CBs are `treaty_cede_province_to_ally` (red
+  and 1.25 in a dismantle, like Cede Province) and `treaty_cede_colony_to_ally` (`po_demand_state` on colonial
+  states). The ally is `FROM = { alliance_with = THIS }`.
+- `is_dismantling_cb = yes`: only CBs with it may be terms of a forced treaty. The others are not listed in
+  its editor, are not picked by the AI and are not pre-selected, and a forced treaty that has one is invalid
+  (`SE_TREATY_TERM_SIDES`). Every treaty CB has it except `treaty_add_to_sphere` and `treaty_make_puppet`.
+- `repeat_cost = <factor>` (any treaty): when an earlier selected term of the treaty has the same CB and
+  third country, a term costs this factor of its points. That applies to dismantle points, to the AI's
+  valuation and to the editor's numbers. `treaty_free_peoples` has 0.75.
+- Editor: a picked country or place adds the term and the list stays, without it, for the next one. Back
+  goes from a country's places to the countries, then to the CBs; an emptied list returns by itself.
+  Every supported treaty CB is listed, and one with nothing to take now is disabled (grey).
+- The CBs are:
+  - `treaty_cede_state` and `treaty_cede_province`: `dismantle_infamy` and `dismantle_cost = 1.25`;
+  - `treaty_install_government`: `dismantle_infamy` (its can_use limits only the receiver: not a great
+    power. `WarGoal_Execute` gives the receiver the actor's government type, `Country_SetGovernment`
+    `0x00513A90` at `0x0094FA66`, and the sphere only when the actor is a great power **[C]**);
+  - `treaty_cede_core_state` (a state with the gainer's cores) and `treaty_cede_allied_core` (all states with
+    cores of an ally of the gainer go to that ally: `po_transfer_provinces` with `all_allowed_states`, the
+    ally as the third country): `dismantle_cost = 0.1`.
+- The AI weighs a term by its full war score, with cores counted as above, and spends its dismantle points
+  on it. Cheap core land therefore comes first.
+- Only the points past the budget cost infamy. The *i*-th point past (from 0) costs
+  `min + (max − min) · i / (i + half)` (`treaty_dismantle_infamy_*`, in hundredths). The CBs' own
+  badboy is not charged.
+
+**AI dismantler.** Effects and peaces run on every machine, so it is done there: the picking reads only
+synced state.
+- Every term the editor would offer is weighed by its war score, with land holding the AI's cores worth
+  `treaty_ai_core_gain`%, times the CB's `ai_dismantle_weight` (a factor, default 1; 0 keeps the AI off
+  it). The plugin's CBs: own cores 3, allied cores 2, colonies and released puppets 1.5, liberate 1.5,
+  free peoples / sphere / ceded puppets 1.2, partition 0.5. A peace treaty's order: its own and its
+  allies' cores, colonies and puppets, nations with cores, and new countries last.
+- Terms are taken greedily by value per point, then the bigger term first. The total stays within the
+  budget plus `treaty_dismantle_ai_overspend`.
+- Limits, so the loser stays a country: it takes at most `treaty_dismantle_ai_max_states`% (35) of the
+  loser's non-colonial states (`state+0x84` > 0 is colonial; colonies do not count), creates at most
+  `treaty_dismantle_ai_max_new` (3) countries that do not exist yet, and always leaves one state.
+- It never picks a free term (they are in already) or a `dismantle_infamy` one, so it pays no infamy.
+- The treaty is then applied with slot 32 directly.
+- **A human loser** is shown the terms: on its own machine, before applying them, a copy of the treaty
+  with budget −1 (a notice) goes into its pending list. Slot 13 opens it in the dismantle editor, read
+  only (no picker, no points, OK), and OK takes it out. A notice's slot 36 (`CanPerform`) is always true
+  and its slot 32 does nothing, so it can never be applied again. Its budget is saved as
+  `se_treaty_budget = -1`, so it survives a save.
+
+**How an AI gets to a dismantle in TGC (2026-10-30, [I]).** The plugin's part starts at the effect; the
+steps before it are the engine's AI:
+1. **The CB.** `dismantle_cb` is `is_triggered_only`: only events give it (the Great War's "defend our
+   interests" option, the infamy ultimatum's coalition, Balkans, SWIFlavor), and some declare the war
+   with it at once. `dismantle_cb_add` has `always = yes`, which counts as held.
+2. **Adding it during a war.** `AI_ManagePeace` (`0x0083C7D0`) calls `AI_PickWarGoal` (`0x00845AD0`) and
+   adds the best goal when its value is over 20000. A CB qualifies when it is held or `always`, has
+   `constructing_cb` (`+0x1CD`, default 1), passes `can_use`, and the goals already held plus this one
+   stay within 100 war score, this one within `ONE_SIDE_MAX_WARSCORE` (150). The value
+   (`AI_WarGoalValue` `0x00846C40`) of `po_disarmament` grows with the target's relative strength.
+3. **The peace.** `AI_ManagePeace` offers every goal of its side, then drops them from the last while the
+   enemy would refuse (`AI_EvaluatePeaceOffer` ≠ 100), except `great_war_obligatory` ones (`cb+0x1D4`);
+   it sends the offer when both sides evaluate 100. The dismantle goal costs `PEACE_COST_DISARMAMENT` (1)
+   x `peace_cost_factor` (35) = 35 war score (x `GW_WARSCORE_COST_MOD` 0.55 in a great war), so an enemy
+   whose `W/2 + war score` covers it accepts; at 100 war score slot 27 accepts it outright.
+4. **The terms.** `on_po_accepted` runs `dismantled_by(_gw) = THIS`; after the peace, `impose_by_ai`.
+
+Not seen in a game yet: the logs so far hold only human dismantles (the test decisions).
+
+**Human dismantler:**
+- On its own machine only, each turn becomes a forced treaty appended to its own pending list
+  (`Country_AddPendingAction` `0x005164C0`, ESI = country, EDI = action; it appends for the local player).
+- `GuiOwner_UpdateDialogs` `0x006481D0` calls slot 13 (with the gui owner) once for each new pending
+  action of the local player (`action+0x20 == 0`, set to 1 afterwards) **[C]**.
+- Our slot 13 queues it, and `treaty_ui::show_forced` shows one forced editor at a time. That editor has
+  only the Demand tab, no Cancel, a points and infamy line, and an "Impose" button.
+- Impose sends the treaty, which is accepted at once on every machine. It then takes the invitation out
+  of the pending list (`country+0xCE4` head, `+0xCE8` tail, `+0xCEC` count; node `{action, prev, next}`)
+  and opens the next one.
+- Pending actions are saved with the country, so an unfinished turn comes back after loading.
+- If the loser is gone or at war again, Impose only drops the invitation.
+
+**Limits:**
+- Turns still waiting for a peace are not saved.
+- A notice lives in the loser's pending list on its machine only, as a human dismantler's invitation does.
+
+**TGC.**
+- `dismantle_cb` (`dismantled_by = THIS`) and `dismantle_cb_add` (`dismantled_by_gw = THIS`) call the effect in
+  their `on_po_accepted`, in place of `po_reparations`. `po_disarmament` stays: it gives the goal its
+  peace cost.
+- They also set `se_treaty_dismantled`. The ten "Treaty of $CAPITAL$" events in `events/Great War.txt`
+  skip countries with that flag.
+- Event 96094 does only their end-of-war cleanup.
+
+## Partitions (`po_partition`)
+
+A country can be broken into countries that have no cores on its land. The table is
+`common/se_partitions.txt`, keyed by the country that is born, not by the one that loses. So it works
+whoever holds the land when the treaty is imposed.
+
+```
+BAH = { BRZ_2439 }                   # regions of map/region.txt (states)
+AMZ = { provinces = { 2401 2403 } }  # single provinces
+```
+
+**Where the table comes from.** The first `-mod=` folder that has `common/se_partitions.txt` (as
+`game::game_file`), else the plugin's (a commented template). It is read once, on first use, with
+`map/region.txt` from the same lookup. A word that is not a region or a number is logged and skipped.
+
+**TGC's table** (about 590 tags) is generated by `script_extender/tools/partitions.pl <TGC dir> <out>
+<report>`, from three sources:
+- every core in `history/provinces`;
+- every `add_core` in a region or province scope, or in a block limited to regions / provinces, in
+  `events/` and `decisions/`;
+- every `secede_province` in such a limited block, as Brazil's own dismantling (96058) splits it.
+
+`secede_province` in a plain region scope is left out (`FRA_412 = { secede_province = BAV }` hands land to
+a winner). The script also skips the unions over other nations' homelands (GER, ITA, CHI, HND) and the
+formations of several countries (KUK, PLC, GCO, USS, ISR, ...).
+
+The runtime great-power test misses a great power under another tag (one a `change_tag` switches to),
+since that tag is not a great power while it does not exist; the generator's skip list has to name them.
+
+**The CB.** A treaty CB with `po_partition = yes` (`treaty_partition`: `po_transfer_provinces`,
+`is_dismantling_cb`, `repeat_cost = 0.75`). The plugin decides two things:
+- **Countries:** `scoped_allowed_country` first requires a tag of the table that is neither of the two
+  sides nor a great power (`country+0x31`), with at least one province of its partition owned by the
+  giver. The table holds the great powers' homelands too, and land for them is a cession, not a partition.
+  The CB's `allowed_countries` must also
+  pass, so a modder can only narrow it. The CB keeps `NOT = { tag = FROM }` so the editor knows it needs
+  a country.
+- **States:** `goal_valid_scoped` requires that the goal province's state holds a province of the
+  partition. The giver's state is the unit: `po_transfer_provinces` moves the whole state
+  (`WarGoal_GetTargetStates`), even when only some of its provinces are listed.
+
+Everything else follows: the editor, `check_term`, the AI dismantler's candidates and the execution all
+go through these two checks.
+
+**Execution.** In slot 32, before `WarGoal_Execute`, each listed province of the state becomes a core of
+the third country: `Province_AddCore` `0x004B61A0`, stdcall `(province, CountryRef*, bool history)`,
+called with history 1, then `country+0x1434 = 1`, as the `add_core` effect (`0x0087E760`) does **[C]**.
+`po_transfer_provinces` then releases the country when it does not exist (`Country_Release`), else hands
+it the state (`TransferProvinces`). The loser keeps its own cores.
+
+**Limits:**
+- The whole state goes, so province lists finer than a state still move the rest of the state, without
+  cores.
+- Releasing a country that does not exist has not been tested in game yet.

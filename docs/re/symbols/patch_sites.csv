@@ -92,6 +92,11 @@ cp_remove_province_modifier_tooltip,0x00E2AC3C,C0 22 88 00,slot replace,shipped,
 cp_remove_province_modifier_execute,0x00E2AC44,90 22 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveProvinceModifierEffect vt+0x2C
 cp_remove_country_modifier_tooltip,0x00E2AC74,B0 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x24
 cp_remove_country_modifier_execute,0x00E2AC7C,80 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x2C
+cp_modifier_find_country_trigger,0x008CD7A7,E8 04 8A C9 FF,call redirect,experimental,cp,"fix_missing_modifier: CALL ModifierRegistry_Find (g_staticModifiers, the last lookup) in HasCountryModifierTrigger_Parse; EDI = trigger; a miss before the modifiers are loaded is kept for the after-loading lookup"
+cp_modifier_find_province_trigger,0x008CDEAA,E8 01 83 C9 FF,call redirect,experimental,cp,"fix_missing_modifier: CALL ModifierRegistry_Find in HasProvinceModifierTrigger_Parse; ESI = trigger; same"
+cp_modifiers_loaded,0x0063C356,E8 25 4F DC FF,call redirect,experimental,cp,"fix_missing_modifier: CALL 0x00401280 ending the 'Static Modifiers Initialized' log line in FUN_00639120 -> looks up again every has_*_modifier trigger parsed before the modifiers (pop types, issues)"
+cp_has_country_modifier_tooltip,0x00E30880,30 D9 8C 00,slot replace,experimental,cp,fix_missing_modifier: CHasCountryModifierTrigger vt+0x28 (tooltip); null modifier -> empty line instead of a crash at 0x008CDC09
+cp_has_province_modifier_tooltip,0x00E308B8,00 E0 8C 00,slot replace,experimental,cp,fix_missing_modifier: CHasProvinceModifierTrigger vt+0x28 (tooltip); null modifier -> empty line
 cp_state_presence_guard,0x0048F070,55 8B EC 83 EC 24 53 56,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_HasHostilePresence; null state -> returns 0 (RET 8)
 cp_state_tag_guard,0x0048E120,55 8B EC 83 EC 08,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_GetControllerTag; null state (ECX) -> tag "---" index 0
 cp_state_walk_scan,0x00851F51,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: AI_UnitTargetScan walks state+0x14 of another unit's province; null state -> not-found branch 0x00852043

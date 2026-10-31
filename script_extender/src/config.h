@@ -7,6 +7,7 @@ namespace se {
 struct Config {
     bool building_map_mode = false;  // infrastructure map mode cycles through the province buildings
     bool country_upgrade = false;    // Ctrl+Shift+click on expand: expand in every province of the country
+    bool buildings_ai = false;       // AI builds what the mod's common/buildings_ai.txt lists
     bool demand_province = false;    // cb_types.txt `po_demand_province = yes`: the peace takes one province
     bool event_background = false;   // `background = "name"` in an event body: gfx/pictures/events/backgrounds/name
     bool vassal_map_color = false;   // political map: substates and puppets in a shade of their overlord
@@ -25,6 +26,17 @@ struct Config {
     int treaty_ai_coerce_ratio = 300;  // percent: from this strength ratio a bad relation helps the proposer
     int treaty_ai_hostile = 100;     // percent: how much a bad relation then helps
     int treaty_ai_third_party = 0;   // percent: a gained term for a third country the AI has no stake in
+    int treaty_dismantle_leader = 300;     // dismantle effect: points against the leader of a war with the dismantler
+    int treaty_dismantle_gp = 200;         // ... on a great power
+    int treaty_dismantle_secondary = 150;  // ... on a secondary power
+    int treaty_dismantle_other = 100;      // ... on any other loser
+    int treaty_dismantle_gw = 200;         // percent: po_dismantle_gw scales the points by this
+    int treaty_dismantle_infamy_min = 10;  // hundredths of infamy for the first point over the budget
+    int treaty_dismantle_infamy_max = 100;  // hundredths of infamy a point over the budget tends to
+    int treaty_dismantle_infamy_half = 50;  // points over the budget at which it is halfway there
+    int treaty_dismantle_ai_overspend = 0;  // points over the budget an AI dismantler may impose
+    int treaty_dismantle_ai_max_states = 35;  // percent of the loser's non-colonial states an AI takes at most
+    int treaty_dismantle_ai_max_new = 3;      // countries an AI dismantler creates at most in one treaty
 };
 
 // Reads mod/script_extender.ini: `key = value` lines, `;` comments. Unknown keys are logged.

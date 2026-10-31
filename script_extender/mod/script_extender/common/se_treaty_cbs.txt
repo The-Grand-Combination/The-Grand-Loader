@@ -23,6 +23,9 @@ treaty_cede_state = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_infamy = yes  # costs its infamy in a forced (dismantle) treaty too
+	dismantle_cost = 1.25  # a quarter more points in a forced (dismantle) treaty
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -59,6 +62,9 @@ treaty_cede_province = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_infamy = yes  # costs its infamy in a forced (dismantle) treaty too
+	dismantle_cost = 1.25  # a quarter more points in a forced (dismantle) treaty
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -72,6 +78,95 @@ treaty_cede_province = {
 	po_demand_province = yes # needs demand_province = 1
 
 	war_name = WAR_TAKE_NAME
+}
+
+# A state of the giver with cores of the gaining country. Cheap in a dismantle (dismantle_cost), and
+# no infamy there.
+treaty_cede_core_state = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.15
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 3  # AI dismantler: its own cores first
+	dismantle_cost = 0.1  # a tenth of its points in a forced (dismantle) treaty
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	allowed_states = {
+		any_owned_province = { is_core = THIS }
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_state = yes
+
+	war_name = WAR_TAKE_NAME
+}
+
+# The states of the giver with cores of one of the gaining country's allies go to that ally.
+treaty_cede_allied_core = {
+	sprite_index = 15
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 2  # AI dismantler: then its allies' cores
+	dismantle_cost = 0.1  # a tenth of its points in a forced (dismantle) treaty
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	# scope: the giver; THIS: the gaining country; FROM: the ally
+	allowed_countries = {
+		NOT = { tag = FROM }
+		FROM = { alliance_with = THIS }
+		any_owned_province = { is_core = FROM }
+	}
+
+	allowed_states = {
+		any_owned_province = { is_core = FROM }
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+	all_allowed_states = yes
+
+	po_transfer_provinces = yes
+
+	war_name = WAR_NAME
 }
 
 treaty_cede_colony = {
@@ -95,9 +190,105 @@ treaty_cede_colony = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.5  # AI dismantler: colonies before the homeland
 
 	can_use = {
 		NOT = { war_with = THIS }
+	}
+
+	allowed_states = {
+		is_colonial = yes
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_state = yes
+
+	war_name = WAR_TAKE_NAME
+}
+
+# A province of the giver goes to one of the gaining country's allies (goes_to_third: executed as a
+# treaty_cede_province term of the ally).
+treaty_cede_province_to_ally = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_infamy = yes  # costs its infamy in a forced (dismantle) treaty too
+	dismantle_cost = 1.25  # a quarter more points in a forced (dismantle) treaty
+	goes_to_third = yes  # the province goes to the chosen ally
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	# scope: the giver; THIS: the gaining country; FROM: the ally
+	allowed_countries = {
+		NOT = { tag = FROM }
+		FROM = { alliance_with = THIS }
+	}
+
+	allowed_states = {
+		is_colonial = no
+		NOT = { any_owned_province = { is_capital = yes } }
+	}
+
+	po_demand_province = yes # needs demand_province = 1
+
+	war_name = WAR_TAKE_NAME
+}
+
+# A colonial state of the giver goes to one of the gaining country's allies (goes_to_third).
+treaty_cede_colony_to_ally = {
+	sprite_index = 6
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.3
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 2
+	break_truce_militancy_factor = 2
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1  # AI dismantler: factor of its value
+	goes_to_third = yes  # the colony goes to the chosen ally
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	# scope: the giver; THIS: the gaining country; FROM: the ally
+	allowed_countries = {
+		NOT = { tag = FROM }
+		FROM = { alliance_with = THIS }
 	}
 
 	allowed_states = {
@@ -132,6 +323,8 @@ treaty_pay_tributes = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_free = yes  # free and already chosen in a forced (dismantle) treaty
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -140,6 +333,92 @@ treaty_pay_tributes = {
 	po_reparations = yes
 
 	war_name = WAR_NAME
+}
+
+# Copy of TGC's dismantle_forts: the giver's forts and naval bases are destroyed, in every state that has
+# one (all_allowed_states).
+treaty_dismantle_forts = {
+	sprite_index = 16
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 5
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_free = yes  # free and already chosen in a forced (dismantle) treaty
+	all_allowed_states = yes
+
+	can_use = {
+		NOT = { war_with = THIS }
+		any_owned_province = {
+			OR = {
+				has_building = fort
+				has_building = naval_base
+			}
+		}
+	}
+
+	allowed_states = {
+		any_owned_province = {
+			OR = {
+				has_building = fort
+				has_building = naval_base
+			}
+		}
+	}
+
+	po_destroy_forts = yes
+	po_destroy_naval_bases = yes
+
+	war_name = WAR_NAME
+}
+
+# Copy of humiliate: the giver loses prestige, the gaining country gains it.
+treaty_humiliate = {
+	sprite_index = 11
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.75
+	prestige_factor = 1
+	peace_cost_factor = 15
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_free = yes  # free and already chosen in a forced (dismantle) treaty
+
+	can_use = {
+		NOT = { war_with = THIS }
+	}
+
+	po_remove_prestige = yes
+
+	war_name = WAR_HUMILIATE_NAME
 }
 
 # Copy of install_communist_gov_cb: the giver takes the gaining country's government type
@@ -165,11 +444,12 @@ treaty_install_government = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	dismantle_infamy = yes  # costs its infamy in a forced (dismantle) treaty too
 
 	can_use = {
 		NOT = { war_with = THIS }
-		THIS = { is_greater_power = yes }
-		is_greater_power = no
+		is_greater_power = no  # not imposed on another great power
 	}
 
 	po_install_communist_gov_type = yes
@@ -273,6 +553,8 @@ treaty_take_from_sphere = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.2  # AI dismantler: factor of its value
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -317,6 +599,8 @@ treaty_release_puppet = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.5  # AI dismantler: free its puppets
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -358,6 +642,8 @@ treaty_cede_puppet = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.2  # AI dismantler: factor of its value
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -399,6 +685,9 @@ treaty_free_peoples = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.2  # AI dismantler: factor of its value
+	repeat_cost = 0.75  # each further state freed for the same people costs 75%
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -420,6 +709,53 @@ treaty_free_peoples = {
 
 	allowed_states = {
 		any_owned_province = { is_core = FROM }
+	}
+
+	po_transfer_provinces = yes
+
+	war_name = WAR_NAME
+}
+
+# Partition: a state of the owner goes to a country of common/se_partitions.txt that has land there
+# (released if it does not exist); its listed provinces become that country's cores. The countries and
+# states are the table's (po_partition); allowed_countries / allowed_states may only narrow them.
+treaty_partition = {
+	sprite_index = 9
+	is_triggered_only = yes
+	constructing_cb = no
+	months = 12
+
+	badboy_factor = 0.5
+	prestige_factor = 0
+	peace_cost_factor = 1
+	penalty_factor = 0
+
+	break_truce_prestige_factor = 1
+	break_truce_infamy_factor = 1
+	break_truce_militancy_factor = 1
+	truce_months = 0
+
+	good_relation_prestige_factor = 1
+	good_relation_infamy_factor = 1
+	good_relation_militancy_factor = 1
+
+	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 0.5  # AI dismantler: new countries last
+	po_partition = yes  # countries and states from common/se_partitions.txt
+	repeat_cost = 0.75  # each further state for the same country costs 75%
+
+	can_use = {
+		NOT = { war_with = THIS }
+		NOT = { is_our_vassal = THIS }
+	}
+
+	allowed_countries = {
+		NOT = { tag = FROM }
+	}
+
+	allowed_states = {
+		NOT = { any_owned_province = { is_capital = yes } }
 	}
 
 	po_transfer_provinces = yes
@@ -450,6 +786,8 @@ treaty_liberate_country = {
 	good_relation_militancy_factor = 1
 
 	is_treaty_cb = yes
+	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
+	ai_dismantle_weight = 1.5  # AI dismantler: nations with cores before new ones
 
 	can_use = {
 		NOT = { war_with = THIS }

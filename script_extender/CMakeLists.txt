@@ -7,13 +7,16 @@ add_library(script_extender SHARED
     src/config.cpp
     src/hooks/memory.cpp
     src/features/building_map_mode.cpp
+    src/features/buildings_ai.cpp
     src/features/country_upgrade.cpp
     src/features/demand_province.cpp
     src/features/event_background.cpp
     src/features/treaty.cpp
     src/features/treaty_ui.cpp
     src/features/vassal_map_color.cpp
+    src/game/buildings.cpp
     src/game/localisation.cpp
+    src/game/script.cpp
 )
 
 target_include_directories(script_extender PRIVATE src)

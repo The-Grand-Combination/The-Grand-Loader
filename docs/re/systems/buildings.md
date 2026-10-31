@@ -187,7 +187,24 @@ Every day, on every machine, `Province_DailyUpdate` advances each construction:
 Not checked anywhere: war, colonial status (only the AI skips colonial states) and the `capital`
 flag. **[C]**
 
-Party-rule offsets are `country+0xAC0 + 8·i`. **[C]** offsets, **[I]** which rule is which.
+Party rule *i* is the byte at `country+0xAC8 + 8·i`, *i* in the order of the `CRuleDefinition` list
+(`RULE_*` keys created at `0x00473235`..; token ids from the keyword table): **[C]**
+
+| i | offset | rule | i | offset | rule |
+|---|---|---|---|---|---|
+| 0 | `+0xAC8` | build_factory | 11 | `+0xB20` | build_factory_invest |
+| 1 | `+0xAD0` | expand_factory | 12 | `+0xB28` | expand_factory_invest |
+| 2 | `+0xAD8` | open_factory | 13 | `+0xB30` | open_factory_invest |
+| 3 | `+0xAE0` | destroy_factory | 14 | `+0xB38` | build_railway_invest |
+| 4 | `+0xAE8` | build_railway | 15 | `+0xB40` | can_invest_in_pop_projects |
+| 5 | `+0xAF0` | factory_priority | 16 | `+0xB48` | pop_build_factory_invest |
+| 6 | `+0xAF8` | can_subsidise | 17 | `+0xB50` | pop_expand_factory_invest |
+| 7 | `+0xB00` | pop_build_factory | 18 | `+0xB58` | pop_open_factory_invest |
+| 8 | `+0xB08` | pop_expand_factory | 19 | `+0xB60` | allow_foreign_investment |
+| 9 | `+0xB10` | pop_open_factory | 20.. | `+0xB68`.. | voting rules, forced_disarmament, slavery_allowed (31) |
+| 10 | `+0xB18` | delete_factory_if_no_input | | | |
+
+Every offset the code reads fits this table (`+0xAE8` in the railroad test above, the AI's flags below).
 
 ### Cost
 
@@ -305,15 +322,8 @@ keeps a running money total. **[C]**
 
 ## Other builders
 
-- **AI** (host only): `AI_ConstructionUpdate` (`0x008569A0`, fastcall, ECX = AI object). **[C]**
-  - It caches the first province building of type 2 (`+0x78`), 4 (`+0x7C`) and 3 (`+0x80`).
-  - It rolls the uncounted world MT once against chances at `g_economyDefines+0x60`.
-  - It then calls `AI_BuildFort`, `AI_BuildNavalBase` or `AI_BuildRailroad`. The province pickers are
-    `AI_PickFortProvince` (owned, not colonial, passes `Province_CanExpandBuilding`, money > 2× cost)
-    and `AI_PickRailroadProvince` (the state with the most factories; also invests abroad).
-  - Each builder posts the same constructor + `NetSession_QueueCommand`.
-  - **The AI builds only the first type-4 building (the fort), never TGC's university or bank.** Pops
-    can still build those through pop projects.
+- **AI** (host only): `AI_ConstructionUpdate`, see [The AI builder](#the-ai-builder). It builds three
+  province buildings only, chosen by type, not by name.
 - **Effects** run in lockstep, instantly, with no command and no cost: **[C]**
   - `CBuildingEffect` (Execute `0x00891CA0`) calls `Province_SetBuildingLevel(value + pb+0x10)`. The
     `+0x10` is odd: **[?]**.
@@ -322,6 +332,217 @@ keeps a running money total. **[C]**
     capital or the capital's state.
 - **Console:** the "instant construction" toggle (`0x012586D6`) applies only to the local player's
   constructions and desyncs multiplayer. **[C]**
+
+## The AI builder
+
+Found 2026-10-31 (decompilation of `0x008569A0..0x00859550`). Researched before teaching the AI to build
+other province buildings.
+
+### Summary
+
+- One job per AI country, `AI_ConstructionUpdate`, decides every AI construction: forts, naval bases,
+  railroads, factories (build / expand / reopen / delete), foreign investment, and pop-project money.
+  **[C]**
+- **The province buildings are found by `type`, not by name.** On its first run the job takes, in
+  province-building order (`db+0x1C`, the order of `buildings.txt`), the first building of type 2, 4 and
+  3. It keeps them for the life of the AI object. **[C]**
+- The fort builder knows nothing about forts. It takes the cached type-4 building and scores provinces by
+  capital, borders and hostile neighbours. **Any type-4 building listed before the fort is built as if it
+  were the fort, in border provinces. Type-4 buildings after it are never built by the AI.** **[C]**
+- One roll per run against the `CHANCE_*` defines decides which builders run. Nothing is built at war.
+  **[C]**
+
+### The job
+
+`AI_ConstructionUpdate` (`0x008569A0`, fastcall, ECX = the job): **[C]** unless noted.
+
+| job field | content |
+|---|---|
+| vtable | `0x00E284EC` (RTTI just before it); slot 6 (`+0x18`, at `0x00E28504`) = `AI_ConstructionUpdate`, slot 3 `0x00825CF0` calls slot 6, slot 5 `0x00826480` is the countdown tick |
+| `+0x30` | countdown: set to `Rng_Next() % 17 + 10` (10–26) on every run; **[I]** the days to the next run |
+| `+0x34` / `+0x38` | country tag / index |
+| `+0x68` | day of month of the last run: the body runs at most once a day |
+| `+0x6C..+0x74` | party rules of the country, copied on each run (below) |
+| `+0x78` / `+0x7C` / `+0x80` | cached first type-2 (railroad), type-4 (fort), type-3 (naval base) building |
+
+Rule flags (rule offsets in [Can it be expanded?](#can-it-be-expanded)):
+
+| flag | from | used by |
+|---|---|---|
+| `+0x6C` | build_factory | factory builder |
+| `+0x6D` | expand_factory | factory builder |
+| `+0x6E` | open_factory | factory builder (reopen) |
+| `+0x6F` | build_railway | railroad builder |
+| `+0x70` | destroy_factory | factory deletion |
+| `+0x71` | great power **and** build_factory_invest | foreign investment |
+| `+0x72` | great power **and** expand_factory_invest | foreign investment |
+| `+0x73` | can_invest_in_pop_projects | pop-project money |
+| `+0x74` | build_railway_invest | foreign investment, railroads abroad |
+
+The order of one run:
+
+```c
+if (country->atWar /*+0x67C*/) return;            // all builders, deletion included
+ai = g_economyDefines->ai;                        // +0x60
+naval = ai->CHANCE_BUILD_NAVAL_BASE;              // +0x38
+if (country->colonialStates /*+0x7D8*/ < 1 && !country->greatPower /*+0x31*/)
+    naval /= 3;
+r = worldMT() % 1000;                             // one draw for every builder below
+if (r <= ai->CHANCE_BUILD_FORT /*+0x3C*/)       AI_BuildFort();
+if (r <= naval)                                 AI_BuildNavalBase();
+if (build_factory || expand_factory || open_factory) AI_BuildFactory(job);   // no chance
+if (build_railway && r <= ai->CHANCE_BUILD_RAILROAD /*+0x34*/)  AI_BuildRailroad(own country);
+if ((factory_invest flags || build_railway_invest) && r <= ai->CHANCE_FOREIGN_INVEST /*+0x44*/)
+    AI_ForeignInvest(job);
+if (can_invest_in_pop_projects && r <= ai->CHANCE_INVEST_POP_PROJ /*+0x40*/)
+    AI_InvestPopProject(job);
+if (destroy_factory) delete the worst factory of a state with more than 6;
+```
+
+The defines are `defines.lua`'s `ai` block in file order, 4 bytes each (`+0x24`
+`ONE_SIDE_MAX_WARSCORE`, `+0x28` `POP_PROJECT_INVESTMENT_MAX_BUDGET_FACTOR`, `+0x34..+0x44` the five
+`CHANCE_*`), ×1000. A chance of 1.0 always passes. The roll reads the world MT directly (`world+0xB4`,
+index `+0xA74`) without the call counter, on the host only. **[C]**
+
+`country+0x7D8` counts the states with `CState+0x84 > 0` (colonial), recounted by
+`Country_Recalculate` (`0x00515490`). **[C]**
+
+### The province-building builders
+
+Each builder picks a province, checks the money and posts `ConstructBuildingCommand_ctor` +
+`NetSession_QueueCommand`, as a player would. Validate then runs on every machine
+(`Province_CanExpandBuilding`). **[C]**
+
+| builder | picker | money test |
+|---|---|---|
+| `AI_BuildFort` `0x00858560` | `AI_PickFortProvince` `0x00857E60` | money > 2 × `Building_ComputeExpandCost` |
+| `AI_BuildNavalBase` `0x00858460` | `AI_PickNavalBaseProvince` `0x008577B0` | money > cost |
+| `AI_BuildRailroad` `0x008582D0` (ECX = the country that owns the land) | `AI_PickRailroadProvince` `0x008580E0` | own land: money > cost; abroad: money > 3 × the foreign-investment cost |
+
+**Fort** (`AI_PickFortProvince`, arg = job): for each owned province **[C]**:
+
+1. skip a colonial state (`state+0x84 > 0`) and a province where `Province_CanExpandBuilding(+0x7C)` fails;
+2. score: +500 for the capital (`country+0xBE4`); +500 when the province is in the list of `0x0050E450`
+   (EAX = country): among the groups at `country+0xA08`, the one holding the capital (`prov+0xE8`), else
+   the one with the highest `+0x30`. **[C]** code, **[I]** the group is the home land mass;
+3. for each land neighbour (`prov+0x5C → +0xC8`, 0x24-byte entries, `[0]` kind, `[1]` province id) owned by
+   another country: +200 when the kind is 1; then `a + b/4` from two per-country tables of the AI state
+   (`country+0x3B8/+0x3BC` and `+0x3F0/+0x3F4`, keyed by the neighbour's index). The first is also read
+   next to `AI_GetBaseRelation` by the AI's answer to diplomatic actions (`0x00844050`, `0x00844140`): an
+   attitude value, sign **[?]**; when that is ≥ 150, it is added (×2 for kind 1, ×1.5 for kind 2);
+4. the highest score above 0 wins.
+
+**Naval base** (`AI_PickNavalBaseProvince`): **[C]** structure, **[I]** meaning of the helpers.
+
+1. First, an upgrade: in each state, the coastal province (`prov+0x158`) that already has the building and
+   scores best by `0x0051F2E0`, the base's supply score:
+   `NAVAL_BASE_SUPPLY_SCORE_BASE` × 2^(level − 1) (`NAVAL_BASE_SUPPLY_SCORE_EMPTY` at level 0), ×
+   `NAVAL_BASE_NON_CORE_SUPPLY_SCORE` when the province is not a core of the owner and lies outside the home
+   group (country defines `+0xE0`, `+0xE4`, `+0xE8`, **[C]**); it must be a province the country
+   controls, affordable, and pass `Building_CanBuildInProvince`.
+2. Otherwise a new base: the existing levels are summed into 8 directions × 3 distances from the capital
+   (distance in units of the building's `colonial_range`). Every affordable coastal province that passes
+   `Building_CanBuildInProvince` scores `5 × levels in its sector + worldMT() % 3`; the lowest wins.
+   **This draws the world MT once per candidate, on the host.**
+
+**Railroad** (`AI_PickRailroadProvince`, args job + the country whose states are searched): in each state,
+the first province the owner controls whose cost (plus 25 × the input value of a `production_type`, if
+any) is within the money and that passes `Building_CanBuildInProvince`; the state with the highest
+`state+0x68` wins (**[I]** its factory count). **[C]**
+
+None of the three looks at the building's own data beyond `Building_CanBuildInProvince` and the cost, so
+they would build any building given to them. **[C]**
+
+### The other builders
+
+**[C]** structure; names of the helpers **[I]**.
+
+- `AI_BuildFactory` (`0x00858670`): `AI_PickFactoryType` (`0x00857430`, every building whose `vt[0x24]`
+  is true, best `AI_FactoryScore` `0x008571A0`: output price against input prices, plus the country's
+  factory modifiers), then `AI_PickFactoryState` (`0x00857530`). It then does one of three things: it
+  reopens a closed factory of that type (open_factory, command at `0x005827F0`); it expands one
+  (expand_factory, `CConstructStateBuildingCommand` `0x0057C130`); or it builds a new one (build_factory,
+  civilized, `0x0057C080`).
+- `AI_ForeignInvest` (`0x008589B0`): target from `AI_PickInvestTarget` (`0x00858D90`). The target is a
+  civilized, non-great power that allows foreign investment (`+0xB60`), is not at war with the investor
+  and scores best (score ≥ 11). The investor then builds or expands a factory there, then
+  `AI_BuildRailroad(target)` with build_railway_invest.
+- `AI_InvestPopProject` (`0x00859180`): money for the state pop project that needs it most, at most
+  `POP_PROJECT_INVESTMENT_MAX_BUDGET_FACTOR` × money (command at `0x00588650`).
+- Deletion: in states with more than 6 factories, the closed or unprofitable factory with the lowest
+  `AI_FactoryScore` (command `0x0057CC60`).
+
+### Why a building's position in buildings.txt matters
+
+- **Before the fort:** it is the job's `+0x7C`. The fort builder builds it in border provinces, with the
+  fort's chance and its 2 × cost margin, and never builds the fort. **[C]**
+- **After the fort:** the AI never builds it. Only pop projects and script effects can. **[C]**
+- **Last of type 4:** it is `db+0x38`, which `build_fort_in_capital`, `can_build_fort_in_capital` and the
+  fort-in-capital effect use instead of the fort. **[C]**
+- The same holds for a second type-2 building (the railroad builder takes the first) and a second type-3
+  building (the naval base builder takes the first). **[C]**
+
+### Adding builders natively: what the code allows
+
+- **Hook point:** the vtable slot `0x00E28504` (slot 6 of `0x00E284EC`). A wrapper calls the original,
+  then runs extra builders with the same job (`+0x34/+0x38` country, `+0x6C..` rules). The job is always
+  an AI country on the host. **[C]** slot.
+- **Posting:** the same `ConstructBuildingCommand_ctor` + session `vt[0x18]` as the existing builders and
+  the bulk upgrade above. Validate on every machine keeps multiplayer in sync. Only the host needs the
+  code. **[C]**
+- **Randomness:** the job lives on the AI object, which exists only on the host
+  ([multiplayer.md](multiplayer.md)). So its draws never have to match a client's: only the commands
+  travel, and every machine validates them. **[I]** host-only, from where the AI objects are created.
+  - **Never the global MT** (`g_mtState`, counted in `g_rngCalls`). A host-only draw there moves the host's
+    count and the daily check reports OOS.
+  - **The world MT** is per machine anyway: clock seed, never saved. The roll and the naval-base picker
+    read it inline (tempering code, not `Rng_Next`), so `sync_world_rng` does not see them. Only the
+    countdown's `Rng_Next` (`0x008569CF`) is one of its 20 sites. A new builder gains nothing from it.
+  - A private RNG is right for host-only code. It would **not** be right for code that runs on every
+    machine (`AI_DailyUpdate`, the tick): there a draw must come from the counted global MT, and the
+    result must change state directly, not through a command that every machine would post.
+- **Which building:** the cache can be steered at `+0x7C`: write the fort after the first run, or
+  patch the type-4 search (`CMP [EDI+0x10],4` at `0x00856CB3`; type 2 at `0x00856C02`, type 3 at
+  `0x00856DC2`) to compare the name. Then every other type-4 building needs a builder of its own, with
+  its own scoring and chance. The fort scoring (borders, threat) fits no economic building. **[C]**
+  search, design **[I]**.
+- **War:** vanilla builds nothing while `country+0x67C` is set. A new builder can keep that or not.
+
+### Built: `buildings_ai` (Script Extender, 2026-10-31)
+
+`script_extender/src/features/buildings_ai.cpp`, ini key `buildings_ai`. Built, not yet tested in game.
+
+- **Hook:** `0x00E28504` points to a wrapper. Before the original, it fills the job's `+0x78/+0x7C/+0x80`
+  (when still empty) with the buildings named `railroad` / `fort` / `naval_base`, if each has the
+  expected type. The vanilla builders therefore keep their building wherever it sits in `buildings.txt`.
+  After the original, when `+0x68` changed (the body ran), the file's entries run.
+- **The file:** `common/buildings_ai.txt`, from the first `-mod=` folder that has it, else the game's. It
+  is read with the game's parser on the first run (`ParserBlock` + `Persistent_ReadBlock` on objects of
+  our own whose slot 4 gets each `key = value`; slot 5 is the empty `0x004010C0`). One block per
+  province building, by name:
+
+  ```
+  bank = {
+      chance = 0.15        # per run, 0..1
+      money = 2            # treasury > money × Building_ComputeExpandCost (default 2)
+      weight = {           # a CMeanTimeToHappen, as a decision's ai_will_do
+          factor = 1
+          modifier = { factor = 5 is_capital = yes }
+      }
+  }
+  ```
+
+  `weight` is a real `CMeanTimeToHappen` (`0x00E2CEB0`, 0x18 bytes, `+4 = 0x18D`, `+8 = 1000`), read by
+  its own slot 4. So every trigger of the game works in its modifiers, with the game's own syntax checks
+  and error lines.
+- **A run, per entry:** country not human and not at war; then roll `chance` with splitmix64 seeded by
+  (date, country, entry). The candidates are the owned provinces (owner = the country) where
+  `Province_CanExpandBuilding` holds and the treasury minus what this run already posted covers
+  `money` × the cost. Each is weighed in a province scope built as `EventManager_DailyScan` builds one
+  (`+0x08 = "---"`, `+0x0C = 0`, `+0x10` = province id). The weight follows `CDecision_EvaluateAiWillDo`'s
+  rule: base × the factor of every modifier whose triggers all hold, 0 below 1. One province is drawn in
+  proportion to its weight and `ConstructBuildingCommand` is posted (`game/buildings.h`).
+- Listing `fort`, `naval_base` or `railroad` adds a builder; the vanilla one keeps running.
 
 ## Bulk upgrade: how to do it
 
@@ -378,4 +599,7 @@ Entry bytes of the functions the plugin calls (to verify before calling):
    (`naval_capacity` + `local_ship_build`) and `bank`.
 7. TGC `db+0x38` = bank: confirm in game. Reordering `buildings.txt` would make the AI build
    universities, so a loader patch that only takes the name `fort` is the better fix.
-8. The names of the AI chance fields at `g_economyDefines+0x60`.
+8. How the AI job is scheduled: who counts down `+0x30` and calls slot 3 (the base tick's own gates,
+   slots 8 and 10, are empty in this class).
+9. The fort scoring's inputs: what the groups at `country+0xA08` are, the neighbour kinds 1 / 2, and
+   the sign and meaning of the AI tables at `country+0x3B8` / `+0x3F0`.

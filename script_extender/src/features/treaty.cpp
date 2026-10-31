@@ -1,8 +1,11 @@
 #include "features/treaty.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <string>
@@ -74,6 +77,7 @@ constexpr uint32_t kTriggerEvaluate = 0x18;     // trigger vt: bool (CEventScope
 // Diplomatic actions
 constexpr uint32_t kCreateByType = 0x0090E850;  // cdecl (int token) -> action
 constexpr uint32_t kCanPerform = 0x00911760;
+constexpr uint32_t kShowIncoming = 0x00913020;  // DiplomaticAction_ShowIncoming: thiscall (owner), DefaultDialog
 constexpr uint32_t kCheatAiAcceptAll = 0x012589A7;  // u8, toggled by the yesmen console command
 constexpr uint32_t kUnitsSumStrength = 0x005DCBD0;  // stdcall (unit list, int* land, int* naval), adds    // DiplomaticAction_CanPerform: ESI = action, (bool) -> AL
 constexpr uint8_t kCreateByTypeEntry[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
@@ -84,7 +88,7 @@ constexpr uint32_t kPeaceCopyCtor = 0x00916B50;     // stdcall (this, src)
 constexpr uint32_t kPeaceWriteFields = 0x00919660;  // thiscall (stream)
 constexpr uint32_t kPeaceOnKeyword = 0x00919690;    // thiscall (parser, token)
 constexpr uint32_t kNullDate = 0x01259ABC;
-constexpr uint32_t kActionSize = 0xA0;
+constexpr uint32_t kActionSize = 0xA8;
 constexpr uint32_t kSlotCount = 38;
 // CDiplomaticAction / CPeaceAction fields
 constexpr uint32_t kActorTag = 0x08;
@@ -93,6 +97,8 @@ constexpr uint32_t kRecipientIndex = 0x14;
 constexpr uint32_t kFlags = 0x44;   // offer+0x1C: vector<int>, parallel to the goals
 constexpr uint32_t kGoals = 0x64;   // offer+0x3C: vector<CWarGoal> (0x40 each)
 constexpr uint32_t kMoney = 0x98;   // ours: i64, actor -> recipient
+constexpr uint32_t kBudget = 0xA0;  // ours: points of a forced (dismantle) treaty; 0 = an ordinary one
+constexpr int kNoticeBudget = -1;   // ... or: the terms an AI imposed on a human, shown to it (never sent)
 // The AI's pending proposals: the type switch
 constexpr uint32_t kAiTypeSwitch = 0x00820EBB;  // MOV EAX,[ESI]; MOV EDX,[EAX+0x20]; MOV ECX,ESI
 constexpr uint8_t kAiTypeSwitchBytes[] = {0x8B, 0x06, 0x8B, 0x50, 0x20, 0x8B, 0xCE};
@@ -127,6 +133,8 @@ constexpr uint32_t kCountryIsVassal = 0xCF5;
 constexpr uint32_t kCountryOverlord = 0xCFC;      // index, with the tag at +0xCF8
 constexpr uint32_t kCountrySphereLeader = 0x142C;  // index, with the tag at +0x1428
 constexpr uint32_t kCountryStateCount = 0xE4C;
+constexpr uint32_t kCountryStates = 0xE44;  // list {state, ?, next}
+constexpr uint32_t kStateColonyStatus = 0x84;  // > 0: colonial
 constexpr uint32_t kCountryCapital = 0xBE4;
 constexpr uint32_t kCountryTreasury = 0xE78;   // i64, 2^15 fixed point
 constexpr uint32_t kCountryInfamy = 0x1430;    // x1000
@@ -137,6 +145,8 @@ constexpr uint32_t kProvinceOwner = 0x12C;
 constexpr uint32_t kProvinceController = 0x134;
 constexpr uint32_t kProvinceState = 0x188;
 constexpr uint32_t kProvinceCores = 0x148;  // vector<CountryRef> {tag, index}
+constexpr uint32_t kProvinceAddCore = 0x004B61A0;  // stdcall (province, CountryRef*, bool history), as add_core
+constexpr uint32_t kCountryCoresChanged = 0x1434;  // u8, set by add_core after Province_AddCore
 constexpr uint32_t kWorldHumans = 0xAEC;    // vector<int>: 0 = AI
 constexpr uint32_t kWorldMilitary = 0xAB4;
 constexpr uint32_t kWorldRunning = 0xD1C;
@@ -146,6 +156,34 @@ constexpr uint32_t kUpdatePortBlockade = 0x004B7C50;   // EDI = province
 constexpr uint32_t kUpdateHostileFlags = 0x005DBD90;   // EAX = unit list
 constexpr uint32_t kCalculateDistribution = 0x00520150;  // stdcall (country)
 constexpr uint32_t kAiDailyUpdate = 0x0085CCB0;        // EAX = country + 0x364
+
+// Peace and dismantling
+constexpr uint32_t kPeaceExecuteSlot = 0x00E344F4;  // CPeaceAction_vftable slot 32
+constexpr uint32_t kPeaceExecute = 0x00916F00;      // thiscall (ctx), RET 4
+constexpr uint32_t kWarAttackers = 0x2C;  // vector<{tag, index}>, the leader first
+constexpr uint32_t kWarDefenders = 0x3C;
+constexpr uint32_t kAddPendingAction = 0x005164C0;  // Country_AddPendingAction: ESI = country, EDI = action
+constexpr uint32_t kCountryPending = 0xCE4;         // list {action, prev, next}; +4 tail, +8 count
+constexpr uint32_t kCountryGreatPower = 0x31;       // u8
+constexpr uint32_t kCountryCivilized = 0x12D0;      // u8
+constexpr uint32_t kCountryRank = 0x1404;
+constexpr uint32_t kEconomyDefines = 0x012586DC;  // +0x40 country defines; there +0x50: secondary power rank x1000
+constexpr uint32_t kWorldLocalPlayer = 0xB60;
+
+// Script effects (docs/re/systems/effects.md)
+constexpr uint32_t kEffectFactory = 0x00876B30;  // effect slot 4: thiscall (block, parser, token), RET 8
+constexpr uint8_t kEffectFactoryEntry[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
+constexpr uint32_t kEffectListTail = 0x0C;  // block: list of children {effect, prev, next}; +0x08 head, +0x10 count
+constexpr int kTokenReleaseVassal = 0x700;
+constexpr uint32_t kReleaseVassalEffectVtable = 0x00E2B4AC;  // CReleaseVassalEffect, 0x2C bytes
+constexpr uint32_t kEffectSlots = 14;
+constexpr uint32_t kEffectSlotTooltip = 9;   // thiscall (std::string* out, scope, std::string by value, int), RET 0x28
+constexpr uint32_t kEffectSlotExecute = 11;  // thiscall (scope, ?), RET 8
+constexpr uint32_t kEffectUsesThis = 0x1C;     // u8: `= THIS`
+constexpr uint32_t kEffectUsesFrom = 0x1D;     // u8: `= FROM`
+constexpr uint32_t kEffectTargetIndex = 0x24;  // `= TAG`: {tag, index} at +0x20
+constexpr uint32_t kScopeThisProvince = 0x10;  // a province scope's province
+constexpr uint32_t kScopeFromProvince = 0x34;  // FROM as a province
 
 // Game memory and strings
 constexpr uint32_t kOperatorNew = 0x00AAE9AF;     // cdecl (size)
@@ -163,6 +201,16 @@ constexpr const char* kKeyword = "is_treaty_cb";
 constexpr const char* kActionKeyword = "treaty_action";
 constexpr const char* kMoneyKeyword = "se_treaty_money";
 constexpr const char* kTransferPuppetKeyword = "po_transfer_puppet";
+constexpr const char* kBudgetKeyword = "se_treaty_budget";
+constexpr const char* kFreeKeyword = "dismantle_free";  // a treaty CB: free and already chosen in a forced treaty
+constexpr const char* kInfamyKeyword = "dismantle_infamy";  // a treaty CB: costs its infamy in a forced treaty too
+constexpr const char* kCostKeyword = "dismantle_cost";      // a treaty CB: factor of its points in a forced treaty
+constexpr const char* kRepeatKeyword = "repeat_cost";        // a treaty CB: factor for its further terms with one country
+constexpr const char* kDismantlingKeyword = "is_dismantling_cb";  // a treaty CB: may be in a forced treaty
+constexpr const char* kToThirdKeyword = "goes_to_third";  // a treaty CB: what the term takes goes to its third country
+constexpr const char* kPartitionKeyword = "po_partition";  // a treaty CB: its countries and states are common/se_partitions.txt's
+constexpr const char* kAiWeightKeyword = "ai_dismantle_weight";  // a treaty CB: factor of its value to an AI dismantler
+constexpr const wchar_t* kPartitionsFile = L"common\\se_partitions.txt";
 constexpr int64_t kMoneyOne = 32768;  // 1.0 in the treasury's fixed point
 
 Config g_config;
@@ -170,6 +218,39 @@ int g_token = 0;         // is_treaty_cb
 int g_action_token = 0;  // treaty_action
 int g_money_token = 0;   // se_treaty_money
 int g_transfer_puppet_token = 0;  // po_transfer_puppet
+// The dismantle effects: `dismantle = TAG` (the scope dismantles TAG), `dismantled_by = TAG` (TAG dismantles
+// the scope; in a CB's on_po_accepted the scope is the loser and THIS the goal's holder), each with a _gw
+// form (treaty_dismantle_gw% of the points).
+struct DismantleEffect {
+    const char* keyword;
+    bool gw;
+    bool reversed;  // dismantled_by: the target dismantles the scope
+    int token;
+};
+DismantleEffect g_dismantle_effects[] = {
+    {"dismantle", false, false, 0},
+    {"dismantle_gw", true, false, 0},
+    {"dismantled_by", false, true, 0},
+    {"dismantled_by_gw", true, true, 0},
+};
+constexpr size_t kDismantleEffects = sizeof(g_dismantle_effects) / sizeof(g_dismantle_effects[0]);
+int g_budget_token = 0;           // se_treaty_budget
+int g_free_token = 0;             // dismantle_free
+std::vector<uintptr_t> g_free_cbs;  // dismantle_free CBs
+int g_infamy_token = 0;           // dismantle_infamy
+int g_cost_token = 0;             // dismantle_cost
+std::vector<uintptr_t> g_infamy_cbs;         // dismantle_infamy CBs
+std::map<uintptr_t, int> g_cost_percent;     // dismantle_cost of a CB, in percent
+int g_repeat_token = 0;           // repeat_cost
+std::map<uintptr_t, int> g_repeat_percent;   // repeat_cost of a CB, in percent
+int g_dismantling_token = 0;       // is_dismantling_cb
+std::vector<uintptr_t> g_dismantling_cbs;    // is_dismantling_cb CBs
+int g_to_third_token = 0;          // goes_to_third
+std::vector<uintptr_t> g_to_third_cbs;       // goes_to_third CBs
+int g_partition_token = 0;         // po_partition
+int g_ai_weight_token = 0;         // ai_dismantle_weight
+std::map<uintptr_t, int> g_ai_weight_percent;  // ai_dismantle_weight of a CB, in percent
+std::vector<uintptr_t> g_partition_cbs;      // po_partition CBs
 std::vector<uintptr_t> g_cbs;
 std::vector<uintptr_t> g_transfer_puppet_cbs;  // the chosen puppet of the giver becomes the gainer's
 uintptr_t g_prev_load = 0;       // what the CBManager_Load call called before us
@@ -303,18 +384,229 @@ bool transfers_puppet(uintptr_t cb) {
     return std::find(g_transfer_puppet_cbs.begin(), g_transfer_puppet_cbs.end(), cb) != g_transfer_puppet_cbs.end();
 }
 
+// A treaty CB with `goes_to_third = yes`: what the term takes goes to its third country, not to the gainer.
+bool goes_to_third(uintptr_t cb) {
+    return std::find(g_to_third_cbs.begin(), g_to_third_cbs.end(), cb) != g_to_third_cbs.end();
+}
+
+// --- Partitions ----------------------------------------------------------------------------------
+// common/se_partitions.txt (the -mod= folders', else the plugin's): which country a loser can be broken
+// into, whoever holds the land now. `TAG = { REGION ... provinces = { id ... } }`, regions of map/region.txt.
+// A po_partition CB lists the tags with land of theirs held by the giver, then the giver's states holding
+// some; the term is a po_transfer_provinces one (the whole state goes) and its listed provinces become
+// the tag's cores.
+
+// A treaty CB with `po_partition = yes`.
+bool is_partition_cb(uintptr_t cb) {
+    return std::find(g_partition_cbs.begin(), g_partition_cbs.end(), cb) != g_partition_cbs.end();
+}
+
+// The words of a Paradox script: names, numbers, `=`, `{`, `}`; comments dropped.
+std::vector<std::string> script_words(const std::string& text) {
+    std::vector<std::string> words;
+    std::string word;
+    bool comment = false;
+    for (char c : text + "\n") {
+        if (comment) {
+            comment = c != '\n';
+            continue;
+        }
+        bool separator = c == '#' || c == '=' || c == '{' || c == '}' || static_cast<unsigned char>(c) <= ' ';
+        if (!separator) {
+            word += c;
+            continue;
+        }
+        if (!word.empty()) {
+            words.push_back(word);
+            word.clear();
+        }
+        comment = c == '#';
+        if (c == '=' || c == '{' || c == '}') {
+            words.push_back(std::string(1, c));
+        }
+    }
+    return words;
+}
+
+std::string read_file(const std::wstring& path) {
+    std::ifstream in(path, std::ios::binary);
+    return in ? std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()) : std::string();
+}
+
+std::wstring widen(const std::string& s) { return std::wstring(s.begin(), s.end()); }
+
+bool is_number(const std::string& word) {
+    return !word.empty() && std::all_of(word.begin(), word.end(), [](char c) { return c >= '0' && c <= '9'; });
+}
+
+// The tag's three letters as a country's +0x1C holds them.
+uint32_t pack_tag(const std::string& tag) {
+    uint32_t packed = 0;
+    std::memcpy(&packed, tag.c_str(), 3);
+    return packed;
+}
+
+std::once_flag g_partitions_once;
+std::map<uint32_t, std::vector<uint32_t>> g_partitions;  // tag -> its provinces, sorted
+
+void load_partitions() {
+    std::wstring path = game::game_file(kPartitionsFile);
+    if (path.empty()) {
+        path = std::wstring(host().plugin_dir) + L"\\" + kPartitionsFile;
+    }
+    std::vector<std::string> words = script_words(read_file(path));
+    if (words.empty()) {
+        logf("treaty: no %ls; no partitions", kPartitionsFile);
+        return;
+    }
+    // map/region.txt: `REGION = { id ... }`
+    std::map<std::string, std::vector<uint32_t>> regions;
+    std::vector<std::string> region_words = script_words(read_file(game::game_file(L"map\\region.txt")));
+    for (size_t i = 0; i + 2 < region_words.size(); ++i) {
+        if (region_words[i + 1] != "=" || region_words[i + 2] != "{") {
+            continue;
+        }
+        std::vector<uint32_t>& ids = regions[region_words[i]];
+        for (i += 3; i < region_words.size() && region_words[i] != "}"; ++i) {
+            if (is_number(region_words[i])) {
+                ids.push_back(static_cast<uint32_t>(std::strtoul(region_words[i].c_str(), nullptr, 10)));
+            }
+        }
+    }
+    // `TAG = { REGION ... provinces = { id ... } }`
+    for (size_t i = 0; i + 2 < words.size(); ++i) {
+        if (words[i].size() != 3 || words[i + 1] != "=" || words[i + 2] != "{") {
+            logf("treaty: %ls: unexpected '%s'", kPartitionsFile, words[i].c_str());
+            continue;
+        }
+        std::vector<uint32_t>& ids = g_partitions[pack_tag(words[i])];
+        int depth = 1;
+        bool listing = false;  // inside provinces = { }
+        for (i += 3; i < words.size() && depth > 0; ++i) {
+            const std::string& w = words[i];
+            if (w == "{") {
+                ++depth;
+            } else if (w == "}") {
+                --depth;
+                listing = false;
+            } else if (w == "provinces") {
+                listing = true;
+            } else if (is_number(w)) {
+                ids.push_back(static_cast<uint32_t>(std::strtoul(w.c_str(), nullptr, 10)));
+            } else if (w != "=" && !listing) {
+                auto it = regions.find(w);
+                if (it == regions.end()) {
+                    logf("treaty: %ls: no region %s", kPartitionsFile, w.c_str());
+                } else {
+                    ids.insert(ids.end(), it->second.begin(), it->second.end());
+                }
+            }
+        }
+        --i;  // the loop's ++i
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    }
+    logf("treaty: %u partitions from %ls", static_cast<unsigned>(g_partitions.size()), path.c_str());
+}
+
+// The provinces of the country's partition, or null when it has none.
+const std::vector<uint32_t>* partition_of(int country) {
+    std::call_once(g_partitions_once, load_partitions);
+    uintptr_t c = game::country(country);
+    if (!c) {
+        return nullptr;
+    }
+    auto it = g_partitions.find(read<uint32_t>(c + kCountryTag) & 0xFFFFFF);
+    return it == g_partitions.end() || it->second.empty() ? nullptr : &it->second;
+}
+
+bool in_partition(const std::vector<uint32_t>& ids, uint32_t province) {
+    return std::binary_search(ids.begin(), ids.end(), province);
+}
+
+// The giver holds land of `third`'s partition, and `third` is no great power (the table holds every core
+// of the mod, homelands of the great powers too: land for them is a cession, not a partition).
+bool partition_allows(int gains, int gives, int third) {
+    const std::vector<uint32_t>* ids = partition_of(third);
+    if (!ids || third == gains || third == gives || read<uint8_t>(game::country(third) + kCountryGreatPower)) {
+        return false;
+    }
+    uintptr_t giver = game::country(gives);
+    for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
+        if (in_partition(*ids, static_cast<uint32_t>(*p))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The state holding `province` has a province of `third`'s partition.
+bool state_in_partition(uint32_t province, int third) {
+    const std::vector<uint32_t>* ids = partition_of(third);
+    uintptr_t state = province ? read<uintptr_t>(game::province(province) + kProvinceState) : 0;
+    if (!ids || !state) {
+        return false;
+    }
+    for (const uint32_t* p = read<const uint32_t*>(state + kStateProvinceIds); p < read<const uint32_t*>(state + kStateProvinceIds + 4); ++p) {
+        if (in_partition(*ids, *p)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Before a partition term runs: the provinces of the third country's partition in the state it takes
+// become its cores (Province_AddCore, as add_core), so the country is released or grows with them.
+void add_partition_cores(uintptr_t g) {
+    int third = read<int>(g + kGoalThirdIndex);
+    const std::vector<uint32_t>* ids = partition_of(third);
+    uintptr_t state = read<uintptr_t>(game::province(read<uint32_t>(g + kGoalProvince)) + kProvinceState);
+    if (!ids || !state) {
+        return;
+    }
+    uint32_t ref[2] = {read<uint32_t>(game::country(third) + kCountryTag), static_cast<uint32_t>(third)};
+    uint32_t* ref_ptr = ref;
+    uintptr_t add_core = hooks::exe_va(kProvinceAddCore);
+    std::vector<uint32_t> ids_in_state;
+    for (const uint32_t* p = read<const uint32_t*>(state + kStateProvinceIds); p < read<const uint32_t*>(state + kStateProvinceIds + 4); ++p) {
+        if (in_partition(*ids, *p)) {
+            ids_in_state.push_back(*p);
+        }
+    }
+    for (uint32_t id : ids_in_state) {
+        uintptr_t province = game::province(id);
+        __asm {
+            mov esi, esp
+            push 1
+            push ref_ptr
+            push province
+            call add_core
+            mov esp, esi
+        }
+    }
+    *reinterpret_cast<uint8_t*>(game::country(third) + kCountryCoresChanged) = 1;
+}
+
 void build_goal(void* out, const treaty::Term& term);
 
-// For a po_transfer_puppet term, the po_make_puppet goal it amounts to: the gainer over the third country.
-// Priced, infamy counted and executed as that one.
+// The goal a term with a third country amounts to; it is priced, infamy counted and executed as that one.
+// po_transfer_puppet: the po_make_puppet goal of the gainer over the third country. goes_to_third: the same
+// CB and place, with the third country (an ally) as the one who gains. Else the term itself.
 uintptr_t puppet_goal(uintptr_t g, uint8_t (&buffer)[kWarGoalSize]) {
     uintptr_t cb = read<uintptr_t>(g + kGoalCb);
     int third = read<int>(g + kGoalThirdIndex);
-    if (!transfers_puppet(cb) || !third) {
+    if (!third) {
         return g;
     }
-    build_goal(buffer, {cb, read<int>(g + kGoalActorIndex), third, 0, 0});
-    return reinterpret_cast<uintptr_t>(buffer);
+    if (transfers_puppet(cb)) {
+        build_goal(buffer, {cb, read<int>(g + kGoalActorIndex), third, 0, 0});
+        return reinterpret_cast<uintptr_t>(buffer);
+    }
+    if (goes_to_third(cb)) {
+        build_goal(buffer, {cb, third, read<int>(g + kGoalReceiverIndex), read<uint32_t>(g + kGoalProvince), 0});
+        return reinterpret_cast<uintptr_t>(buffer);
+    }
+    return g;
 }
 
 int peace_cost(uintptr_t goal_ptr) {
@@ -429,6 +721,9 @@ bool scoped_allowed_state(uintptr_t cb, int gains, int third, uint32_t province)
 }
 
 bool scoped_allowed_country(uintptr_t cb, int gains, int gives, int third) {
+    if (is_partition_cb(cb) && !partition_allows(gains, gives, third)) {
+        return false;  // a partition's country, with land held by the giver (then allowed_countries too)
+    }
     alignas(8) uint8_t scope[kEventScopeSize];
     alignas(8) uint8_t this_scope[kEventScopeSize];
     using ScopeCtorFn = void(__fastcall*)(void*, void*, void*);
@@ -496,6 +791,9 @@ bool goal_valid_scoped(uintptr_t g) {
     int gives = read<int>(g + kGoalReceiverIndex);
     if (!exists(gives) || !scoped_allowed_country(cb, gains, gives, third)) {
         return false;
+    }
+    if (is_partition_cb(cb) && !state_in_partition(read<uint32_t>(g + kGoalProvince), third)) {
+        return false;  // the state holds none of the partition's land
     }
     if (read<uintptr_t>(cb + kCbAllowedStatesChildren + 4) == read<uintptr_t>(cb + kCbAllowedStatesChildren)) {
         return true;
@@ -584,6 +882,111 @@ std::string term_problem(uintptr_t action, uintptr_t g) {
     return {};
 }
 
+// --- Forced (dismantle) treaties -------------------------------------------------------------------
+
+int budget_of(uintptr_t action) { return read<int>(action + kBudget); }
+
+bool is_forced(uintptr_t action) { return budget_of(action) > 0; }
+
+bool is_notice(uintptr_t action) { return budget_of(action) == kNoticeBudget; }
+
+// A treaty CB with `dismantle_free = yes`: free in a forced treaty, and chosen in it from the start.
+// A treaty CB with `is_dismantling_cb = yes`: only these may be terms of a forced (dismantle) treaty.
+bool is_dismantling_cb(uintptr_t cb) {
+    return std::find(g_dismantling_cbs.begin(), g_dismantling_cbs.end(), cb) != g_dismantling_cbs.end();
+}
+
+bool is_free_cb(uintptr_t cb) { return std::find(g_free_cbs.begin(), g_free_cbs.end(), cb) != g_free_cbs.end(); }
+
+// A treaty CB with `dismantle_infamy = yes`: in a forced treaty it costs its infamy, as in any treaty.
+bool charges_infamy(uintptr_t cb) { return std::find(g_infamy_cbs.begin(), g_infamy_cbs.end(), cb) != g_infamy_cbs.end(); }
+
+// Percent of a term's war score that it costs in a forced treaty: 0 when free, else `dismantle_cost`.
+int dismantle_percent(uintptr_t cb) {
+    if (is_free_cb(cb)) {
+        return 0;
+    }
+    auto it = g_cost_percent.find(cb);
+    return it == g_cost_percent.end() ? 100 : it->second;
+}
+
+// The points of the term at `g` in a forced treaty.
+int dismantle_points(uintptr_t g) {
+    return static_cast<int>(static_cast<int64_t>(peace_cost(g)) * dismantle_percent(read<uintptr_t>(g + kGoalCb)) / 100000);
+}
+
+// The infamy (x1000) the dismantle_infamy terms of a forced treaty cost.
+int forced_term_infamy(uintptr_t action) {
+    int total = 0;
+    for (size_t i = 0, n = goal_count(action); i < n; ++i) {
+        if (selected(action, i) && charges_infamy(read<uintptr_t>(goal(action, i) + kGoalCb))) {
+            total += infamy(goal(action, i));
+        }
+    }
+    return total;
+}
+
+// Percent the term at `i` costs for repeating: `repeat_cost` when an earlier selected term has the same CB
+// and the same third country (more states freed for one people), else 100.
+int repeat_percent(uintptr_t action, size_t i) {
+    uintptr_t g = goal(action, i);
+    uintptr_t cb = read<uintptr_t>(g + kGoalCb);
+    auto it = g_repeat_percent.find(cb);
+    if (it == g_repeat_percent.end()) {
+        return 100;
+    }
+    int third = read<int>(g + kGoalThirdIndex);
+    for (size_t j = 0; j < i; ++j) {
+        uintptr_t other = goal(action, j);
+        if (selected(action, j) && read<uintptr_t>(other + kGoalCb) == cb && read<int>(other + kGoalThirdIndex) == third) {
+            return it->second;
+        }
+    }
+    return 100;
+}
+
+// The points of the term at `i` within the treaty: its war score (x dismantle_percent in a forced treaty),
+// x repeat_percent.
+int term_points_at(uintptr_t action, size_t i, bool forced) {
+    uintptr_t g = goal(action, i);
+    int64_t cost = peace_cost(g);  // x1000
+    if (forced) {
+        cost = cost * dismantle_percent(read<uintptr_t>(g + kGoalCb)) / 100;
+    }
+    return static_cast<int>(cost * repeat_percent(action, i) / 100 / 1000);
+}
+
+// What the winner takes in a forced treaty, in war-score points: each term's (term_points_at), and the
+// money demanded.
+int forced_points(uintptr_t action) {
+    int points = 0;
+    for (size_t i = 0, n = goal_count(action); i < n; ++i) {
+        if (selected(action, i)) {
+            points += term_points_at(action, i, true);
+        }
+    }
+    int64_t demanded = -read<int64_t>(action + kMoney);
+    int64_t per_point = g_config.treaty_ai_money_per_point > 0 ? g_config.treaty_ai_money_per_point : 1;
+    if (demanded > 0) {
+        points += static_cast<int>(demanded / (per_point * kMoneyOne));
+    }
+    return points;
+}
+
+// Infamy (x1000) for `over` points past the budget: the first costs min, each further one a little more,
+// towards max (halfway there `half` points past).
+int overflow_infamy(int over) {
+    const Config& k = g_config;
+    int64_t min = static_cast<int64_t>(k.treaty_dismantle_infamy_min) * 10;  // hundredths -> thousandths
+    int64_t max = static_cast<int64_t>(k.treaty_dismantle_infamy_max) * 10;
+    int64_t half = k.treaty_dismantle_infamy_half > 0 ? k.treaty_dismantle_infamy_half : 1;
+    int64_t total = 0;
+    for (int64_t i = 0; i < over; ++i) {
+        total += min + (max - min) * i / (i + half);
+    }
+    return static_cast<int>(total);
+}
+
 // --- The treaty as a whole -----------------------------------------------------------------------
 
 std::string treaty_problem(uintptr_t action) {
@@ -595,19 +998,27 @@ std::string treaty_problem(uintptr_t action) {
     if (read<uintptr_t>(relation(a, r) + kRelationWar)) {
         return text("SE_TREATY_AT_WAR");
     }
+    bool forced = is_forced(action);
     int64_t m = read<int64_t>(action + kMoney);
+    if (forced && m > 0) {
+        return text("SE_TREATY_TERM_SIDES");  // the loser only gives
+    }
     size_t count = 0;
     for (size_t i = 0, n = goal_count(action); i < n; ++i) {
         if (!selected(action, i)) {
             continue;
         }
         ++count;
-        std::string why = term_problem(action, goal(action, i));
+        uintptr_t g = goal(action, i);
+        if (forced && (read<int>(g + kGoalActorIndex) != a || !is_dismantling_cb(read<uintptr_t>(g + kGoalCb)))) {
+            return text("SE_TREATY_TERM_SIDES");
+        }
+        std::string why = term_problem(action, g);
         if (!why.empty()) {
             return why;
         }
     }
-    if (count == 0 && m == 0) {
+    if (count == 0 && m == 0 && !forced) {  // a forced treaty may take nothing
         return text("SE_TREATY_NO_TERMS");
     }
     int payer = m > 0 ? a : r;
@@ -690,7 +1101,7 @@ Score score_details(uintptr_t action, int self) {
             continue;
         }
         uintptr_t g = goal(action, i);
-        int64_t cost = peace_cost(g) / 10;  // x1000 -> x100
+        int64_t cost = static_cast<int64_t>(peace_cost(g)) * repeat_percent(action, i) / 1000;  // x1000 -> x100
         bool core = is_core_of(read<uint32_t>(g + kGoalProvince), self);
         if (read<int>(g + kGoalActorIndex) == self) {
             int third = read<int>(g + kGoalThirdIndex);
@@ -752,6 +1163,7 @@ uintptr_t new_treaty() {
     auto action = reinterpret_cast<uintptr_t>(memory);
     *reinterpret_cast<uintptr_t*>(action) = g_vtable;
     *reinterpret_cast<int64_t*>(action + kMoney) = 0;
+    *reinterpret_cast<int*>(action + kBudget) = 0;
     return action;
 }
 
@@ -765,6 +1177,7 @@ uintptr_t __fastcall slot_clone(uintptr_t self, void*) {
     auto copy = reinterpret_cast<uintptr_t>(memory);
     *reinterpret_cast<uintptr_t*>(copy) = g_vtable;
     *reinterpret_cast<int64_t*>(copy + kMoney) = read<int64_t>(self + kMoney);
+    *reinterpret_cast<int*>(copy + kBudget) = read<int>(self + kBudget);
     return copy;
 }
 
@@ -796,7 +1209,23 @@ uintptr_t __fastcall slot_offer_text(uintptr_t self, void*, uintptr_t out) {
     return out;
 }
 
-bool __fastcall slot_can_perform(uintptr_t self, void*, bool) { return treaty_problem(self).empty(); }
+// A notice holds terms already applied: nothing to check, it is only shown.
+bool __fastcall slot_can_perform(uintptr_t self, void*, bool) { return is_notice(self) || treaty_problem(self).empty(); }
+
+// A forced treaty needs no consent and no diplomat on the road.
+bool __fastcall slot_auto_accept(uintptr_t self, void*) { return is_forced(self); }
+bool __fastcall slot_travels(uintptr_t self, void*) { return !is_forced(self); }
+
+// A pending action of the local player, shown once: a forced treaty in its pending list is the winner's
+// turn to dismantle a loser, a notice the terms an AI imposed on it (both the editor); any other, the
+// DefaultDialog box for the recipient.
+void __fastcall slot_show_incoming(uintptr_t self, void*, uintptr_t owner) {
+    if (is_forced(self) || is_notice(self)) {
+        treaty_ui::show_forced(owner, self);
+        return;
+    }
+    fn<void(__fastcall*)(uintptr_t, void*, uintptr_t)>(kShowIncoming)(self, nullptr, owner);
+}
 
 // Vassal_Release(&vassal, &overlord) as po_release_puppet calls it; ESP is restored here, so the
 // convention does not matter.
@@ -819,10 +1248,28 @@ void __fastcall slot_execute(uintptr_t self, void*, void*) {
     treaty_ui::ensure_message_texts();
     int a = read<int>(self + kActorIndex);
     int r = read<int>(self + kRecipientIndex);
+    if (is_notice(self)) {
+        return;  // its terms were applied when the AI imposed them
+    }
     std::string why = treaty_problem(self);
     if (!why.empty()) {
         logf("treaty: %d -> %d accepted but not applied: %s", a, r, why.c_str());
         return;
+    }
+    // A forced treaty costs infamy only for the points past its budget.
+    bool forced = is_forced(self);
+    if (forced) {
+        int over = forced_points(self) - budget_of(self);
+        if (over > 0) {
+            int added = overflow_infamy(over);
+            *reinterpret_cast<int*>(game::country(a) + kCountryInfamy) += added;
+            logf("treaty: %d imposes %d points past its budget of %d on %d: +%d.%03d infamy", a, over, budget_of(self), r,
+                 added / 1000, added % 1000);
+        }
+        if (int terms_infamy = forced_term_infamy(self)) {  // dismantle_infamy terms cost theirs anyway
+            *reinterpret_cast<int*>(game::country(a) + kCountryInfamy) += terms_infamy;
+            logf("treaty: %d takes land from %d: +%d.%03d infamy", a, r, terms_infamy / 1000, terms_infamy % 1000);
+        }
     }
     size_t applied = 0;
     for (size_t i = 0, n = goal_count(self); i < n; ++i) {
@@ -835,14 +1282,17 @@ void __fastcall slot_execute(uintptr_t self, void*, void*) {
             logf("treaty: term %u skipped: %s", static_cast<unsigned>(i), term_why.c_str());
             continue;
         }
-        if (g_config.treaty_infamy) {
+        if (g_config.treaty_infamy && !forced) {
             uintptr_t gainer = game::country(read<int>(g + kGoalActorIndex));
             *reinterpret_cast<int*>(gainer + kCountryInfamy) += infamy(g);
         }
         uint8_t buffer[kWarGoalSize];
         uintptr_t run = puppet_goal(g, buffer);
-        if (run != g) {
+        if (run != g && transfers_puppet(read<uintptr_t>(g + kGoalCb))) {
             release_vassal(read<int>(g + kGoalThirdIndex), read<int>(g + kGoalReceiverIndex));
+        }
+        if (is_partition_cb(read<uintptr_t>(g + kGoalCb))) {
+            add_partition_cores(g);
         }
         fn<void(__stdcall*)(uintptr_t)>(kWarGoalExecute)(run);
         ++applied;
@@ -895,32 +1345,42 @@ void __fastcall slot_execute(uintptr_t self, void*, void*) {
 
 void __fastcall slot_on_decline(uintptr_t, void*, void*) { treaty_ui::ensure_message_texts(); }
 
-void __fastcall slot_write_fields(uintptr_t self, void*, uintptr_t stream) {
-    using WriteFn = void(__fastcall*)(uintptr_t, void*, uintptr_t);
-    fn<WriteFn>(kPeaceWriteFields)(self, nullptr, stream);
-    int64_t m = read<int64_t>(self + kMoney);
-    if (m == 0) {
-        return;
-    }
+// `token = value` in a save or command stream.
+void write_number(uintptr_t stream, int token, int64_t number) {
     uintptr_t write_token = hooks::exe_va(kWriteToken);
-    int token = g_money_token;
     __asm {
         push stream
         mov ecx, token
         call write_token
     }
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(m));
+    std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(number));
     std::string value = buf;
     GameString game_value(value);
     using StringFn = void(__fastcall*)(const GameString*, void*, uintptr_t, int);
     fn<StringFn>(kWriteString)(&game_value, nullptr, stream, 0);
 }
 
+void __fastcall slot_write_fields(uintptr_t self, void*, uintptr_t stream) {
+    using WriteFn = void(__fastcall*)(uintptr_t, void*, uintptr_t);
+    fn<WriteFn>(kPeaceWriteFields)(self, nullptr, stream);
+    if (int64_t m = read<int64_t>(self + kMoney)) {
+        write_number(stream, g_money_token, m);
+    }
+    if (int budget = read<int>(self + kBudget); budget && g_budget_token) {
+        write_number(stream, g_budget_token, budget);
+    }
+}
+
 void __fastcall slot_on_keyword(uintptr_t self, void*, uintptr_t parser, int token) {
     if (g_money_token && token == g_money_token) {
         const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
         *reinterpret_cast<int64_t*>(self + kMoney) = std::strtoll(value, nullptr, 10);
+        return;
+    }
+    if (g_budget_token && token == g_budget_token) {
+        const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
+        *reinterpret_cast<int*>(self + kBudget) = static_cast<int>(std::strtol(value, nullptr, 10));
         return;
     }
     using KeyFn = void(__fastcall*)(uintptr_t, void*, uintptr_t, int);
@@ -991,8 +1451,26 @@ void __stdcall register_tokens() {
     g_action_token = add_token(kActionKeyword);
     g_money_token = add_token(kMoneyKeyword);
     g_transfer_puppet_token = add_token(kTransferPuppetKeyword);
-    logf("treaty: tokens %s 0x%X, %s 0x%X, %s 0x%X, %s 0x%X", kKeyword, g_token, kActionKeyword, g_action_token,
-         kMoneyKeyword, g_money_token, kTransferPuppetKeyword, g_transfer_puppet_token);
+    g_budget_token = add_token(kBudgetKeyword);
+    g_free_token = add_token(kFreeKeyword);
+    g_infamy_token = add_token(kInfamyKeyword);
+    g_cost_token = add_token(kCostKeyword);
+    g_repeat_token = add_token(kRepeatKeyword);
+    g_dismantling_token = add_token(kDismantlingKeyword);
+    g_to_third_token = add_token(kToThirdKeyword);
+    g_partition_token = add_token(kPartitionKeyword);
+    g_ai_weight_token = add_token(kAiWeightKeyword);
+    logf("treaty: tokens %s 0x%X, %s 0x%X", kPartitionKeyword, g_partition_token, kAiWeightKeyword, g_ai_weight_token);
+    logf("treaty: tokens %s 0x%X, %s 0x%X", kDismantlingKeyword, g_dismantling_token, kToThirdKeyword, g_to_third_token);
+    logf("treaty: tokens %s 0x%X, %s 0x%X, %s 0x%X", kInfamyKeyword, g_infamy_token, kCostKeyword, g_cost_token,
+         kRepeatKeyword, g_repeat_token);
+    logf("treaty: tokens %s 0x%X, %s 0x%X, %s 0x%X, %s 0x%X, %s 0x%X, %s 0x%X", kKeyword, g_token, kActionKeyword,
+         g_action_token, kMoneyKeyword, g_money_token, kTransferPuppetKeyword, g_transfer_puppet_token, kBudgetKeyword,
+         g_budget_token, kFreeKeyword, g_free_token);
+    for (DismantleEffect& d : g_dismantle_effects) {
+        d.token = add_token(d.keyword);
+        logf("treaty: effect %s 0x%X", d.keyword, d.token);
+    }
 }
 
 // Replaces the CALL CBManager_Load(manager, block) (stdcall; it deletes the block): registers our words,
@@ -1025,6 +1503,63 @@ void __fastcall on_keyword(uintptr_t cb, void*, uintptr_t parser, int token) {
         }
         return;
     }
+    if (g_free_token && token == g_free_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !is_free_cb(cb)) {
+            g_free_cbs.push_back(cb);
+            logf("treaty: %s is free in a dismantle", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
+    if (g_infamy_token && token == g_infamy_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !charges_infamy(cb)) {
+            g_infamy_cbs.push_back(cb);
+            logf("treaty: %s costs infamy in a dismantle", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
+    if (g_dismantling_token && token == g_dismantling_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !is_dismantling_cb(cb)) {
+            g_dismantling_cbs.push_back(cb);
+            logf("treaty: %s may be imposed in a dismantle", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
+    if (g_to_third_token && token == g_to_third_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !goes_to_third(cb)) {
+            g_to_third_cbs.push_back(cb);
+            logf("treaty: %s gives to its third country", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
+    if (g_ai_weight_token && token == g_ai_weight_token) {
+        const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
+        int percent = static_cast<int>(std::strtod(value, nullptr) * 100 + 0.5);
+        g_ai_weight_percent[cb] = percent < 0 ? 0 : percent;
+        logf("treaty: %s weighs %d%% to an AI dismantler", GameString::copy(cb + kCbName).c_str(), percent);
+        return;
+    }
+    if (g_partition_token && token == g_partition_token) {
+        if (read<int>(parser + kParserValueToken) == kTokenYes && !is_partition_cb(cb)) {
+            g_partition_cbs.push_back(cb);
+            logf("treaty: %s partitions by common/se_partitions.txt", GameString::copy(cb + kCbName).c_str());
+        }
+        return;
+    }
+    if (g_repeat_token && token == g_repeat_token) {
+        const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
+        int percent = static_cast<int>(std::strtod(value, nullptr) * 100 + 0.5);
+        g_repeat_percent[cb] = percent < 0 ? 0 : percent;
+        logf("treaty: %s costs %d%% for each further term with the same country", GameString::copy(cb + kCbName).c_str(),
+             percent);
+        return;
+    }
+    if (g_cost_token && token == g_cost_token) {
+        const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
+        int percent = static_cast<int>(std::strtod(value, nullptr) * 100 + 0.5);
+        g_cost_percent[cb] = percent < 0 ? 0 : percent;
+        logf("treaty: %s costs %d%% of its points in a dismantle", GameString::copy(cb + kCbName).c_str(), percent);
+        return;
+    }
     if (!g_token || token != g_token) {
         reinterpret_cast<OnKeywordFn>(g_prev_on_keyword)(cb, nullptr, parser, token);
         return;
@@ -1053,7 +1588,7 @@ void build_vtable() {
     set(8, reinterpret_cast<uintptr_t>(&slot_type_id));
     set(9, reinterpret_cast<uintptr_t>(&slot_name));
     set(12, reinterpret_cast<uintptr_t>(&slot_clone));
-    set_exe(13, 0x00913020);  // DiplomaticAction_ShowIncoming: the DefaultDialog box
+    set(13, reinterpret_cast<uintptr_t>(&slot_show_incoming));  // DefaultDialog, or the dismantle editor
     set_exe(14, 0x00912E70);  // DiplomaticAction_CreateDialog (never reached: not in the view's table)
     set(16, reinterpret_cast<uintptr_t>(&slot_offer_text));
     set_exe(17, 0x00633620);  // no third parties
@@ -1063,8 +1598,8 @@ void build_vtable() {
         set_exe(slot, 0x00424B40);  // no diplomatic or influence cost, no relation change
     }
     set_exe(26, 0x00A31490);  // not while at war with the recipient
-    set_exe(27, 0x0058CFD0);  // never auto-accepted
-    set_exe(28, 0x00A31490);  // diplomat travel time
+    set(27, reinterpret_cast<uintptr_t>(&slot_auto_accept));  // only a forced one
+    set(28, reinterpret_cast<uintptr_t>(&slot_travels));      // diplomat travel time, but for a forced one
     set(32, reinterpret_cast<uintptr_t>(&slot_execute));
     set(34, reinterpret_cast<uintptr_t>(&slot_on_decline));  // declined: nothing but the message texts
     set(36, reinterpret_cast<uintptr_t>(&slot_can_perform));
@@ -1129,6 +1664,53 @@ std::vector<Term> terms(uintptr_t action) {
                        read<uint32_t>(g + kGoalProvince), read<int>(g + kGoalThirdIndex)});
     }
     return out;
+}
+
+int budget(uintptr_t action) { return budget_of(action); }
+
+bool is_notice(uintptr_t action) { return se::features::is_notice(action); }
+
+uintptr_t clone(uintptr_t action) { return slot_clone(action, nullptr); }
+
+void set_budget(uintptr_t action, int points) { *reinterpret_cast<int*>(action + kBudget) = points; }
+
+int points(uintptr_t action) { return forced_points(action); }
+
+int infamy_past_budget(int over) { return over > 0 ? overflow_infamy(over) : 0; }
+
+bool is_pending(int country, uintptr_t action) {
+    for (uintptr_t node = read<uintptr_t>(game::country(country) + kCountryPending); node; node = read<uintptr_t>(node + 8)) {
+        if (read<uintptr_t>(node) == action) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void remove_pending(int country, uintptr_t action) {
+    uintptr_t c = game::country(country);
+    for (uintptr_t node = read<uintptr_t>(c + kCountryPending); node; node = read<uintptr_t>(node + 8)) {
+        if (read<uintptr_t>(node) != action) {
+            continue;
+        }
+        uintptr_t prev = read<uintptr_t>(node + 4);
+        uintptr_t next = read<uintptr_t>(node + 8);
+        if (prev) {
+            *reinterpret_cast<uintptr_t*>(prev + 8) = next;
+        } else {
+            *reinterpret_cast<uintptr_t*>(c + kCountryPending) = next;
+        }
+        if (next) {
+            *reinterpret_cast<uintptr_t*>(next + 4) = prev;
+        } else {
+            *reinterpret_cast<uintptr_t*>(c + kCountryPending + 4) = prev;
+        }
+        *reinterpret_cast<int*>(c + kCountryPending + 8) -= 1;
+        game_delete(reinterpret_cast<void*>(node));
+        using DtorFn = void(__fastcall*)(uintptr_t, void*, int);
+        read<DtorFn>(read<uintptr_t>(action))(action, nullptr, 1);
+        return;
+    }
 }
 
 int64_t money(uintptr_t action) { return read<int64_t>(action + kMoney); }
@@ -1228,6 +1810,37 @@ std::string check_term(uintptr_t action, const Term& term) {
     return term_problem(action, reinterpret_cast<uintptr_t>(g));
 }
 
+bool is_free(uintptr_t cb) { return is_free_cb(cb); }
+
+bool is_dismantling(uintptr_t cb) { return is_dismantling_cb(cb); }
+
+bool costs_infamy_when_forced(uintptr_t cb) { return charges_infamy(cb); }
+
+int forced_cost(const Term& term) {
+    uint8_t g[kWarGoalSize];
+    build_goal(g, term);
+    return dismantle_points(reinterpret_cast<uintptr_t>(g));
+}
+
+int forced_terms_infamy(uintptr_t action) { return forced_term_infamy(action); }
+
+int term_points(uintptr_t action, size_t index) { return term_points_at(action, index, is_forced(action)); }
+
+void add_free_terms(uintptr_t action) {
+    int a = read<int>(action + kActorIndex);
+    int r = read<int>(action + kRecipientIndex);
+    for (uintptr_t cb : g_cbs) {
+        // Only terms that need no choice: no third country, no state to pick.
+        if (!is_free_cb(cb) || !is_dismantling_cb(cb) || cb_unsupported(cb) || cb_needs_country(cb) || cb_needs_province(cb) || !cb_usable(cb, a, r)) {
+            continue;
+        }
+        Term term{cb, a, r, 0, 0};
+        if (check_term(action, term).empty()) {
+            add_term(action, term);
+        }
+    }
+}
+
 void send(uintptr_t action, uintptr_t gui_owner) {
     using PtrFn = uintptr_t(__fastcall*)(uintptr_t, void*);
     uintptr_t command = read<PtrFn>(read<uintptr_t>(action) + 0x18)(action, nullptr);  // CreateCommand
@@ -1241,6 +1854,435 @@ void send(uintptr_t action, uintptr_t gui_owner) {
 }
 
 }  // namespace treaty
+
+namespace {
+
+// --- Dismantling ---------------------------------------------------------------------------------
+//
+// The script effects `dismantle = TAG` (the scope dismantles TAG) and `dismantled_by = TAG` (TAG dismantles
+// the scope), each with a _gw form (treaty_dismantle_gw% of the points); TAG may be THIS or FROM. The
+// dismantler imposes a forced treaty on the other. Its budget of war-score points depends on the
+// dismantled: the leader of a war against the dismantler, a great power, a secondary power, the rest.
+// Points past it cost the dismantler infamy (overflow_infamy). The turn waits while the two are at war
+// (in a CB's on_po_accepted the peace has not ended the war yet) and is taken when a peace ends it, else
+// at once. A human dismantler gets it as a pending action of its own, shown as the treaty editor
+// (treaty_ui::show_forced), one at a time; what it sends is accepted at once. An AI dismantler picks its
+// terms here (effects and peaces run on every machine, and the picking reads synced state only).
+//
+// The effect: the factory every effect block uses for its children (effect slot 4) builds a
+// release_vassal effect for our tokens (its parse reads TAG / THIS / FROM), then gives it our vtable, a
+// copy of CReleaseVassalEffect's with Execute and the tooltip replaced. docs/re/systems/effects.md.
+
+struct Dismantle {
+    int winner;
+    int loser;
+    int budget;
+};
+
+std::vector<Dismantle> g_dismantles;  // turns waiting for the peace
+uintptr_t g_effect_factory_trampoline = 0;
+uintptr_t g_peace_execute = 0;
+uintptr_t g_effect_vtable_storage[kDismantleEffects][kEffectSlots + 1];  // per effect: [0] = RTTI locator, then the slots
+
+bool is_great_power(int country) { return read<uint8_t>(game::country(country) + kCountryGreatPower) != 0; }
+
+// is_secondary_power: civilized, not a great power, ranked up to the define.
+bool is_secondary_power(int country) {
+    uintptr_t c = game::country(country);
+    uintptr_t defines = read<uintptr_t>(read<uintptr_t>(hooks::exe_va(kEconomyDefines)) + 0x40);
+    return read<uint8_t>(c + kCountryCivilized) && !read<uint8_t>(c + kCountryGreatPower) &&
+           read<int>(c + kCountryRank) <= read<int>(defines + 0x50) / 1000;
+}
+
+// The leader of either side of the war between the two (the first of the side).
+bool leads_war_against(int loser, int winner) {
+    uintptr_t war = read<uintptr_t>(relation(winner, loser) + kRelationWar);
+    if (!war) {
+        return false;
+    }
+    for (uint32_t side : {kWarAttackers, kWarDefenders}) {
+        uintptr_t first = read<uintptr_t>(war + side);
+        if (first != read<uintptr_t>(war + side + 4) && read<int>(first + 4) == loser) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int dismantle_budget(int winner, int loser, bool gw) {
+    const Config& k = g_config;
+    int points = leads_war_against(loser, winner) ? k.treaty_dismantle_leader
+                 : is_great_power(loser)          ? k.treaty_dismantle_gp
+                 : is_secondary_power(loser)      ? k.treaty_dismantle_secondary
+                                                  : k.treaty_dismantle_other;
+    return gw ? points * k.treaty_dismantle_gw / 100 : points;
+}
+
+void delete_treaty(uintptr_t action) {
+    using DtorFn = void(__fastcall*)(uintptr_t, void*, int);
+    read<DtorFn>(read<uintptr_t>(action))(action, nullptr, 1);
+}
+
+// The states a term moves from the loser (po_demand_state, po_transfer_provinces).
+std::vector<uintptr_t> states_moved(const treaty::Term& term) {
+    if (!has_peace_option(term.cb, kPoDemandState) && !has_peace_option(term.cb, kPoTransferProvinces)) {
+        return {};
+    }
+    if (!read<uint8_t>(term.cb + kCbAllAllowedStates)) {
+        uintptr_t state = term.province ? read<uintptr_t>(game::province(term.province) + kProvinceState) : 0;
+        return state ? std::vector<uintptr_t>{state} : std::vector<uintptr_t>{};
+    }
+    uint8_t g[kWarGoalSize];
+    build_goal(g, term);
+    return target_states(reinterpret_cast<uintptr_t>(g));
+}
+
+bool is_colonial_state(uintptr_t state) { return read<int>(state + kStateColonyStatus) > 0; }
+
+// The loser's states that are not colonial: its homeland, of which an AI dismantler takes a share only.
+int homeland_states(int country) {
+    int n = 0;
+    for (uintptr_t node = read<uintptr_t>(game::country(country) + kCountryStates); node; node = read<uintptr_t>(node + 8)) {
+        uintptr_t state = read<uintptr_t>(node);
+        n += state && !is_colonial_state(state) ? 1 : 0;
+    }
+    return n;
+}
+
+// Percent of a CB's value to an AI dismantler: its `ai_dismantle_weight` (default 100).
+int ai_weight(uintptr_t cb) {
+    auto it = g_ai_weight_percent.find(cb);
+    return it == g_ai_weight_percent.end() ? 100 : it->second;
+}
+
+struct Candidate {
+    treaty::Term term;
+    int cost;
+    int64_t value;  // x100: its war score, more for land with the winner's cores, x the CB's AI weight
+};
+
+// Every term the winner could impose on the loser now (as the editor offers them), with its value.
+std::vector<Candidate> dismantle_candidates(uintptr_t action, int winner, int loser) {
+    std::vector<Candidate> out;
+    int count = read<int>(read<uintptr_t>(hooks::exe_va(game::kCountryManager)));
+    uintptr_t giver = game::country(loser);
+    for (uintptr_t cb : g_cbs) {
+        // free terms are in already; the AI takes no land that costs it infamy, nor a CB weighed 0
+        if (!is_dismantling_cb(cb) || is_free_cb(cb) || charges_infamy(cb) || ai_weight(cb) <= 0 ||
+            treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, winner, loser)) {
+            continue;
+        }
+        std::vector<int> thirds{0};
+        if (treaty::cb_needs_country(cb)) {
+            thirds.clear();
+            for (int c = 1; c < count; ++c) {
+                if (c != winner && c != loser && treaty::country_allowed(cb, winner, loser, c)) {
+                    thirds.push_back(c);
+                }
+            }
+        }
+        std::vector<uint32_t> places{0};
+        if (treaty::cb_needs_province(cb)) {
+            places.clear();
+            bool per_state = !treaty_ui::takes_one_province(cb);
+            std::vector<uintptr_t> listed;
+            for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
+                uintptr_t state = read<uintptr_t>(game::province(static_cast<uint32_t>(*p)) + kProvinceState);
+                if (per_state && std::find(listed.begin(), listed.end(), state) != listed.end()) {
+                    continue;
+                }
+                listed.push_back(state);
+                places.push_back(static_cast<uint32_t>(*p));
+            }
+        }
+        for (int third : thirds) {
+            for (uint32_t province : places) {
+                treaty::Term term{cb, winner, loser, province, third};
+                if (!treaty::check_term(action, term).empty()) {
+                    continue;
+                }
+                int cost = treaty::forced_cost(term);  // what it spends of the budget
+                if (treaty::term_cost(term) <= 0) {
+                    continue;  // nothing to weigh it by
+                }
+                int64_t value = static_cast<int64_t>(treaty::term_cost(term)) * 100;  // what it is worth
+                if (!third && is_core_of(province, winner)) {
+                    value = value * g_config.treaty_ai_core_gain / 100;
+                }
+                value = value * ai_weight(cb) / 100;
+                out.push_back({term, cost, value});
+            }
+        }
+    }
+    return out;
+}
+
+// Appends `action` to the country's pending list; the game shows it through slot 13 when the country is
+// the local player (Country_AddPendingAction appends for the local player only).
+void add_pending(int country, uintptr_t action) {
+    uintptr_t c = game::country(country);
+    uintptr_t f = hooks::exe_va(kAddPendingAction);
+    __asm {
+        push esi
+        push edi
+        mov esi, c
+        mov edi, action
+        call f
+        pop edi
+        pop esi
+    }
+}
+
+// An AI winner's forced treaty, as a peace treaty would read: the most valuable terms per point first
+// (the CBs' ai_dismantle_weight puts its own and its allies' cores before colonies and puppets, those
+// before new countries), within the budget (plus treaty_dismantle_ai_overspend). It takes at most
+// treaty_dismantle_ai_max_states% of the loser's homeland (colonies apart), always leaves it one state,
+// and creates at most treaty_dismantle_ai_max_new countries. Applied at once; a human loser is shown the
+// terms (a notice in its pending list, on its machine).
+void impose_by_ai(int winner, int loser, int budget) {
+    const Config& k = g_config;
+    uintptr_t action = treaty::create(winner, loser);
+    if (!action) {
+        return;
+    }
+    treaty::set_budget(action, budget);
+    treaty::add_free_terms(action);
+    std::vector<Candidate> candidates = dismantle_candidates(action, winner, loser);
+    std::stable_sort(candidates.begin(), candidates.end(), [](const Candidate& x, const Candidate& y) {
+        int64_t xc = std::max(x.cost, 1), yc = std::max(y.cost, 1);
+        int64_t lhs = x.value * yc, rhs = y.value * xc;  // value per point, then the bigger term
+        return lhs != rhs ? lhs > rhs : x.cost > y.cost;
+    });
+    int limit = budget + (k.treaty_dismantle_ai_overspend > 0 ? k.treaty_dismantle_ai_overspend : 0);
+    int spent = treaty::points(action);
+    int states_left = read<int>(game::country(loser) + kCountryStateCount) - 1;
+    int homeland_left = homeland_states(loser) * std::max(k.treaty_dismantle_ai_max_states, 0) / 100;
+    std::vector<int> new_countries;
+    for (const Candidate& c : candidates) {
+        if (spent + c.cost > limit || !treaty::check_term(action, c.term).empty()) {
+            continue;
+        }
+        std::vector<uintptr_t> moved = states_moved(c.term);
+        int homeland = static_cast<int>(std::count_if(moved.begin(), moved.end(), [](uintptr_t s) { return !is_colonial_state(s); }));
+        if (static_cast<int>(moved.size()) > states_left || homeland > homeland_left) {
+            continue;
+        }
+        int third = c.term.third;
+        bool is_new = third && !exists(third) && std::find(new_countries.begin(), new_countries.end(), third) == new_countries.end();
+        if (is_new && static_cast<int>(new_countries.size()) >= k.treaty_dismantle_ai_max_new) {
+            continue;
+        }
+        treaty::add_term(action, c.term);
+        spent = treaty::points(action);  // with repeat_cost discounts
+        states_left -= static_cast<int>(moved.size());
+        homeland_left -= homeland;
+        if (is_new) {
+            new_countries.push_back(third);
+        }
+    }
+    logf("treaty: AI %d dismantles %d: %u terms, %d of %d points, %u new countries (%u candidates)", winner, loser,
+         static_cast<unsigned>(goal_count(action)), spent, budget, static_cast<unsigned>(new_countries.size()),
+         static_cast<unsigned>(candidates.size()));
+    if (is_human(loser) && read<int>(game::world() + kWorldLocalPlayer) == loser) {
+        uintptr_t notice = slot_clone(action, nullptr);
+        if (notice) {
+            *reinterpret_cast<int*>(notice + kBudget) = kNoticeBudget;
+            add_pending(loser, notice);
+        }
+    }
+    slot_execute(action, nullptr, nullptr);
+    delete_treaty(action);
+}
+
+// A human winner's turn on one loser: a forced treaty in its own pending list, which the game shows to it
+// through slot 13 (on its machine only, as Country_AddPendingAction does for any pending action).
+void invite(int winner, int loser, int budget) {
+    uintptr_t action = treaty::create(winner, loser);
+    if (!action) {
+        return;
+    }
+    treaty::set_budget(action, budget);
+    add_pending(winner, action);
+    logf("treaty: %d may dismantle %d (%d points)", winner, loser, budget);
+}
+
+// Takes every waiting turn whose two countries are at peace, in the order the effects ran.
+void take_dismantles() {
+    std::vector<Dismantle> waiting;
+    std::vector<Dismantle> due;
+    for (const Dismantle& d : g_dismantles) {
+        (read<uintptr_t>(relation(d.winner, d.loser) + kRelationWar) ? waiting : due).push_back(d);
+    }
+    g_dismantles.swap(waiting);
+    int local = read<int>(game::world() + kWorldLocalPlayer);
+    for (const Dismantle& d : due) {
+        if (!exists(d.winner) || !exists(d.loser)) {
+            continue;
+        }
+        if (!is_human(d.winner)) {
+            impose_by_ai(d.winner, d.loser, d.budget);
+        } else if (local == d.winner) {
+            invite(d.winner, d.loser, d.budget);
+        }
+    }
+}
+
+// The effect's target (TAG, THIS or FROM), as CReleaseVassalEffect resolves it (0x0088E620), without its
+// random-vassal case: THIS and FROM are read from the THIS scope (scope+0x24), a country or else the owner
+// of its province.
+int effect_target(uintptr_t effect, uintptr_t scope) {
+    uintptr_t this_scope = read<uintptr_t>(scope + kScopeThis);
+    auto owner = [](uint32_t province) { return province ? read<int>(game::province(province) + kProvinceOwner) : 0; };
+    if (read<uint8_t>(effect + kEffectUsesThis)) {
+        int index = read<int>(this_scope + kScopeCountryIndex);
+        return index ? index : owner(read<uint32_t>(this_scope + kScopeThisProvince));
+    }
+    if (read<uint8_t>(effect + kEffectUsesFrom)) {
+        int index = read<int>(this_scope + kScopeFromIndex);
+        return index ? index : owner(read<uint32_t>(this_scope + kScopeFromProvince));
+    }
+    return read<int>(effect + kEffectTargetIndex);
+}
+
+// Which of the dismantle effects `effect` is, by its vtable.
+const DismantleEffect& effect_kind(uintptr_t effect) {
+    for (size_t i = 0; i < kDismantleEffects; ++i) {
+        if (read<uintptr_t>(effect) == reinterpret_cast<uintptr_t>(&g_effect_vtable_storage[i][1])) {
+            return g_dismantle_effects[i];
+        }
+    }
+    return g_dismantle_effects[0];
+}
+
+// The two countries of the effect: dismantle: the scope dismantles the target; dismantled_by: the reverse.
+void effect_sides(uintptr_t effect, uintptr_t scope, int& winner, int& loser) {
+    int here = read<int>(scope + kScopeCountryIndex);
+    int target = effect_target(effect, scope);
+    bool reversed = effect_kind(effect).reversed;
+    winner = reversed ? target : here;
+    loser = reversed ? here : target;
+}
+
+// Effect slot 11, Execute: thiscall (scope, ?), RET 8.
+void __fastcall dismantle_execute(uintptr_t effect, void*, uintptr_t scope, int) {
+    int winner = 0, loser = 0;
+    effect_sides(effect, scope, winner, loser);
+    if (winner <= 0 || loser <= 0 || winner == loser || !exists(winner) || !exists(loser)) {
+        logf("treaty: %s effect without two countries (%d on %d)", effect_kind(effect).keyword, winner, loser);
+        return;
+    }
+    int budget = dismantle_budget(winner, loser, effect_kind(effect).gw);
+    g_dismantles.push_back({winner, loser, budget});
+    logf("treaty: %d is to dismantle %d (%d points)%s", winner, loser, budget,
+         read<uintptr_t>(relation(winner, loser) + kRelationWar) ? ", after the peace" : "");
+    take_dismantles();
+}
+
+std::once_flag g_effect_texts_once;
+std::map<std::string, std::string> g_effect_texts;  // the tags' names and SE_DISMANTLE_EFFECT
+
+const std::map<std::string, std::string>& effect_texts() {
+    std::call_once(g_effect_texts_once, [] {
+        std::vector<std::string> keys{"SE_DISMANTLE_EFFECT"};
+        int count = read<int>(read<uintptr_t>(hooks::exe_va(game::kCountryManager)));
+        for (int c = 1; c < count; ++c) {
+            uint32_t tag = read<uint32_t>(game::country(c) + kCountryTag);
+            keys.emplace_back(reinterpret_cast<const char*>(&tag), 3);
+        }
+        g_effect_texts = game::read_localisation(keys);
+    });
+    return g_effect_texts;
+}
+
+std::string effect_text(const std::string& key) {
+    auto it = effect_texts().find(key);
+    return it == effect_texts().end() ? key : it->second;
+}
+
+std::string tag_name(int index) {
+    if (index <= 0) {
+        return "?";
+    }
+    uint32_t tag = read<uint32_t>(game::country(index) + kCountryTag);
+    return effect_text(std::string(reinterpret_cast<const char*>(&tag), 3));
+}
+
+// Effect slot 9, the tooltip: thiscall (std::string* out, scope, std::string by value, int), RET 0x28.
+// `out` is uninitialised (the result), and the callee destroys the string it got by value.
+uintptr_t __fastcall dismantle_tooltip(uintptr_t effect, void*, uintptr_t out, uintptr_t scope, GameString by_value, int) {
+    int winner = 0, loser = 0;
+    effect_sides(effect, scope, winner, loser);
+    int budget = winner > 0 && loser > 0 && winner != loser ? dismantle_budget(winner, loser, effect_kind(effect).gw) : 0;
+    std::string text = effect_text("SE_DISMANTLE_EFFECT");
+    text = replace(replace(replace(text, "$WINNER$", tag_name(winner)), "$COUNTRY$", tag_name(loser)), "$POINTS$",
+                   std::to_string(budget));
+    make_game_string(out, text);
+    if (by_value.capacity > 15) {
+        game_delete(const_cast<char*>(by_value.ptr));
+    }
+    return out;
+}
+
+// Replaces the effect factory (effect slot 4 and its direct calls): thiscall (block, parser, token),
+// RET 8. Our tokens become a release_vassal effect with our vtable.
+uintptr_t __fastcall effect_factory(uintptr_t block, void*, uintptr_t parser, int token) {
+    using FactoryFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, int);
+    auto factory = reinterpret_cast<FactoryFn>(g_effect_factory_trampoline);
+    size_t kind = kDismantleEffects;
+    for (size_t i = 0; i < kDismantleEffects; ++i) {
+        if (g_dismantle_effects[i].token && token == g_dismantle_effects[i].token) {
+            kind = i;
+        }
+    }
+    if (kind == kDismantleEffects) {
+        return factory(block, nullptr, parser, token);
+    }
+    uintptr_t tail_before = read<uintptr_t>(block + kEffectListTail);
+    uintptr_t result = factory(block, nullptr, parser, kTokenReleaseVassal);
+    uintptr_t tail = read<uintptr_t>(block + kEffectListTail);
+    uintptr_t effect = tail && tail != tail_before ? read<uintptr_t>(tail) : 0;
+    if (effect && read<uintptr_t>(effect) == hooks::exe_va(kReleaseVassalEffectVtable)) {
+        *reinterpret_cast<uintptr_t*>(effect) = reinterpret_cast<uintptr_t>(&g_effect_vtable_storage[kind][1]);
+        logf("treaty: %s effect read", g_dismantle_effects[kind].keyword);
+    } else {
+        logf("treaty: a dismantle effect could not be built");
+    }
+    return result;
+}
+
+// Replaces CPeaceAction slot 32: the turns waiting for this peace are taken once it has ended the war.
+void __fastcall peace_execute(uintptr_t self, void*, void* context) {
+    reinterpret_cast<void(__fastcall*)(uintptr_t, void*, void*)>(g_peace_execute)(self, nullptr, context);
+    if (!g_dismantles.empty()) {
+        take_dismantles();
+    }
+}
+
+void install_dismantle() {
+    uintptr_t base = hooks::exe_va(kReleaseVassalEffectVtable);
+    for (auto& storage : g_effect_vtable_storage) {
+        storage[0] = read<uintptr_t>(base - 4);
+        for (uint32_t i = 0; i < kEffectSlots; ++i) {
+            storage[i + 1] = read<uintptr_t>(base + i * 4);
+        }
+        storage[kEffectSlotTooltip + 1] = reinterpret_cast<uintptr_t>(&dismantle_tooltip);
+        storage[kEffectSlotExecute + 1] = reinterpret_cast<uintptr_t>(&dismantle_execute);
+    }
+    uintptr_t factory = hooks::exe_va(kEffectFactory);
+    if (!hooks::expect_bytes(factory, kEffectFactoryEntry, sizeof(kEffectFactoryEntry)) ||
+        !(g_effect_factory_trampoline = hooks::make_trampoline(factory, sizeof(kEffectFactoryEntry))) ||
+        !hooks::jump_hook(factory, kEffectFactoryEntry, sizeof(kEffectFactoryEntry), reinterpret_cast<uintptr_t>(&effect_factory))) {
+        logf("treaty: the effect factory at %08X is not the expected one; no dismantle effect", kEffectFactory);
+        return;
+    }
+    g_peace_execute = hooks::exe_va(kPeaceExecute);
+    if (!hooks::replace_pointer(hooks::exe_va(kPeaceExecuteSlot), g_peace_execute, reinterpret_cast<uintptr_t>(&peace_execute))) {
+        logf("treaty: CPeaceAction's Execute slot could not be replaced; dismantling waits for no peace");
+    }
+    logf("treaty: dismantle, dismantle_gw, dismantled_by, dismantled_by_gw effects on");
+}
+
+}  // namespace
 
 void install_treaty(const Config& config) {
     if (!config.treaty) {
@@ -1285,6 +2327,7 @@ void install_treaty(const Config& config) {
         logf("treaty: the CBManager_Load call could not be redirected; off");
         return;
     }
+    install_dismantle();
     logf("treaty: on (is_treaty_cb in cb_types.txt)");
 }
 

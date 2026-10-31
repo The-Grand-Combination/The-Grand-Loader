@@ -219,7 +219,7 @@ CProvince,0x2B8,infrastructure,i32,C,cp,shown by the infrastructure tooltip
 CCountry,0x1184,stockpile,ptr,I,cp,passed to Building_ComputeExpandCost
 CCountry,0xE70,constructionCostModifier,i32,I,cp,
 CCountry,0x1580,foreignInvestment,ptr,C,cp,ledger
-CCountry,0xAC0,partyRules,u64[],C,cp,"+8*i; build_railway +0xAE8, build_factory_invest +0xB20, pop_build_factory +0xB00, build_railway_invest +0xB38, allow_foreign_investment +0xB60 (mapping I)"
+CCountry,0xAC8,partyRules,u8 per 8 bytes,C,cp,"rule i at +0xAC8+8*i in CRuleDefinition order: build_factory 0, expand 1, open 2, destroy 3, build_railway 4 (+0xAE8), pop_build_factory 7 (+0xB00), build_factory_invest 11 (+0xB20), build_railway_invest 14 (+0xB38), can_invest_in_pop_projects 15 (+0xB40), allow_foreign_investment 19 (+0xB60); table in buildings.md"
 CProvinceManager,0x3C,render,ptr,C,cp,= g_renderDevice
 CProvinceManager,0xC0,stripesTexture,int,C,cp,"texture manager index of map/terrain/stripes.dds, bound as tex7 every frame"
 CProvinceManager,0x1A0,terrainEffect,ID3DXEffect*,C,cp,
@@ -404,3 +404,11 @@ CTreatyAction,0x00,vftable,ptr,C,cp,"Script Extender: copy of CPeaceAction's 38 
 CTreatyAction,0x98,money,i64,C,cp,Script Extender: the actor pays the recipient when > 0 (2^15 fixed point); save / command field se_treaty_money
 CMessageType,0x00,vftable,ptr,C,cp,0x00E0BF74; object 0x3C bytes (MessageTypes_Read)
 Sprite,0xD0,texture,ptr,I,cp,null when the .gfx was parsed after the game's .gfx loop; Sprite_Draw crashes at 0x00A28A6B
+CCountry,0x67C,atWar,u8,C,cp,"recomputed by FUN_00517AF0; AI_ConstructionUpdate builds nothing while set; diplomacy slot 36 tests it (wars.md)"
+CCountry,0x7D8,colonialStates,int,C,cp,"states with CState+0x84 > 0, recounted by Country_Recalculate; < 1 (and not GP) divides CHANCE_BUILD_NAVAL_BASE by 3"
+AiConstructionJob,0x30,countdown,int,I,cp,"Rng_Next() % 17 + 10 on each run of AI_ConstructionUpdate"
+AiConstructionJob,0x68,lastDay,int,C,cp,day of month of the last run (once a day at most)
+AiConstructionJob,0x6C,ruleFlags,u8[9],C,cp,"build/expand/open factory, build_railway, destroy_factory, GP&build_factory_invest, GP&expand_factory_invest, can_invest_in_pop_projects, build_railway_invest"
+AiConstructionJob,0x78,railroadBuilding,CBuilding*,C,cp,first province building of type 2 (cached once)
+AiConstructionJob,0x7C,fortBuilding,CBuilding*,C,cp,first province building of type 4 (cached once): what the fort builder builds
+AiConstructionJob,0x80,navalBaseBuilding,CBuilding*,C,cp,first province building of type 3 (cached once)
