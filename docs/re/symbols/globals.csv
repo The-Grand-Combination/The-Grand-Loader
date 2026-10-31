@@ -126,7 +126,6 @@ va,name,kind,conf,src,note
 0x00E45598,k0_2_f64,const,C,cp,0.2; MapColor_Infrastructure red and gradient
 0x00E456D8,k0_1_f64,const,C,cp,0.1; MapColor_Infrastructure gradient
 0x00E45650,k0_999_f64,const,C,cp,0.999; MapColor_Infrastructure
-
 0x00E2C844,CEvent_vftable_OnToken,vtable,C,cp,"slot 4 of CEvent_vftable, holds Event_OnToken 0x008A6280; hook point for new event body keywords"
 0x00E08BEC,CEU3Button_vftable,vtable,C,cp,RTTI; slot 0xE0 = Button_SetSprite
 0x00E3CE50,GuiButton_vftable,vtable,I,cp,base button vtable (no RTTI name); slot 0xE0 = Button_SetSprite

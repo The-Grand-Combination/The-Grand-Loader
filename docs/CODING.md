@@ -28,8 +28,9 @@ runs. Patching there is deliberate: no game thread can be inside a site we rewri
 - **No CRT or `std` work in static initialisers.** Under `/MT` they run as part of `DllMain` and invert
   the CRT-lock / loader-lock order. Static-storage objects must be trivially constructible and destructible
   (`constexpr` tables, PODs, pointers). ([Barthe](https://blog.barthe.ph/2009/07/30/no-stdlib-in-dllmai/), [PVS V718](https://pvs-studio.com/en/w/v718/), [Google style, static objects](https://google.github.io/styleguide/cppguide.html#Static_and_Global_Variables))
-  *Status:* file-scope `std::string`, `std::vector`, `std::mutex` objects exist in some features. Prefer
-  lazily-built state (a function-local static built from a hook, or a pointer set at install).
+  *Status:* the script extender keeps all such state behind function-local-static accessors (`g_cbs()`);
+  the patch still has file-scope `std::vector`s in the performance features (trivially destructible
+  contents, no dynamic initialiser). New code uses the accessor form.
 - **`DLL_PROCESS_DETACH` stays empty.** Threads are gone at exit; cleanup there is unsafe. (MS, same page)
 - **The CRT boundary is a wall.** Static CRT means two heaps and two sets of CRT state in the process.
   Memory the game frees comes from the game's `operator new` (`game::allocate`); memory we free comes from ours.
@@ -65,8 +66,8 @@ runs. Patching there is deliberate: no game thread can be inside a site we rewri
 - **A `CALL` site that already points elsewhere is chained, not overwritten.** Keep the previous target and
   call through it; log that the chain happened. Refuse when the bytes are not a `CALL` at all. (PolyHook
   "follows already hooked functions"; no multi-plugin standard exists, so `chain_call_logged` is ours.)
-  *Status:* done in the patch; the script extender has `redirect_call` only. Port `chain_call` before two of its
-  features, or it and the patch, meet at one site.
+  *Status:* `chain_call_logged` exists in both plugins; the treaty feature chains onto `demand_province`'s
+  site with it.
 - **One slot, not one vtable.** Swap a single vtable entry with `replace_pointer` (checked against the
   expected old value). Replace a whole `vptr` only with a cloned table whose every slot is known.
   *Status:* `cb_cull` swaps one `CCasusBelliType` slot; the treaty feature builds a full `CTreatyAction` table

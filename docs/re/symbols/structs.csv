@@ -234,7 +234,6 @@ LocalisationPair,0x1C,owner,ptr,C,cp,start of the value Localize returns
 LocalisationPair,0x20,variants,vector<LocalisationVariant*>,C,cp,+0x20/+0x24/+0x28 (value +4/+8/+0xC)
 LocalisationVariant,0x00,selector,i32[4],C,cp,0x34 bytes; matched by Localisation_SelectVariant
 LocalisationVariant,0x10,text,RichText,C,cp,"parsed segments (RichText_Parse), not a std::string: reading it as one crashed the game (2026-10-23)"
-
 CEvent,0xDC,title,std::string,C,cp,title (0x3E2)
 CEvent,0xF8,newsTitle,std::string,C,cp,news_title (0xA25)
 CEvent,0x114,desc,std::string,C,cp,desc (0x3E3)

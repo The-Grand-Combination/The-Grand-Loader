@@ -16,7 +16,7 @@ cp_tick_ai,0x0050B0EB,E8 C0 1B 35 00,call redirect,shipped,cp,tick_profiler leve
 cp_tick_ai2,0x0050B0F0,E8 1B 1E 35 00,call redirect,shipped,cp,tick_profiler level 1
 cp_tick_519f80,0x0050B0F6,E8 85 EE 00 00,call redirect,shipped,cp,tick_profiler level 1
 cp_tick_events,0x006861E8,E8 E3 1A 22 00,call redirect,shipped,cp,"tick_profiler level 1; (chained with cp_parallel_events_scan)"
-cp_version_label,0x00633826,6A 08 BF 0F 00 00 00 68 4C 76 E0 00,push length + pointer,shipped,cp,launcher/src/version_label.cpp: corner version label (the launcher patches it, not the Performance Patch)
+cp_version_label,0x00633826,6A 08 BF 0F 00 00 00 68 4C 76 E0 00,push length + pointer,shipped,cp,"launcher/src/version_label.cpp: corner version label (the launcher patches it, not the Performance Patch)"
 event_dead_pop_loop,0x008A9428,0F 84 3A 01 00 00,E9 3B 01 00 00 90,proposal,re,removes the dead pop loop in EventWindow_ctor (player window only)
 event_skip_fired_once_countries,0x008A7DDF,8B 53 30 8B 52 18,E9 3C 13 3E 00 90,proposal,re,"jump to cave 0x00C89120 (66 bytes, see re/systems/events.md); no measurable gain reported"
 event_skip_fired_once_provinces,0x008A7FC0,8B 53 30 8B 52 18,E9 AB 11 3E 00 90,proposal,re,jump to cave 0x00C89170

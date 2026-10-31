@@ -348,7 +348,7 @@ va,name,conf,area,src,note
 0x008582D0,AI_BuildRailroad,C,ai,cp,"ECX = country whose states are searched (own or a foreign investment target), EDI = job; own: money > cost; abroad: money > 3x cost"
 0x008580E0,AI_PickRailroadProvince,C,ai,cp,"(job, country); per state the first affordable controlled province passing Building_CanBuildInProvince; best state+0x68 (factory count, I)"
 0x00902790,CCanBuildInProvinceTrigger_Evaluate,C,triggers,cp,"Building_CanBuildInProvince(country, prov, 0, unciv, 0, unciv, unciv); +0x1C limit_to_world_greatest_level; no money or occupation check"
-0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,db+0x34 or db+0x38 (a mod's fourth building type listed after the fort, e.g. a bank)
+0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,"db+0x34 or db+0x38 (a mod's fourth building type listed after the fort, e.g. a bank)"
 0x008CE600,CHasBuildingTrigger_Evaluate,C,triggers,cp,level > 0
 0x00891CA0,CBuildingEffect_Execute,C,effects,cp,Province_SetBuildingLevel(value + pb+0x10); the +0x10 is odd (?)
 0x008948C0,CInfrastructureEffect_Execute,C,effects,cp,same on db+0x34 with pb+0x20
@@ -369,7 +369,6 @@ va,name,conf,area,src,note
 0x009AB9F0,Localisation_SelectVariant,I,ui,cp,matches the four selector ints of each variant when a value has several
 0x00679D30,ButtonObserverGlue_ctor,C,ui,cp,"EAX = glue, ECX = object (stored at +4), stack 9 pairs {handler, this-adjust} -> +0x08..+0x4C; vtable CButtonObserverGlue_CInGameIdler_vftable; 63 callers (CInGameIdler_ctor)"
 0x009C7290,Sound_Get,I,ui,cp,returns the sound object; vt[0x60](std::string* name) plays a UI sound (str_click in the map-mode handlers)
-
 0x008A6280,Event_OnToken,C,events,cp,"CEvent vt slot 4 (+0x10); thiscall (ECX = event; parser, key token), RET 8; one switch over the body keywords, unknown keys -> Parser_UnexpectedToken"
 0x009A2A90,Persistent_ReadBlock,C,engine,cp,"generic vt slot 3 of script objects: loops key = value (FUN_009A1440) until } or EOF, calls vt slot 4 (parser, key token); slot 5 when the block had no error, else logs ""Error: ... in file ... near line""; 68 callers"
 0x009A0F40,Parser_UnexpectedToken,C,engine,cp,"EDI = parser: appends the error ""Unexpected <key text>"" (parser+0x24), sets parser+0x14, then Parser_SkipValue; default branch of the OnToken handlers (73 callers)"
