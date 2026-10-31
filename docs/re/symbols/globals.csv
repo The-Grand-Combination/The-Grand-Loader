@@ -98,7 +98,7 @@ va,name,kind,conf,src,note
 0x00DFB5B4,CSettings_vftable,vtable,C,cp,"7 slots: +0x08 Write(stream), +0x10 ParseToken"
 0x00F0D840,g_chatChannelKey,u32[2],C,cp,"(type, id) of the multiplayer chat channel; ObjectRegistry_FindByTypeAndId gives the channel the chat command delivers to"
 0x012588DC,g_mapView,ptr,C,cp,"map view: +0x20BC CProvinceManager, +0x20D8/+0x20DC colour records (+0 primary, +4 secondary ARGB, +0xC CProvince*), +0x3648 renderer, +0x3A28 dirty"
-0x0125CE80,g_buildingDb,ptr,C,cp,"0x3C bytes: +0x0C all buildings, +0x1C province buildings, +0x2C null, +0x30 naval_base, +0x34 last type 2, +0x38 last type 4 (TGC: bank); systems/buildings.md"
+0x0125CE80,g_buildingDb,ptr,C,cp,"0x3C bytes: +0x0C all buildings, +0x1C province buildings, +0x2C null, +0x30 naval_base, +0x34 last type 2, +0x38 last type 4 (vanilla the fort; a mod's fourth building type listed after it, e.g. a bank); systems/buildings.md"
 0x01258730,g_nullBuilding,object,C,cp,CNullBuilding singleton (vtable 0x00DFDAF0)
 0x012586D6,g_instantConstruction,u8,C,cp,"console toggle; local player only, desyncs multiplayer"
 0x01258A9C,g_constructionIdCounter,u32,C,cp,"incremented by ConstructBuildingCommand_ctor; id = (word DAT_01258A90 + 0x1268, counter)"
@@ -161,7 +161,7 @@ va,name,kind,conf,src,note
 0x00E34114,CDiplomaticActionCommand_vftable,vtable,C,cp,"RTTI; CCommand, type 900"
 0x00E34154,CNullDiplomaticAction_vftable,vtable,C,cp,RTTI
 0x00E341F4,CWarGoalBaseAction_vftable,vtable,C,cp,RTTI
-0x00E34294,CDeclareWarAction_vftable,vtable,C,cp,RTTI; 0x38D
+0x00E34294,CDeclareWarAction_vftable,vtable,C,cp,"RTTI; 0x38D; slot 32 (0x00E34314) CDeclareWarAction_Execute 0x00913510"
 0x00E34334,CAddWarGoalAction_vftable,vtable,C,cp,RTTI; 0x8DD
 0x00E343D4,CMakeCBAction_vftable,vtable,C,cp,RTTI; 0x931; 0x2C bytes; slot 14 entry 0x00E3440C = CMakeCBAction_CreateDialog
 0x00E34474,CPeaceAction_vftable,vtable,C,cp,RTTI; 0x81E; 0x98 bytes
@@ -200,3 +200,39 @@ va,name,kind,conf,src,note
 0x00E338C0,str_OTHER_DECLINE,string,C,cp,_OTHER_DECLINE
 0x00E080CC,str_interfaceMessagetypes,string,C,cp,interface/messagetypes.txt
 0x00E2CE78,CMtthModifier_vftable,vtable,C,cp,"modifier of a CMeanTimeToHappen (0x24 bytes, ctor 0x008AE250, ESI = this): a CAndTrigger (children +8/+0xC) with factor x1000 at +0x20"
+0x00E45660,k_nfPopulationFactor1,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E456C0,k_nfPopulationFactor2,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E45840,k_nfPopulationFactor3,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E456C8,k_aiFrameBudget,f64,C,cp,0.02 s: AI_FrameUpdate pops jobs until the bucket is empty or this long has passed
+0x00E00C74,CConstructStateBuildingCommand_vftable,vtable,C,cp,"type 0x84E, ctor 0x0057C130"
+0x00E284EC,AiConstructionJob_vftable,vtable,C,cp,"RTTI just before it; slot 3 0x00825CF0 calls slot 6, slot 5 0x00826480 countdown tick, slot 6 (+0x18, at 0x00E28504) AI_ConstructionUpdate (se_buildings_ai_slot)"
+0x00E32D18,CCanBuildInProvinceTrigger_vftable,vtable,C,cp,can_build_in_province
+0x00E2B4AC,CReleaseVassalEffect_vftable,vtable,C,cp,"release_vassal: 0x2C bytes, ctor 0x0088DE60; slot 7 parse 0x0088DEA0, 9 tooltip 0x0088E2D0, 11 Execute 0x0088DF10; the Script Extender's dismantle effects are copies of it"
+0x00C8911A,k_codeCavePadding,code,C,cp,".text padding 0x00C8911A..0x00C891FF (zeros, executable): the only free code cave, one slice per patch; the shipped patches use trampolines instead"
+0x00F0E040,g_rng2State,u32,C,cp,"second RNG global (index 0x00F0EA00): the constant 1234, reset at every EconomyManager_PrepareUpdate (0x0068DAE5); used by FUN_009599A0 from the economy update and Pop_MonthlyUpdate, deterministic on every machine"
+0x00F0EA00,g_rng2Index,u32,C,cp,index of the second RNG global 0x00F0E040
+0x013F3034,g_lagWarningDay,u32,C,cp,day stamp of the lag announcement (with 0x013F3038); CClientPingCommand_Execute announces once per host day
+0x013F3038,g_lagWarningDay2,u32,C,cp,second word of the lag day stamp
+0x013F303C,g_lagWarningFlags,u32,C,cp,flags of the lag announcement (CClientPingCommand_Execute)
+0x00C8A310,imp_DispatchMessageA,ptr,C,cp,import slot; called from App_ProcessMessagePumpAndUpdate at 0x009DF308 and App_MainLoop at 0x009DF6A9
+0x00C8A330,imp_select,ptr,C,cp,import slot (winsock select); CALL [select] in enet_socket_wait at 0x00A8B477
+0x00C8A338,imp_WSARecvFrom,ptr,C,cp,import slot (winsock); ENet receive
+0x012586EC,g_lazySingleton_12586EC,ptr,I,cp,lazy singleton created at load (parallel-triggers.md: no race in mid-game)
+0x01258728,g_lazySingleton_1258728,ptr,I,cp,lazy singleton created at load
+0x012587EC,g_lazySingleton_12587EC,ptr,I,cp,lazy singleton created at load
+0x0125880C,g_lazySingleton_125880C,ptr,I,cp,lazy singleton created at load
+0x01258A10,g_nullPop,ptr,C,cp,CNullPop lazy singleton; built by Pop_ctor 0x00954A40
+0x01258A2C,g_lazySingleton_1258A2C,ptr,I,cp,lazy singleton created at load
+0x01258A34,g_lazySingleton_1258A34,ptr,I,cp,lazy singleton created at load
+0x0125EA24,g_sameValueHelper_125EA24,ptr,I,cp,"""store the same value"" helper (if (p == g) g = p); harmless under parallel evaluation"
+0x013F24F4,g_marketScratchBegin,array,C,cp,static scratch buffers 0x013F24F4..0x013F25A8 rewritten per country and per pop by WorldMarketUpdate / Market_UpdateCountryPops (not parallelisable)
+0x013F25A8,g_marketScratchEnd,array,C,cp,end of the WorldMarketUpdate scratch buffers (see 0x013F24F4)
+0x00DF31A4,CCrisisManager_vftable,vtable,C,cp,"crisis manager *(world+0xCF8); +0x08 current CCrisis*, +0x0C date the last crisis ended"
+0x00DF3188,CCrisis_vftable,vtable,C,cp,0xB4 bytes; layout in structs.csv (CCrisis)
+0x00E26CC4,CAllianceAction_vftable,vtable,C,cp,slot 36 CAllianceAction_CanPerform 0x0091DF80
+0x00E2BECC,CNeutralityEffect_vftable,vtable,C,cp,neutrality = yes: only ends alliances and wars; leaves no state behind
+0x00E34514,CCrisisBackDownAction_vftable,vtable,C,cp,"0x9C bytes; slot 36 0x0091CA90, slot 32 CCrisisBackDownAction_Execute 0x0091B1D0 ends the crisis"
+0x00E34654,CCallAllyAction_vftable,vtable,C,cp,"slot 27 0x0091E530 (auto-accept), 32 0x0091E5E0, 36 0x0091EF50"
+0x00F20C38,g_app,ptr,C,cp,CEU3Application*; set by App_CreateWindow; +0xD8 window
+0x013F3688,k_prepassResetValue,u32[2],C,cp,constant pair (DAT_013F3688/DAT_013F368C) FUN_0051FD10 stores into country+0x1514 and country+0x14F4 every day
+0x012587F0,g_goodsSource,ptr,C,cp,"+0xC/+0x10 vector; count = number of goods (FUN_0051FD10, country_prepass)"

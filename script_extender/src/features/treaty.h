@@ -103,8 +103,10 @@ void log_country_conditions(uintptr_t cb, int gains, int gives, int third);
 bool cb_needs_province(uintptr_t cb);
 // The CB cannot be a treaty term at all (po_annex, po_colony).
 bool cb_unsupported(uintptr_t cb);
-// Empty when `term` could be added to `action` now (can_use, allowed_states, ownership), else why not.
+// Empty when `term` could be added to `action` now (can_use, allowed_states, ownership), else why not
+// (localised, for the editor). term_allowed is the same test without a text: what the sim path uses.
 std::string check_term(uintptr_t action, const Term& term);
+bool term_allowed(uintptr_t action, const Term& term);
 
 // Posts the treaty to the recipient through the network session of `gui_owner` (a CEU3Dialog owner).
 void send(uintptr_t action, uintptr_t gui_owner);

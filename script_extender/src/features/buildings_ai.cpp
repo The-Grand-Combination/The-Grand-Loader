@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -29,6 +30,9 @@
 //   posted as the vanilla builders post it (ConstructBuildingCommand, validated on every machine). The
 //   draws come from a generator of our own seeded by the date, the country and the entry: the world's
 //   and the global generators are left alone.
+// - Log: the file's entries when read, the first constructions one by one, and every 30 days per entry
+//   the runs whose chance passed, those with no province, the constructions posted, and what the AI
+//   countries hold (constructions under way, levels built and their change), to see them really build.
 
 namespace se::features {
 
@@ -73,11 +77,18 @@ constexpr uint32_t kCountryProvinces = 0x9D8;  // vector<int> of province ids
 constexpr uint32_t kCountryTreasury = 0xE78;   // i64, 2^15 fixed point
 constexpr uint32_t kProvinceId = 0x58;
 constexpr uint32_t kProvinceOwner = 0x12C;
+constexpr uint32_t kProvinceConstructions = 0xD8;  // list head; nodes {entry, ?, next}
+constexpr uint32_t kProvinceBuildings = 0x118;     // vector<CProvinceBuilding*> by CBuilding+0x134
+constexpr uint32_t kProvinceBuildingLevel = 0x20;  // x1000
+constexpr uint32_t kBuildingProvinceIndex = 0x134;
+constexpr uint32_t kConstructionIsBuilding = 0x30;  // entry vt slot 12: a CBuildingConstruction
+constexpr uint32_t kConstructionBuilding = 0x58;
 constexpr uint32_t kWorldDate = 0xB0C;
 constexpr uint32_t kWorldHumans = 0xAEC;  // vector<int>: 0 = AI
 
 constexpr const wchar_t* kFile = L"common\\buildings_ai.txt";
-constexpr int kLoggedBuilds = 30;  // constructions logged one by one; then every 100th
+constexpr int kLoggedBuilds = 50;   // constructions logged one by one; then the monthly summary only
+constexpr int kSummaryDays = 30;   // the summary of every entry, this often
 
 struct Entry {
     std::string name;
@@ -85,12 +96,20 @@ struct Entry {
     int chance = 0;     // x1000, per run of the job
     int money = 2000;   // x1000: the treasury must cover this many times the cost
     uintptr_t weight = 0;  // CMeanTimeToHappen in game memory; 0 = every province weighs 1
+    // since the last summary
+    int won = 0;       // runs where the chance passed
+    int no_place = 0;  // ... and no province qualified
+    int posted = 0;    // constructions posted
+    int64_t last_levels = -1;  // levels in AI provinces at the last summary
 };
 
 uintptr_t g_original = 0;
-std::vector<Entry> g_entries;
+// The entries of buildings_ai.txt. A function-local static: built from the load hook, never under the
+// loader lock (docs/CODING.md, 1).
+std::vector<Entry>& g_entries() { static std::vector<Entry> v; return v; }
 bool g_loaded = false;
 int g_builds = 0;
+int g_summary_period = -1;  // date / kSummaryDays of the last summary
 
 int to_thousandths(const std::string& text) {
     return static_cast<int>(std::lround(std::strtod(text.c_str(), nullptr) * 1000.0));
@@ -166,7 +185,7 @@ public:
             logf("buildings_ai: %s has no chance > 0, ignored", key.c_str());
             return;
         }
-        g_entries.push_back(entry);
+        g_entries().push_back(entry);
     }
 };
 
@@ -186,14 +205,14 @@ void load() {
     FileBlock block;
     block.read(parser);
     game::delete_parser_block(parser);
-    for (const Entry& e : g_entries) {
+    for (const Entry& e : g_entries()) {
         int modifiers = e.weight ? static_cast<int>((read<uintptr_t>(e.weight + kMtthModifiers + 4) -
                                                      read<uintptr_t>(e.weight + kMtthModifiers)) / 4)
                                  : 0;
         logf("buildings_ai: %s: chance %d/1000, money x%d/1000, %d weight modifiers", e.name.c_str(),
              e.chance, e.money, modifiers);
     }
-    logf("buildings_ai: %u buildings from %s", static_cast<unsigned>(g_entries.size()), path.c_str());
+    logf("buildings_ai: %u buildings from %s", static_cast<unsigned>(g_entries().size()), path.c_str());
 }
 
 // --- Choosing --------------------------------------------------------------------------------------
@@ -260,7 +279,7 @@ void run_entries(uintptr_t job) {
     if (!g_loaded) {
         load();
     }
-    if (g_entries.empty()) {
+    if (g_entries().empty()) {
         return;
     }
     int index = read<int>(job + kJobCountry);
@@ -271,12 +290,13 @@ void run_entries(uintptr_t job) {
     uint32_t tag = read<uint32_t>(country + kCountryTag);
     uint32_t date = read<uint32_t>(game::world() + kWorldDate);
     int64_t spent = 0;  // posted this run: the commands pay only when they execute
-    for (size_t e = 0; e < g_entries.size(); ++e) {
-        const Entry& entry = g_entries[e];
+    for (size_t e = 0; e < g_entries().size(); ++e) {
+        Entry& entry = g_entries()[e];
         Rng rng{(static_cast<uint64_t>(date) << 32) ^ (static_cast<uint64_t>(index) << 12) ^ e};
         if (static_cast<int>(rng.next() % 1000) >= entry.chance) {
             continue;
         }
+        ++entry.won;
         int64_t treasury = read<int64_t>(country + kCountryTreasury) - spent;
         std::vector<Candidate> candidates;
         int64_t total = 0;
@@ -299,6 +319,7 @@ void run_entries(uintptr_t job) {
             total += weight;
         }
         if (candidates.empty()) {
+            ++entry.no_place;
             continue;
         }
         int64_t pick = static_cast<int64_t>(rng.next() % static_cast<uint64_t>(total));
@@ -312,14 +333,78 @@ void run_entries(uintptr_t job) {
         }
         game::post_construction(entry.building, chosen->province, tag, index);
         spent += chosen->cost;
-        ++g_builds;
-        if (g_builds <= kLoggedBuilds) {
-            logf("buildings_ai: %s builds %s in province %u (%u candidates)", tag_text(tag).c_str(),
-                 entry.name.c_str(), read<uint32_t>(chosen->province + kProvinceId),
-                 static_cast<unsigned>(candidates.size()));
-        } else if (g_builds % 100 == 0) {
-            logf("buildings_ai: %d constructions posted", g_builds);
+        ++entry.posted;
+        if (++g_builds <= kLoggedBuilds) {
+            logf("buildings_ai: %s builds %s in province %u (%u candidates, weight %lld of %lld)%s",
+                 tag_text(tag).c_str(), entry.name.c_str(), read<uint32_t>(chosen->province + kProvinceId),
+                 static_cast<unsigned>(candidates.size()), chosen->weight, total,
+                 g_builds == kLoggedBuilds ? "; further ones only in the monthly summary" : "");
         }
+    }
+}
+
+// What the AI countries have of `building` now: levels built (x1) and constructions under way.
+void count_in_ai_provinces(uintptr_t building, int64_t& levels, int& constructions) {
+    levels = 0;
+    constructions = 0;
+    int slot = read<int>(building + kBuildingProvinceIndex);
+    int count = read<int>(read<uintptr_t>(hooks::exe_va(game::kCountryManager)));
+    using IsBuildingFn = bool(__fastcall*)(uintptr_t, void*);
+    for (int index = 1; index < count; ++index) {
+        uintptr_t country = game::country(index);
+        if (!country || is_human(index)) {
+            continue;
+        }
+        game::Range ids = game::vector_at(country + kCountryProvinces);
+        for (uintptr_t* id = ids.begin; id < ids.end; ++id) {
+            uintptr_t province = game::province(static_cast<uint32_t>(*id));
+            if (!province || read<int>(province + kProvinceOwner) != index) {
+                continue;
+            }
+            game::Range buildings = game::vector_at(province + kProvinceBuildings);
+            if (slot >= 0 && static_cast<size_t>(slot) < buildings.size() && buildings.begin[slot]) {
+                levels += read<int>(buildings.begin[slot] + kProvinceBuildingLevel) / 1000;
+            }
+            for (uintptr_t node = read<uintptr_t>(province + kProvinceConstructions); node;
+                 node = read<uintptr_t>(node + 8)) {
+                uintptr_t entry = read<uintptr_t>(node);
+                if (!entry) {
+                    continue;
+                }
+                auto is_building = read<IsBuildingFn>(read<uintptr_t>(entry) + kConstructionIsBuilding);
+                if (is_building(entry, nullptr) &&
+                    read<uintptr_t>(entry + kConstructionBuilding) == building) {
+                    ++constructions;
+                }
+            }
+        }
+    }
+}
+
+// Every kSummaryDays: per entry, what happened since the last summary and what the AI countries hold.
+void log_summary() {
+    int period = static_cast<int>(read<uint32_t>(game::world() + kWorldDate) / 24 / kSummaryDays);
+    if (period == g_summary_period) {
+        return;
+    }
+    bool first = g_summary_period < 0;
+    g_summary_period = period;
+    if (first) {
+        return;  // the counters start now
+    }
+    for (Entry& e : g_entries()) {
+        int64_t levels;
+        int constructions;
+        count_in_ai_provinces(e.building, levels, constructions);
+        char change[32] = "";
+        if (e.last_levels >= 0) {
+            std::snprintf(change, sizeof(change), " (%+lld)", levels - e.last_levels);
+        }
+        logf("buildings_ai: %s, last %d days: chance passed %d times, no province %d, posted %d; AI "
+             "countries now: %d under construction, %lld levels built%s",
+             e.name.c_str(), kSummaryDays, e.won, e.no_place, e.posted, constructions, levels, change);
+        e.last_levels = levels;
+        e.won = e.no_place = e.posted = 0;
     }
 }
 
@@ -353,6 +438,9 @@ void __fastcall construction_update(uintptr_t job, void* edx) {
     reinterpret_cast<void(__fastcall*)(uintptr_t, void*)>(g_original)(job, edx);
     if (read<int>(job + kJobLastDay) != day) {  // the body ran (once a day at most)
         run_entries(job);
+        if (!g_entries().empty()) {
+            log_summary();
+        }
     }
 }
 

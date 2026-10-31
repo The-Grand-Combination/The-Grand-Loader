@@ -636,6 +636,26 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   2. TGC saves crashed at the first peace in `War_Archive` (`0x00467F4E`, reading `goal->cb`): the merge used `g_searchPaths` and so vanilla `cb_types.txt`, so TGC's CB list was replaced. Now the source is found from the `-mod=` folders (`game::game_file`).
 - **Open:** listed in treaties.md (in-memory CB block, terms in the answer messages, untested `install_government` and the release of dead countries, saves with a pending treaty without the plugin).
 
+## 2026-10-25 — Wars and crises: how a war starts, who joins it, how a crisis is made
+
+- **Question:** where are the gates that let a country into a war, and how is a crisis created and filled? Asked for a feature that would keep neutral countries out of wars.
+- **Answer:** one test decides a declaration, `War_CanDeclare` `0x0093AA90` (vassal/substate target, sphere, alliance, crisis, military access, truce, existing war, usable CB); the `war` effect and the console skip it and call `CDeclareWarAction_Execute` `0x00913510` directly. Every way into a war ends in `War_AddAttacker` `0x00934280` / `War_AddDefender` `0x00935390` (18 direct calls, listed). A crisis is created in `CrisisManager_DayTick` `0x0042A130` (flashpoint, else colonial) and countries enter it through `Crisis_CanJoinInterest` `0x00425B40` and `Crisis_CanBackSide` `0x00425E20`; `CCrisis` layout (0xB4 bytes) in structs.csv. Puppets are protected by the vassal rules, not by a flag: a mod can keep a country neutral by making it the puppet of a dummy tag. → [systems/wars.md](systems/wars.md)
+- **Open:** `world+0xD11`; `country+0xBB8` in `Crisis_CanBackSide`; the callers `FUN_004E7290` / `FUN_00933560`; a crisis loaded from a save; who writes the tension `state+0x280`.
+
+## 2026-10-25 — Neutrality feature: built to compile, then left out
+
+- **Question:** keep countries with `has_country_modifier = neutrality` out of wars by hooking the engine.
+- **Tried:** the hook set in wars.md ("Hook points for a neutrality feature"): both calls of `War_CanDeclare` and of the reason, `CDeclareWarAction_Execute` and its two direct callers, all 18 `War_AddAttacker` / `War_AddDefender` calls, the CanPerform / reason slots of alliance, justify war, call ally and the crisis actions, the crisis creation sites `0x0042A245` / `0x0042ABEE`, and entry detours on the two crisis tests. Built and compiled on 2026-10-25, not shipped.
+- **Result:** left out. The vassal rule gives a mod the same without code (a puppet of a dummy tag cannot be declared on), and the hook set is wide (about 30 sites) for a result the script already has. No row in patch_sites.csv.
+- **Open:** none; the hook points stay documented in wars.md in case a mod needs more than the vassal rule.
+
+## 2026-10-25 — Script effects: the factory, the effect object, and the `dismantle` effect
+
+- **Question:** how does the engine build and run an effect block, so that a plugin can add a keyword of its own (a forced treaty after a peace)?
+- **Answer:** one factory, `EffectBlock_AddChild` `0x00876B30` (slot 4 of every compound effect, plus four direct calls), allocates one object per keyword, appends it to the block's list (`+0x08/+0x0C/+0x10`) and passes the parser value to the child's slot 7. The vtable has 14 slots: 7 parse, 9 tooltip, 11 Execute `(scope, ?)`. `CReleaseVassalEffect` (`0x00E2B4AC`, 0x2C bytes) is the template that takes `TAG` / `THIS` / `FROM`; `CEventScope` fields for THIS and FROM. Effects run on every machine and are never saved. → [systems/effects.md](systems/effects.md)
+- **Built:** Script Extender effects `dismantle = TAG`, `dismantled_by = TAG`, `dismantle_gw`, `dismantled_by_gw` (treaty.cpp "Dismantling"): an entry hook on the factory (`se_treaty_effect_factory`) builds a `release_vassal` template for the new tokens and swaps in a copied vtable with the plugin's tooltip and Execute; a turn whose countries are at war waits until `CPeaceAction` slot 32 (`se_treaty_peace_execute`) returns, then becomes a forced `CTreatyAction` with a budget by the loser's rank (`treaty_dismantle_*` keys), imposed by the human dismantler in a forced editor or picked by the AI dismantler. → [systems/treaties.md](systems/treaties.md) ("The `dismantle` / `dismantle_gw` effects"); the AI dismantler and partitions continue in the 2026-10-30/31 entry below.
+- **Open:** the role of effect slot 8 (`0x0087A6C0`); the second argument of Execute; turns waiting for a peace are not saved.
+
 ## 2026-10-26 — Crash at `0x008CDC09`: `has_country_modifier` triggers in pop types
 
 - **Question:** TGC crashed on the game thread ~10 s into a game: access violation reading 0 at `0x008CDC09`, ECX = 0.
@@ -646,8 +666,8 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 ## 2026-10-30/31 — Partitions and the AI dismantler
 
 - **Question:** can a dismantle break a loser into countries that have no cores on its land (Brazil's states), and can the AI dismantle?
-- **Built (partitions):** treaty CB `treaty_partition` (`po_partition = yes`) and TGC's `common/se_partitions.txt` (about 588 tags), generated by `script_extender/tools/partitions.pl` from the mod's cores, its `add_core` and its limited `secede_province`. At execution the listed provinces become cores of the third country (`Province_AddCore` `0x004B61A0`). → [systems/treaties.md](systems/treaties.md) ("Partitions")
-- **Built (AI):** the engine already reaches a dismantle by itself (`AI_ManagePeace` → `AI_PickWarGoal` `0x00845AD0`, value from `AI_WarGoalValue` `0x00846C40`, threshold 20000, cost ≤ `ONE_SIDE_MAX_WARSCORE`); in TGC that is mostly Great Wars. The plugin's AI dismantler now weighs terms by a CB keyword `ai_dismantle_weight` and caps homeland states (`treaty_dismantle_ai_max_states`, 35 %) and new countries (`treaty_dismantle_ai_max_new`, 3). A human loser gets a read-only notice (budget −1). Built, not deployed, not tested in game.
+- **Built (partitions):** treaty CB `treaty_partition` (`po_partition = yes`) and a mod's `common/se_partitions.txt`, generated by `script_extender/tools/partitions.pl` from the mod's cores, its `add_core` and its limited `secede_province`. At execution the listed provinces become cores of the third country (`Province_AddCore` `0x004B61A0`). → [systems/treaties.md](systems/treaties.md) ("Partitions")
+- **Built (AI):** the engine already reaches a dismantle by itself (`AI_ManagePeace` → `AI_PickWarGoal` `0x00845AD0`, value from `AI_WarGoalValue` `0x00846C40`, threshold 20000, cost ≤ `ONE_SIDE_MAX_WARSCORE`); with a mod's dismantle CB that is mostly Great Wars. The plugin's AI dismantler now weighs terms by a CB keyword `ai_dismantle_weight` and caps homeland states (`treaty_dismantle_ai_max_states`, 35 %) and new countries (`treaty_dismantle_ai_max_new`, 3). A human loser gets a read-only notice (budget −1). Built, not deployed, not tested in game.
 - **Open:** in-game test of the AI dismantler and the notice; whether a long-pending notice expires; the notice in multiplayer (local only).
 
 ## 2026-10-31 — How the AI chooses province buildings

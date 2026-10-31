@@ -137,7 +137,9 @@ __declspec(naked) void expand_click_thunk() {
 
 using LocalizeFn = void*(__stdcall*)(void* out, const GameString* key);
 
-std::string g_tooltip;  // the composed text; outlives the Localize call it is passed to
+// The composed text; outlives the Localize call it is passed to. A function-local static: first built
+// from the tooltip hook, never under the loader lock (docs/CODING.md, 1).
+std::string& g_tooltip() { static std::string v; return v; }
 bool g_tooltip_read = false;
 
 // Replaces the expand tooltip's Localize call: the build-all line gets the Ctrl+Shift line below it.
@@ -152,13 +154,13 @@ void* __stdcall localize_tooltip(void* out, const GameString* key) {
         auto all = texts.find(kBuildAllKey);
         auto country = texts.find(kBuildCountryKey);
         if (all != texts.end() && country != texts.end()) {
-            g_tooltip = all->second + "\n" + country->second;
+            g_tooltip() = all->second + "\n" + country->second;
         }
     }
-    if (g_tooltip.empty()) {
+    if (g_tooltip().empty()) {
         return original(out, key);  // a text is missing: the vanilla line alone
     }
-    GameString text(g_tooltip);
+    GameString text(g_tooltip());
     return original(out, &text);
 }
 

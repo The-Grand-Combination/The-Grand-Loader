@@ -129,11 +129,12 @@ void install_net_log(const Config& config) {
         logf("network_log: enet_host_service not recognised, off");
         return;
     }
-    g_original = reinterpret_cast<ServiceFn>(trampoline);
     if (!hooks::jump_hook(service, kPrologue, sizeof(kPrologue), reinterpret_cast<uintptr_t>(&service_hook))) {
-        logf("network_log: enet_host_service not patched, off");
+        VirtualFree(reinterpret_cast<void*>(trampoline), 0, MEM_RELEASE);  // make_trampoline's page, unused
+        logf("network_log: enet_host_service %08X not patched, off", hooks::listing_va(kServiceRva));
         return;
     }
+    g_original = reinterpret_cast<ServiceFn>(trampoline);
     logf("network_log: active, connections, disconnections and silences over %lu ms are logged", kSilenceMs);
 }
 

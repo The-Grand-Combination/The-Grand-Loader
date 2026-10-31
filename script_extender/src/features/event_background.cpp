@@ -69,9 +69,12 @@ constexpr const char* kBackgroundChild = "Background";
 // backgrounds of eventwindow.gfx differ only in the texture.
 constexpr const char* kTemplates[] = {"GFX_event_country_bg", "GFX_event_no_image"};
 
-std::mutex g_mutex;                              // events may be read off the main thread
-std::map<uintptr_t, std::string> g_backgrounds;  // event -> file name without folder and extension
-std::set<std::string> g_reported;                // missing files already logged
+// Function-local statics: first used from the event-reading hook, never under the loader lock
+// (docs/CODING.md, 1). The mutex too: events may be read off the main thread.
+std::mutex& g_mutex() { static std::mutex v; return v; }
+using Backgrounds = std::map<uintptr_t, std::string>;
+Backgrounds& g_backgrounds() { static Backgrounds v; return v; }  // event -> file name without folder and extension
+std::set<std::string>& g_reported() { static std::set<std::string> v; return v; }  // missing files already logged
 uintptr_t g_window_ctor = 0;                     // EventWindow_ctor, resolved
 uintptr_t g_ctor_return = 0;                     // caller of the thunk; the constructor is not reentrant
 
@@ -83,8 +86,8 @@ void __fastcall on_token(uintptr_t event, void*, uintptr_t parser, int token) {
         return;
     }
     const char* value = reinterpret_cast<const char*>(parser + kParserValueText);
-    std::lock_guard<std::mutex> lock(g_mutex);
-    g_backgrounds[event] = value;
+    std::lock_guard<std::mutex> lock(g_mutex());
+    g_backgrounds()[event] = value;
 }
 
 template <class T>
@@ -191,9 +194,9 @@ void __stdcall after_window(uintptr_t event_window) {
     uintptr_t event = read<uintptr_t>(event_window + kEventWindowEvent);
     std::string name;
     {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        auto it = g_backgrounds.find(event);
-        if (it == g_backgrounds.end()) {
+        std::lock_guard<std::mutex> lock(g_mutex());
+        auto it = g_backgrounds().find(event);
+        if (it == g_backgrounds().end()) {
             return;
         }
         name = it->second;
@@ -204,8 +207,8 @@ void __stdcall after_window(uintptr_t event_window) {
     }
     std::string path = find_file(name);
     if (path.empty()) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_reported.insert(name).second) {
+        std::lock_guard<std::mutex> lock(g_mutex());
+        if (g_reported().insert(name).second) {
             logf("event_background: no gfx%s%s.dds or .tga (mod or game)", kBackgroundFolder, name.c_str());
         }
         return;

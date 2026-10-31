@@ -11,6 +11,7 @@
 #include "game/triggers.h"
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 #include "parallel/worker_pool.h"
 #include "util/clock.h"
@@ -245,11 +246,17 @@ void __cdecl scan_begin() {
         int32_t count = static_cast<int32_t>(read32(manager));
         for (int32_t i = 1; i < count; i++) {
             uintptr_t c = read32(countries + i * 4);
+            if (!c) {
+                continue;  // empty slot of the country array (state_checksum skips them the same way)
+            }
             uint32_t index = read32(c + kCountryIndex);
             if (index == 0) {
                 continue;
             }
             uintptr_t owner = read32(countries + index * 4);
+            if (!owner) {
+                continue;
+            }
             if (static_cast<int32_t>((read32(owner + kCountryProvincesEnd) - read32(owner + kCountryProvincesBegin)) &
                                      0xFFFFFFFCu) <= 0) {
                 continue;
@@ -269,8 +276,8 @@ void __cdecl scan_begin() {
         uintptr_t provinces = read32(world + kWorldProvinces);
         for (int32_t p = 0; p < count; p++) {
             uintptr_t province = read32(provinces + p * 4);
-            if (read32(province + kProvinceOwner) == 0) {
-                continue;
+            if (!province || read32(province + kProvinceOwner) == 0) {
+                continue;  // null slot (as state_checksum's hashes skip them) or unowned
             }
             uintptr_t begin = read32(province + kProvinceEvents), end = read32(province + kProvinceEvents + 4);
             for (uintptr_t it = begin; it < end; it += 4) {
@@ -305,40 +312,40 @@ void __cdecl fire_done() {
     g_fires++;
 }
 
-// DayTick's call: list the sequence, run the scan, close it. Registers and flags are kept around both helpers.
+// DayTick's call: list the sequence, run the scan, close it. Stack at entry: [ret][world]. Registers,
+// flags and XMM0-7 are kept around both helpers (CP_SAVE_ALL: scan_begin grows a std::vector and
+// scan_end formats a log line, both SSE code); each restore leaves the stack as at entry, so the
+// world argument is re-pushed from [esp + 4] for the scan (stdcall, RET 4) and the thunk ends with
+// `RET 4` as the scan would.
 __declspec(naked) void scan_thunk() {
+    CP_SAVE_ALL
+    __asm call scan_begin
+    CP_RESTORE_ALL
     __asm {
-        pushad
-        pushfd
-        call scan_begin
-        popfd
-        popad
         push dword ptr [esp + 4]
         call dword ptr [g_scan]
-        pushad
-        pushfd
-        call scan_end
-        popfd
-        popad
-        ret 4
     }
+    CP_SAVE_ALL
+    __asm call scan_end
+    CP_RESTORE_ALL
+    __asm ret 4
 }
 
-// The scan's Event_Fire calls (ECX = event, two stack arguments). Evaluations made while the event runs
-// pass through; afterwards the results computed before it are dropped.
+// The scan's Event_Fire calls (ECX = event, two stack arguments: [ret][a][b] at entry; thiscall,
+// RET 8). Evaluations made while the event runs pass through; afterwards the results computed before
+// it are dropped. Around fire_done everything is saved (CP_SAVE_ALL), so Event_Fire's EAX and the
+// flags come back untouched before the `RET 8`.
 __declspec(naked) void fire_thunk() {
     __asm {
         inc dword ptr [g_fire_depth]
         push dword ptr [esp + 8]
         push dword ptr [esp + 8]
         call dword ptr [g_fire]
-        pushad
-        pushfd
-        call fire_done
-        popfd
-        popad
-        ret 8
     }
+    CP_SAVE_ALL
+    __asm call fire_done
+    CP_RESTORE_ALL
+    __asm ret 8
 }
 
 }  // namespace
@@ -360,7 +367,10 @@ void install_events_parallel(const Config& config) {
         !hooks::expect_bytes(hooks::exe_addr(kScanCallRva), "\xE8", 1) ||
         !hooks::expect_bytes(g_country_evaluate_return - 2, "\xFF\xD2\x84\xC0", 4) ||  // CALL EDX; TEST AL,AL
         !hooks::expect_bytes(g_province_evaluate_return - 2, "\xFF\xD2\x84\xC0", 4)) {
-        logf("parallel_events: CAndTrigger::Evaluate, the scan call or its trigger calls not recognised, feature off");
+        logf("parallel_events: CAndTrigger::Evaluate %08X, the scan call %08X or its trigger calls (%08X, %08X) not "
+             "recognised, feature off",
+             hooks::listing_va_of(reinterpret_cast<uintptr_t>(g_original_evaluate)), hooks::listing_va(kScanCallRva),
+             hooks::listing_va(kCountryEvaluateReturnRva), hooks::listing_va(kProvinceEvaluateReturnRva));
         return;
     }
     for (uint32_t site : kFireCallRvas) {
@@ -380,7 +390,8 @@ void install_events_parallel(const Config& config) {
         }
     }
     if (!hooks::redirect_call(hooks::exe_addr(kScanCallRva), g_scan, reinterpret_cast<uintptr_t>(&scan_thunk))) {
-        logf("parallel_events: scan call site already hooked (tick_profiler?), feature off");
+        logf("parallel_events: scan call site %08X already hooked (tick_profiler?), feature off",
+             hooks::listing_va(kScanCallRva));
         return;
     }
     logf("parallel_events: active (%s): the daily event scan's triggers are evaluated on worker threads",

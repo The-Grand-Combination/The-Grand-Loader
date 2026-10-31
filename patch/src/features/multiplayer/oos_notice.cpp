@@ -82,7 +82,12 @@ bool send_chat_line(const char* text) {
     game::GameString* text_arg = &text_string;
     game::GameString* key_arg = &key_string;
     uint32_t* parts_arg = parts;
+    // EBX/ESI/EDI are pinned around the game call (modifier_guard does the same): the compiler assumes
+    // the asm block keeps them, and the game's LTCG code does not follow the callee-saved convention.
     __asm {
+        push ebx
+        push esi
+        push edi
         push 1
         push text_arg
         push key_arg
@@ -91,6 +96,9 @@ bool send_chat_line(const char* text) {
         mov ecx, parts_arg
         mov edx, sender
         call message_ctor
+        pop edi
+        pop esi
+        pop ebx
     }
 
     void* command = game::allocate(kCommandSize);

@@ -25,7 +25,8 @@ bool takes_one_province(uintptr_t cb);
 // through slot 13): the editor in its forced form, which only sends. One at a time: while one is open,
 // the next waits, and opens when it is sent; the invitation then leaves the pending list. A notice (the
 // terms an AI dismantler imposed on the local player, in its pending list) opens the same way, read only,
-// and leaves on OK.
+// and leaves on OK. Called while the game walks the pending list: it frees nothing (an invitation that
+// cannot be shown leaves the list later, from the editor's own update or button).
 void show_forced(uintptr_t owner, uintptr_t invitation);
 
 }  // namespace se::features::treaty_ui

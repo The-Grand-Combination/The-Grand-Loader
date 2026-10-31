@@ -73,7 +73,9 @@ constexpr uint32_t kProvinceState = 0x188;
 constexpr uint32_t kStateProvinceIds = 0x48;  // vector<int>
 
 int g_token = 0;                     // the keyword's token, once registered
-std::vector<uintptr_t> g_cbs;        // CCasusBelliTypes with the keyword; written while cb_types.txt loads
+// CCasusBelliTypes with the keyword; written while cb_types.txt loads. A function-local static: first
+// built from the OnKeyword hook, never under the loader lock (docs/CODING.md, 1).
+std::vector<uintptr_t>& g_cbs() { static std::vector<uintptr_t> v; return v; }
 uintptr_t g_cb_manager_load = 0;     // resolved
 uintptr_t g_transfer_provinces = 0;  // resolved
 uintptr_t g_cost_back = 0;           // resolved kCostLoop + 7
@@ -120,11 +122,12 @@ struct StateNode {
 };
 
 uintptr_t g_province_state_vtable[kStateVtableSlots];
-std::vector<ProvinceState*> g_province_states;  // indexed by province id; the UI thread only
-std::vector<StateNode> g_state_nodes;           // the list handed to the dialog's last fill
+// Function-local statics (built from the dialog's fill, on the UI thread; never under the loader lock).
+std::vector<ProvinceState*>& g_province_states() { static std::vector<ProvinceState*> v; return v; }  // by province id
+std::vector<StateNode>& g_state_nodes() { static std::vector<StateNode> v; return v; }  // the dialog's last fill
 
 bool is_province_cb(uintptr_t cb) {
-    for (uintptr_t c : g_cbs) {
+    for (uintptr_t c : g_cbs()) {
         if (c == cb) {
             return true;
         }
@@ -179,7 +182,7 @@ void __fastcall on_keyword(uintptr_t cb, void*, uintptr_t parser, int token) {
         return;  // as the original does for every po_* that is not `yes`
     }
     if (ours && !is_province_cb(cb)) {
-        g_cbs.push_back(cb);
+        g_cbs().push_back(cb);
         logf("demand_province: %s takes one province", GameString::copy(cb + kCbName).c_str());
     }
     if (!has_peace_option(cb, kPoDemandState)) {  // both keywords in one CB: a single option
@@ -277,10 +280,10 @@ ProvinceState* province_state(int id) {
     if (id < 0) {
         return nullptr;
     }
-    if (static_cast<size_t>(id) >= g_province_states.size()) {
-        g_province_states.resize(id + 1, nullptr);
+    if (static_cast<size_t>(id) >= g_province_states().size()) {
+        g_province_states().resize(id + 1, nullptr);
     }
-    ProvinceState*& s = g_province_states[id];
+    ProvinceState*& s = g_province_states()[id];
     if (!s) {
         s = new ProvinceState();
         s->vtable = g_province_state_vtable;
@@ -298,7 +301,7 @@ uintptr_t __stdcall state_list(uintptr_t country, uintptr_t dialog) {
     if (!action || !is_province_cb(read<uintptr_t>(action + kActionCb))) {
         return head;
     }
-    g_state_nodes.clear();
+    g_state_nodes().clear();
     for (auto n = reinterpret_cast<const StateNode*>(head); n; n = n->next) {
         uintptr_t state = n->state;
         if (!state) {
@@ -307,15 +310,15 @@ uintptr_t __stdcall state_list(uintptr_t country, uintptr_t dialog) {
         for (const int* p = read<const int*>(state + kStateProvinceIds);
              p < read<const int*>(state + kStateProvinceIds + 4); ++p) {
             if (ProvinceState* s = province_state(*p)) {
-                g_state_nodes.push_back({reinterpret_cast<uintptr_t>(s), nullptr, nullptr});
+                g_state_nodes().push_back({reinterpret_cast<uintptr_t>(s), nullptr, nullptr});
             }
         }
     }
-    for (size_t i = 0; i + 1 < g_state_nodes.size(); ++i) {  // linked once the vector stops growing
-        g_state_nodes[i].next = &g_state_nodes[i + 1];
-        g_state_nodes[i + 1].prev = &g_state_nodes[i];
+    for (size_t i = 0; i + 1 < g_state_nodes().size(); ++i) {  // linked once the vector stops growing
+        g_state_nodes()[i].next = &g_state_nodes()[i + 1];
+        g_state_nodes()[i + 1].prev = &g_state_nodes()[i];
     }
-    return g_state_nodes.empty() ? 0 : reinterpret_cast<uintptr_t>(&g_state_nodes[0]);
+    return g_state_nodes().empty() ? 0 : reinterpret_cast<uintptr_t>(&g_state_nodes()[0]);
 }
 
 // Replaces MOV EAX, [EAX+0xE44] (CALL + 1 NOP); EAX = target country, ESI = dialog. The flags are set

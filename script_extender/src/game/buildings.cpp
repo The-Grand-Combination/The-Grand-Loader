@@ -67,6 +67,14 @@ void post_construction(uintptr_t building, uintptr_t province, uint32_t tag, int
     if (!idler) {
         return;
     }
+    // The session first: a command is only built when there is somewhere to queue it (no session owner
+    // or session, e.g. outside a running game, means nothing to post).
+    using PtrMethod = uintptr_t(__fastcall*)(uintptr_t, void*);
+    uintptr_t owner = method<PtrMethod>(idler, kIdlerSessionOwner)(idler, nullptr);
+    uintptr_t session = owner ? read<uintptr_t>(owner + kSessionOwnerSession) : 0;
+    if (!session) {
+        return;
+    }
     void* memory = game_new(kConstructCommandSize);
     if (!memory) {
         return;
@@ -74,9 +82,6 @@ void post_construction(uintptr_t building, uintptr_t province, uint32_t tag, int
     using Ctor = uintptr_t(__stdcall*)(void*, uintptr_t, uint32_t, uint32_t, int);
     uintptr_t command = reinterpret_cast<Ctor>(hooks::exe_va(kConstructCommandCtor))(
         memory, building, read<uint32_t>(province + kProvinceId), tag, index);
-    using PtrMethod = uintptr_t(__fastcall*)(uintptr_t, void*);
-    uintptr_t owner = method<PtrMethod>(idler, kIdlerSessionOwner)(idler, nullptr);
-    uintptr_t session = read<uintptr_t>(owner + kSessionOwnerSession);
     using Queue = void(__fastcall*)(uintptr_t, void*, uintptr_t);
     method<Queue>(session, kSessionQueueCommand)(session, nullptr, command);
 }

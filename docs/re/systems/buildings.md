@@ -10,7 +10,7 @@ Researched for the Script Extender's bulk building upgrade. Factory gates are in
   `CBuilding+0x134`. Each province holds one `CProvinceBuilding` per index at `prov+0x118`, with the
   level ×1000 at `+0x20`. **[C]**
 - `type =` is an enum: `factory` 0, `rgo` 1, `infrastructure` 2, `naval_base` 3, and **anything else
-  4** (fort). TGC's `type = university` and `type = bank` are accepted as 4. **[C]**
+  4** (fort). A mod's own types (`type = bank`, for example) are accepted as 4. **[C]**
 - One check decides whether a building can be expanded: `Province_CanExpandBuilding`. It drives the
   expand button, vanilla's Ctrl-click, the AI, and the command's Validate. Validate runs on every
   machine just before Execute. **[C]**
@@ -18,9 +18,10 @@ Researched for the Script Extender's bulk building upgrade. Factory gates are in
 - Building is the command `CConstructBuildingCommand`, posted through the network session. A bulk
   upgrade that posts the same command per province behaves exactly like the clicks and stays in sync in
   multiplayer. **[C]**
-- **TGC side effect:** `g_buildingDb+0x38` is meant to hold the fort but holds the last type-4 building
-  loaded, which in TGC is the **bank**. `build_fort_in_capital`, `can_build_fort_in_capital` and the AI's
-  fort scoring therefore read the bank. **[C]** code, **[I]** effect in game.
+- **Side effect for mods:** `g_buildingDb+0x38` is meant to hold the fort but holds the last type-4 building
+  loaded, which with a mod's fourth building type (e.g. a bank) listed after the fort is that building.
+  `build_fort_in_capital`, `can_build_fort_in_capital` and the AI's fort scoring therefore read it instead
+  of the fort. **[C]** code, **[I]** effect in game.
 
 ## Building database
 
@@ -42,7 +43,7 @@ At the end of the file it resolves every entry (`CBuilding_Resolve`, `0x004D9AB0
 | `+0x2C` | the null building (`g_nullBuilding`, `0x01258730`) | C |
 | `+0x30` | the building named `naval_base` | C |
 | `+0x34` | the last type-2 building (railroad) | C |
-| `+0x38` | the last type-4 building (vanilla: fort; TGC: bank) | C |
+| `+0x38` | the last type-4 building (vanilla: fort; a mod's fourth building type, e.g. a bank, when listed after it) | C |
 
 ### `CBuilding` (0x140 bytes, vtable `0x00DFDAC0`)
 
@@ -77,7 +78,7 @@ Values are ×1000 where fractional.
 
 `fort_level`, `naval_capacity`, `movement_cost`, `local_ship_build`, `research_points_modifier` and
 `local_rgo_output` have no field of their own. They go through the generic-modifier branch, so a
-building probably keeps only one of them (TGC `naval_base` and `bank` have two). **[I]**, to confirm.
+building probably keeps only one of them (a mod's `naval_base` or fourth building type, e.g. a bank, may have two). **[I]**, to confirm.
 
 Per country, the tech state `country+0xBCC` holds two arrays indexed by `bld+0x58`:
 
@@ -595,10 +596,11 @@ Entry bytes of the functions the plugin calls (to verify before calling):
 3. The meaning of `prov+0x110` and `prov+0x158`.
 4. Whether `CBuilding+0x128/+0x129` (bools for tokens 0x284/0xBF) are real fields.
 5. Whether `CBuildingEffect` reading `pb+0x10` is a vanilla bug.
-6. Whether a building keeps only one generic modifier. Test with TGC `naval_base`
-   (`naval_capacity` + `local_ship_build`) and `bank`.
-7. TGC `db+0x38` = bank: confirm in game. Reordering `buildings.txt` would make the AI build
-   universities, so a loader patch that only takes the name `fort` is the better fix.
+6. Whether a building keeps only one generic modifier. Test with a mod's `naval_base` that has two
+   (`naval_capacity` + `local_ship_build`) and a mod's fourth building type (e.g. a bank).
+7. `db+0x38` = a mod's fourth building type (e.g. a bank) when it is listed after the fort: confirm in
+   game. Reordering `buildings.txt` would make the AI build the other type-4 buildings instead, so a
+   loader patch that only takes the name `fort` is the better fix.
 8. How the AI job is scheduled: who counts down `+0x30` and calls slot 3 (the base tick's own gates,
    slots 8 and 10, are empty in this class).
 9. The fort scoring's inputs: what the groups at `country+0xA08` are, the neighbour kinds 1 / 2, and

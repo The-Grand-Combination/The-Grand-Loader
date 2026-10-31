@@ -11,6 +11,7 @@ namespace se::game {
 namespace {
 
 constexpr uint32_t kOperatorNew = 0x00AAE9AF;      // cdecl (size)
+constexpr uint32_t kOperatorDelete = 0x00AAE91B;   // cdecl (p)
 constexpr uint32_t kFileReaderCtor = 0x0098FFC0;   // thiscall (const std::string* path)
 constexpr uint32_t kFileReaderSize = 0x114;
 constexpr uint32_t kTokenReaderVtable = 0x00E37C3C;
@@ -58,10 +59,16 @@ void* game_new(size_t size) {
     return reinterpret_cast<void*(__cdecl*)(size_t)>(hooks::exe_va(kOperatorNew))(size);
 }
 
+void game_delete(void* p) { reinterpret_cast<void(__cdecl*)(void*)>(hooks::exe_va(kOperatorDelete))(p); }
+
 uintptr_t parser_block(const std::string& path) {
     void* block_memory = game_new(kParserBlockSize);
+    if (!block_memory) {
+        return 0;
+    }
     void* reader = game_new(kFileReaderSize);
-    if (!block_memory || !reader) {
+    if (!reader) {
+        game_delete(block_memory);  // nothing was constructed in it yet
         return 0;
     }
     GameString game_path(path);

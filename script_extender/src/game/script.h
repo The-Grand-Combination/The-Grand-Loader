@@ -16,6 +16,7 @@ constexpr uint32_t kParserValueText = 0x22C;  // NUL-terminated
 constexpr int kTokenOpenBrace = 3;
 
 void* game_new(size_t size);  // the game's operator new: for objects the game may delete
+void game_delete(void* p);    // the game's operator delete: for memory from game_new or the game
 
 // A parser block over the file at `path` (a path from the game folder, which is the PhysFS root), as
 // EU3App_LoadResources makes one; 0 on failure. Delete it with delete_parser_block.

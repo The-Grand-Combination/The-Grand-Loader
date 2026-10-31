@@ -219,7 +219,7 @@ CProvince,0x2B8,infrastructure,i32,C,cp,shown by the infrastructure tooltip
 CCountry,0x1184,stockpile,ptr,I,cp,passed to Building_ComputeExpandCost
 CCountry,0xE70,constructionCostModifier,i32,I,cp,
 CCountry,0x1580,foreignInvestment,ptr,C,cp,ledger
-CCountry,0xAC8,partyRules,u8 per 8 bytes,C,cp,"rule i at +0xAC8+8*i in CRuleDefinition order: build_factory 0, expand 1, open 2, destroy 3, build_railway 4 (+0xAE8), pop_build_factory 7 (+0xB00), build_factory_invest 11 (+0xB20), build_railway_invest 14 (+0xB38), can_invest_in_pop_projects 15 (+0xB40), allow_foreign_investment 19 (+0xB60); table in buildings.md"
+CCountry,0xAC8,partyRules,u8 per 8 bytes,C,cp,"rule i at +0xAC8+8*i in CRuleDefinition order: build_factory 0, expand 1, open 2, destroy 3, build_railway 4 (+0xAE8), pop_build_factory 7 (+0xB00), build_factory_invest 11 (+0xB20), build_railway_invest 14 (+0xB38), can_invest_in_pop_projects 15 (+0xB40), allow_foreign_investment 19 (+0xB60); table in buildings.md; RULE_* keys created at 0x00473235.."
 CProvinceManager,0x3C,render,ptr,C,cp,= g_renderDevice
 CProvinceManager,0xC0,stripesTexture,int,C,cp,"texture manager index of map/terrain/stripes.dds, bound as tex7 every frame"
 CProvinceManager,0x1A0,terrainEffect,ID3DXEffect*,C,cp,
@@ -400,8 +400,9 @@ CEventScope,0x2C,fromTag,u32,C,cp,"FROM {tag +0x2C, index +0x30}; read from the 
 CEventScope,0x40,isCopy,u8,I,cp,set to 1 by EventScope_Copy
 CCasusBelliType,0xA8,allowed_states.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_states (+0xA0), end +0xAC; non-empty and not all_allowed_states: the war-goal dialog asks for a state (the treaty editor also for po_demand_state)"
 CCasusBelliType,0xE0,allowed_countries.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_countries (+0xD8), end +0xE4; non-empty: the dialog asks for a third country"
-CTreatyAction,0x00,vftable,ptr,C,cp,"Script Extender: copy of CPeaceAction's 38 slots with the RTTI locator of CDiplomaticAction; object 0xA0 bytes, CPeaceAction layout up to 0x98 (treaties.md)"
+CTreatyAction,0x00,vftable,ptr,C,cp,"Script Extender: copy of CPeaceAction's 38 slots with the RTTI locator of CDiplomaticAction; object 0xA8 bytes, CPeaceAction layout up to 0x98 (treaties.md)"
 CTreatyAction,0x98,money,i64,C,cp,Script Extender: the actor pays the recipient when > 0 (2^15 fixed point); save / command field se_treaty_money
+CTreatyAction,0xA0,budget,int,C,cp,Script Extender: points of a forced (dismantle) treaty in war score; 0 for an ordinary treaty; save / command field se_treaty_budget
 CMessageType,0x00,vftable,ptr,C,cp,0x00E0BF74; object 0x3C bytes (MessageTypes_Read)
 Sprite,0xD0,texture,ptr,I,cp,null when the .gfx was parsed after the game's .gfx loop; Sprite_Draw crashes at 0x00A28A6B
 CCountry,0x67C,atWar,u8,C,cp,"recomputed by FUN_00517AF0; AI_ConstructionUpdate builds nothing while set; diplomacy slot 36 tests it (wars.md)"
@@ -412,3 +413,18 @@ AiConstructionJob,0x6C,ruleFlags,u8[9],C,cp,"build/expand/open factory, build_ra
 AiConstructionJob,0x78,railroadBuilding,CBuilding*,C,cp,first province building of type 2 (cached once)
 AiConstructionJob,0x7C,fortBuilding,CBuilding*,C,cp,first province building of type 4 (cached once): what the fort builder builds
 AiConstructionJob,0x80,navalBaseBuilding,CBuilding*,C,cp,first province building of type 3 (cached once)
+World,0xCF8,crisisManager,CCrisisManager*,C,cp,vtable 0x00DF31A4; +0x08 current CCrisis*; +0x0C date the last crisis ended (cooldown)
+CCrisis,0x08,targetProvince,int,C,cp,first province of the target state
+CCrisis,0x0C,colonialRegion,ptr,C,cp,colonial crisis only
+CCrisis,0x10,temperature,int,C,cp,0..100000
+CCrisis,0x14,attackerLeader,"{tag, index}",C,cp,"the claimant or liberated country (state+0x284/+0x288); colonial: the second competitor"
+CCrisis,0x1C,defenderLeader,"{tag, index}",C,cp,"the state owner (state+0x58/+0x5C); colonial: the first competitor"
+CCrisis,0x2C,attackers,"vector<{tag, index}>",C,cp,attacker side
+CCrisis,0x3C,defenders,"vector<{tag, index}>",C,cp,defender side
+CCrisis,0x4C,interested,"vector<{tag, index}>",C,cp,interested parties
+CCrisis,0x5C,pendingBacker,"{tag, index}",C,cp,pending backer ask; +0x64 whether it is for the attacker
+CCrisis,0x68,attackerBackerQueue,queue,C,cp,Great Powers to ask to back the attacker (Crisis_BuildBackerQueue)
+CCrisis,0x78,defenderBackerQueue,queue,C,cp,Great Powers to ask to back the defender
+CCrisis,0x88,attackerGoal,CWarGoal (0x40),C,cp,war goal of the attacker side
+CCrisis,0x98,defenderGoal,CWarGoal (0x40),C,cp,war goal of the defender side
+CCrisis,0xB0,interestFired,u8,C,cp,the interest on_action already fired

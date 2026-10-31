@@ -11,4 +11,8 @@ namespace cp::features {
 // docs/re/systems/performance.md.
 void install_ai_queue(const Config& config);
 
+// True once install_ai_queue has taken its call site (the option on and the site not already hooked,
+// e.g. by tick_profiler). parallel_decisions depends on it, so it is installed first in main.cpp.
+bool ai_queue_installed();
+
 }  // namespace cp::features

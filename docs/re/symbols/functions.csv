@@ -1,19 +1,19 @@
 va,name,conf,area,src,note
-0x00AB0F91,entry,C,engine,re,PE entry point
+0x00AB0F91,entry,C,engine,re,"PE entry point; CRT start: _controlfp_s(_PC_53) region at 0x00AB231D"
 0x009796B0,WinMain,I,engine,re,
-0x009DF550,App_MainLoop,I,engine,re,
-0x009DF2B0,App_ProcessMessagePumpAndUpdate,C,engine,cp,"PeekMessage loop, then state->vt[1](); this in ESI"
+0x009DF550,App_MainLoop,I,engine,re,"DispatchMessageA through the import slot 0x00C8A310 at 0x009DF6A9"
+0x009DF2B0,App_ProcessMessagePumpAndUpdate,C,engine,cp,"PeekMessage loop, then state->vt[1](); this in ESI; DispatchMessageA through the import slot 0x00C8A310 at 0x009DF308"
 0x00633800,App_ctor,C,engine,cp,"version string std::string(""V2 v3.04"", 8) built at 0x00633826"
-0x00654D80,CInGameIdler_Update,C,tick,cp,"per-frame in-game function; CInGameIdler vtable slot at 0x00E0A350; contains ProcessGameTimeAdvance"
+0x00654D80,CInGameIdler_Update,C,tick,cp,"per-frame in-game function; CInGameIdler vtable slot at 0x00E0A350; contains ProcessGameTimeAdvance; Player_DecisionAlert per frame at 0x00654E48; Camera_Update at 0x00656275 (flag 1) and 0x00656321 (flag 0); ProcessGameTimeAdvance at 0x0065571C (cp_mp_host_wait)"
 0x00662010,Game_FinalizeLoadAndEnterGameplay,I,loading,re,"one-time load finalisation; CInGameIdler vtable slot 0x00E0A358; ends with state transition to 0xB"
-0x00682BD0,ProcessGameTimeAdvance,C,speed,cp,"accumulates frame time at world+0xB14 and compares it with a per-speed table (4.0/2.0/1.0/0.5/0.0001); host only (sessionMgr+0x34): builds CHourlyTickCommand (FUN_0072EC40 at 0x00682CDF, copies world+0xB74) when the AI buckets are empty and sends it through session vt+0x18"
-0x00682EC0,Update_World_and_Advance_Time,C,tick,cp,"one game hour per call: ADD [world+0xB0C],0x18 at 0x00682FA5; DayTick at 0x00683AB1"
+0x00682BD0,ProcessGameTimeAdvance,C,speed,cp,"accumulates frame time at world+0xB14 and compares it with a per-speed table (4.0/2.0/1.0/0.5/0.0001); host only (sessionMgr+0x34): builds CHourlyTickCommand (FUN_0072EC40 at 0x00682CDF, copies world+0xB74) when the AI buckets are empty and sends it through session vt+0x18; the per-speed table load is at 0x00682C1F..0x00682C59"
+0x00682EC0,Update_World_and_Advance_Time,C,tick,cp,"one game hour per call: ADD [world+0xB0C],0x18 at 0x00682FA5; DayTick at 0x00683AB1; monthly CB scan (FUN_00687E30 -> CBManager_IsAnyCBUsable) at 0x00683B36 when the month index changed"
 0x0072ECF0,CHourlyTickCommand_Execute,C,tick,cp,"vtable 0x00E12414 slot 6 (+0x18); calls Update_World_and_Advance_Time at 0x0072ECFA"
-0x006859C0,DayTick,C,tick,cp,"once per game day: provinces loop (0x00685B40), countries loop from index 1 (0x00685EC0), events (0x006861E8); old name Economy_ProcessMonthlyTick is wrong"
-0x00685620,UpdateTimeThrottle,C,speed,cp,"this (world) in EDI; renders a frame through 0x009DF2B0 when the per-speed time threshold is reached; 1375 calls/day"
+0x006859C0,DayTick,C,tick,cp,"once per game day: provinces loop (0x00685B40), countries loop from index 1 (0x00685EC0), events (0x006861E8); old name Economy_ProcessMonthlyTick is wrong; Economy_Update at 0x00685F7E; 1000 MT draws at 0x00685B6B; province pop pass FUN_004B9C60 at 0x00685B09; CrisisManager_DayTick at 0x00686240"
+0x00685620,UpdateTimeThrottle,C,speed,cp,"this (world) in EDI; renders a frame through 0x009DF2B0 when the per-speed time threshold is reached; 1375 calls/day; reads kSpeedThrottle at 0x00685691"
 0x004B1A10,Province_DailyUpdate,C,tick,cp,
-0x005091A0,Country_DailyUpdate,C,tick,cp,"(country, random array), RET 8; 683 calls/day"
-0x00508590,Country_PrePass,I,tick,cp,"per-country pre-pass: units, relations, truces; ~21 ms/day"
+0x005091A0,Country_DailyUpdate,C,tick,cp,"(country, random array), RET 8; 683 calls/day; on_action pulses at 0x0050B1F4; delayed events counter (country+0x68, +0x54) at 0x0050B5CE; Player_DecisionAlert for the player at 0x0050B792 (guarded at 0x0050B780); FUN_0052FCD0 at 0x0050B6B9"
+0x00508590,Country_PrePass,I,tick,cp,"per-country pre-pass: units, relations, truces; ~21 ms/day; Country_Recalculate at 0x005089DB (tags with provinces only); FUN_0051FD10 at 0x0050861B; the loop at 0x00508DA7 reads relation +0x2C/+0x30 of the tag with every tag (stall at 0x00508DEE, 70 %, 3.6 ms/day)"
 0x0068F390,Entity_RegisterSpatial,I,tick,cp,"entity / spatial registration with a TBB parallel_for inside; 19 047 calls/day"
 0x00957EA0,Pop_MonthlyUpdate,I,pops,re,"called from Country_DailyUpdate when pop.id % month_length == day_of_month"
 0x004B9250,Pop_MergeEmpty,I,pops,re,merges a pop that reached size 0 into another of the same type
@@ -34,12 +34,12 @@ va,name,conf,area,src,note
 0x0088D370,EventEffect_Execute,C,events,re,"country_event / province_event effect; fires now or schedules (FUN_00540A70); old name Spawn_event"
 0x0088D460,EventEffect_Describe,I,events,re,"tooltip text of the effect; old name ProcessSpawnEvent"
 0x00540A70,Country_ScheduleEvent,I,events,re,
-0x008A7CD0,EventManager_DailyScan,C,events,cp,"odd days countries, even days provinces; trigger -> MTTH -> MT roll -> Event_Fire"
+0x008A7CD0,EventManager_DailyScan,C,events,cp,"odd days countries, even days provinces; trigger -> MTTH -> MT roll -> Event_Fire; the trigger calls (CALL EDX; TEST AL,AL) return to 0x008A7DEF (country pass) and 0x008A7FD0 (province pass): parallel_events answers only those from its batches"
 0x008AE380,Event_ComputeMTTHProbability,C,events,re,"probability per million: mode * 1e6 / days, clamped [1, 1e6]"
-0x008A8120,Event_Fire,C,events,re,"thiscall(state, ctx), RET 8; 17 callers"
+0x008A8120,Event_Fire,C,events,re,"thiscall(state, ctx), RET 8; 17 callers; the AI's option choice draws at 0x008A8240 (needs +0x208)"
 0x008AEB00,EventOption_EvaluateAIChance,C,events,re,pure
 0x00907D40,EventOptionCommand_ctor,I,events,re,0xB0-byte chosen-option command
-0x008A8F30,EventWindow_ctor,C,events,re,"RET 0x50; dead pop loop at 0x008A9434..0x008A9562"
+0x008A8F30,EventWindow_ctor,C,events,re,"RET 0x50; dead pop loop at 0x008A9434..0x008A9562; picture block at 0x008AB12A..0x008AB4A1"
 0x008A88D0,EventScope_Copy,C,events,re,copies the 0x48-byte scope; re-checked 2026-10-24 (cp): copies +0x08..+0x3C and sets +0x40 = 1; makes the nested scopes of any_owned_province
 0x006480E0,GuiOwner_AddDialog,C,ui,cp,"ESI = gui owner, (dlg) RET 4; appends to owner+0x60 (tail +0x64, count +0x68) when not present; GuiOwner_UpdateDialogs polls it (was Window_Show)"
 0x0068B610,UI_GetState,I,ui,re,+0x28 byte = UI ready
@@ -70,7 +70,7 @@ va,name,conf,area,src,note
 0x00A31490,CCasusBelliType_IsRealType,C,cb,cp,vtable slot 7; returns 1
 0x0058CFD0,CNullCasusBelliType_IsRealType,C,cb,cp,returns 0
 0x0090A7F0,CCasusBelliType_CanUse,C,cb,cp,vtable slot 8 = can_use.Evaluate(scope); no cache
-0x0092EEC0,CBManager_IsCBUsable,C,cb,cp,"(rel, defRef, attRef), CB index in EDI"
+0x0092EEC0,CBManager_IsCBUsable,C,cb,cp,"(rel, defRef, attRef), CB index in EDI; the always test (type+0x132) is at 0x0092EF63"
 0x0092EDE0,CBManager_IsAnyCBUsable,C,cb,cp,"(rel, defRef, attRef), stdcall, RET 0xC"
 0x0092EFF0,CBManager_IsAlways,C,cb,cp,
 0x0085CCB0,AI_DailyUpdate,C,ai,cp,"EAX = country+0x364 (embedded AI state); from Country_DailyUpdate at 0x0050B0EB on every machine; FUN_0085AC70, FUN_0085CD40, AI_DiplomacyUpdate; +0x18 = 1 when done"
@@ -101,7 +101,7 @@ va,name,conf,area,src,note
 0x00569920,Tech_IsAvailable,C,tech,re,"date (+0x340), state, prerequisites; no civilization check"
 0x005699B0,Tech_BuildBlockReason,I,tech,re,
 0x007AA580,TechView_UpdateState,C,tech,re,civilization branch at 0x007AA751
-0x007AA890,TechView_OnAction,C,tech,re,"""start"" action; civilization gate at 0x007AAA83"
+0x007AA890,TechView_OnAction,C,tech,re,"""start"" action; civilization gate at 0x007AAA83; civilization gate: CMP; JNZ 0x007AAB5E at 0x007AAA83"
 0x007A9700,TechView_BuildList,I,tech,re,
 0x007A9950,TechView_UpdateEntry,I,tech,re,
 0x005467E0,Tech_BuildText,I,tech,re,
@@ -114,21 +114,21 @@ va,name,conf,area,src,note
 0x004D04B0,ProductionType_CanUse,I,factories,re,
 0x004DA720,Factory_CheckCost,I,factories,re,
 0x004F50C0,Factory_DecayWithoutInputs,I,factories,re,
-0x0068BF00,EconomyManager_UpdateFull,C,economy,re,"full economy rebuild; only caller Game_FinalizeLoadAndEnterGameplay (0x0066321D), i.e. once after loading"
+0x0068BF00,EconomyManager_UpdateFull,C,economy,re,"full economy rebuild; only caller Game_FinalizeLoadAndEnterGameplay (0x0066321D), i.e. once after loading; calls Economy_Update itself at 0x0068BF71"
 0x00489990,Economy_Update,C,economy,cp,"world market daily update (""worldmarket.cpp""); ~37 ms/day"
 0x00484060,WorldMarketUpdate,C,economy,cp,"countries -> states -> factories; ~21.6 ms/day"
 0x004808D0,ProcessMarketAndGoodsDistribution,C,economy,cp,~8.7 ms/day
 0x00488080,Market_PostProcess,I,economy,cp,~3.3 ms/day
 0x00482FF0,Factory_MarketUpdate,I,economy,cp,called per factory from WorldMarketUpdate
-0x00485E40,Market_UpdateCountryPops,I,economy,cp,"called per country from WorldMarketUpdate; per-pop money/needs (old name pop_daily_update_money)"
+0x00485E40,Market_UpdateCountryPops,I,economy,cp,"called per country from WorldMarketUpdate; per-pop money/needs (old name pop_daily_update_money); hottest samples right after the first read of a pop: 0x004869F6 (after [pop+0x68]) and 0x00486A1C (after [pop+0x1D4], then [that+0xB0]); 14.8 ms/day (1837)"
 0x00520150,Economy_CalculateDistribution,I,economy,re,"shared 64-bit accumulators; 24 callers (load, UI, diplomacy, events)"
 0x0068D250,EconomyManager_RebuildLists,I,economy,re,
-0x0068D950,EconomyManager_PrepareUpdate,I,economy,re,
+0x0068D950,EconomyManager_PrepareUpdate,I,economy,re,"resets the second RNG global 0x00F0E040 to 1234 at 0x0068DAE5"
 0x0068DC70,EconomyManager_ProcessEntries,I,economy,re,
 0x00482930,Market_UpdateSupply,I,economy,re,
 0x00482610,Market_CalcSupplyMultiplier,I,economy,re,
-0x00487410,Market_AddRealDemand,C,economy,re,demand side
-0x00969760,Economy_AccumulateElement,I,economy,re,shared accumulators; not thread-safe
+0x00487410,Market_AddRealDemand,C,economy,re,"demand side; writes the real-demand vector at 0x004877B1; FUN_00522CF0 at 0x00487483"
+0x00969760,Economy_AccumulateElement,I,economy,re,"shared accumulators; not thread-safe; 55 % of its samples at 0x00969889, a stall on the pop's +0xA4 vector (2.4 ms/day); open"
 0x00523400,Loan_CalculateInterest,I,economy,re,
 0x0047DCA0,Stockpile_SubtractArtisanFactory,C,economy,re,
 0x0047DC20,Buffer_AccumulateIndexedValue,I,util,re,
@@ -156,7 +156,7 @@ va,name,conf,area,src,note
 0x0067D940,Engine_Shutdown,I,engine,re,
 0x00420EB0,Console_Execute,C,console,re,"central console dispatcher; debug cb_use / cb_countries / cb_state"
 0x0099DA20,Render_InitRestore,I,render,re,
-0x006592F0,Render_MapFrame,I,render,re,
+0x006592F0,Render_MapFrame,I,render,re,"the condition before 0x006594B4 decides the fog of war (next to understand; no safe patch yet)"
 0x006DFE80,Westernize_OnClick,C,ui,re,
 0x00541B90,Westernize_CanClick,C,ui,re,
 0x00772300,Play_OnClick,I,ui,re,
@@ -164,16 +164,16 @@ va,name,conf,area,src,note
 0x00408AD0,std_string_dtor,C,util,cp,"__fastcall; frees the buffer when capacity > 15, resets to the empty SSO state; 38 527 call sites"
 0x00409350,std_string_assign,I,util,cp,"(const char*, length); 14 124 call sites"
 0x00515490,Country_Recalculate,I,country,cp,"resets and recomputes dozens of CCountry fields; 43 callers; daily from Country_PrePass (0x005089DB) and Country_DailyUpdate (0x0050B6CF); ~8.7 ms/day"
-0x009AF9F0,CommandQueue_Process,I,engine,cp,"per frame from CInGameIdler_Update (5 call sites, 23 callers): runs queued commands through virtual calls (CHourlyTickCommand -> world update is one of them); ~51 ms/day exclusive at max speed in 1836"
+0x009AF9F0,CommandQueue_Process,I,engine,cp,"per frame from CInGameIdler_Update (5 call sites, 23 callers): runs queued commands through virtual calls (CHourlyTickCommand -> world update is one of them); ~51 ms/day exclusive at max speed in 1836; CALL EAX at 0x009AFBB1 = [this+0x38]->vt[0x1C](0) (NetSession_Service); commands cloned (slot 13) and run from the list at 0x009AFDE7..0x009AFE3F"
 0x006874C0,AI_FrameUpdate,C,ai,cp,"from CInGameIdler_Update; drives AI_CountryFrameJob, i.e. the daily AI decision loop; ~24-26 ms/day with cull_decision_checks = 0"
-0x00A89D00,enet_host_service,C,network,cp,"ENet (statically linked): ""Error dispatching/sending/receiving packets"" strings; cdecl (host, event, timeout ms)"
-0x00A8B400,enet_socket_wait,C,network,cp,"select() with timeval from the timeout; the wait the sampling profiler found"
+0x00A89D00,enet_host_service,C,network,cp,"ENet (statically linked): ""Error dispatching/sending/receiving packets"" strings; cdecl (host, event, timeout ms); clients service ENet from 15 other call sites (0x00A63B2B .. 0x00A69857) that keep their waits; calls enet_socket_wait at 0x00A89E43"
+0x00A8B400,enet_socket_wait,C,network,cp,"select() with timeval from the timeout; the wait the sampling profiler found; CALL [select] (import 0x00C8A330) at 0x00A8B477"
 0x00A8B360,enet_socket_receive,C,network,cp,WSARecvFrom wrapper
 0x00A61780,NetSession_Service,I,network,cp,"virtual (slot at 0x00E42744); enet_host_service(this+0x18, &event, this+0x20) at 0x00A618CC, then dispatches events"
 0x00A5FF00,NetSession_ctor,C,network,cp,"base constructor (vtable 0x00E426A8, 44 slots), timeout 15 ms"
 0x00A635C0,NetClient_ctor,C,network,cp,"vtable 0x00E427C8; gethostbyname; enet host at +0x18, timeout +0x20 = 35 ms"
 0x00A63830,NetServer_ctor,C,network,cp,"vtable 0x00E427C8; enet host on the given port at +0x18, timeout +0x20 = 35 ms; created from SessionManager_CreateServer (0x009B1190)"
-0x007E3900,FlagAtlas_BuildOrLoad,C,flags,cp,"builds the per-government flag atlas from gfx/flags/*.tga or loads gfx/flags/flagfiles*.tga; D3DX create/save/load at 0x007E5ADA/0x007E629C/0x007E6367/0x007E6492"
+0x007E3900,FlagAtlas_BuildOrLoad,C,flags,cp,"builds the per-government flag atlas from gfx/flags/*.tga or loads gfx/flags/flagfiles*.tga; D3DX create/save/load at 0x007E5ADA/0x007E629C/0x007E6367/0x007E6492; D3DXCreateTextureFromFileInMemoryEx for the individual flags at 0x007E55CC (size -2, Format UNKNOWN, MANAGED; left alone by compress_flag_cache); D3DXLoadSurfaceFromSurface atlas -> copy at 0x007E62CC"
 0x007E1DC0,FlagAtlas_Index,I,flags,cp,"references flagfiles.txt/.tga strings; no D3DX calls"
 0x0084B690,AI_CountryDailyJob_Update,I,ai,cp,"vtable slot 0x00E27738; AI object +0x38 country index; per AI country per day from AI_CountryFrameJob (~9.7 ms/day); sums child values, updates sub-AIs, 8x FUN_0084EF30"
 0x0084B0F0,AI_TargetScan,I,ai,cp,"vtable slot 0x00E2773C; loops every country, tests self+0xBE8[other]+0x34 (relation miss, 90% of its samples at 0x0084B29D); ~5.5 ms/day"
@@ -238,8 +238,8 @@ va,name,conf,area,src,note
 0x00B31C00,_ftol2,C,util,cp,"7359 callers"
 0x00B31C36,_ftol2_sse,C,util,cp,"6703 callers; same truncation"
 0x0041E9D0,Console_RandomLogging,C,console,cp,"toggles DAT_01258A65 (Random Logging started/stopped): every wrapper draw and every executed command go to random.log"
-0x004D1560,Economy_FactoryWalk,I,economy,cp,"per-country factory walk from FUN_00521FD0; reads type+0x12C (local-supply source) unchecked at 0x004D15EB"
-0x007A9070,TechView_InventionCompare,I,ui,cp,"__fastcall(a, mode, b) -> bool; mode 0 compares status(+0x430)->+0x310->+0x40, no null checks"
+0x004D1560,Economy_FactoryWalk,I,economy,cp,"per-country factory walk from FUN_00521FD0; reads type+0x12C (local-supply source) unchecked at 0x004D15EB; resume point of cp_supply_guard 0x004D15F1"
+0x007A9070,TechView_InventionCompare,I,ui,cp,"__fastcall(a, mode, b) -> bool; mode 0 compares status(+0x430)->+0x310->+0x40, no null checks; resume point of cp_tech_sort_guard 0x007A9196"
 0x007ADB70,TechView_BuildFolders,I,ui,cp,"folder_icon rows; reads invention+0x430->+0x310->+0x40 (folder name) at 0x007ADE98"
 0x009E0EF0,PieChart_Render,I,ui,cp,"one triangle fan per slice, 100 steps per circle; vertex buffer on the stack (centre + 153 points)"
 0x00B1DD40,MCoreNetwork_Init,C,network,cp,"WSAStartup, hidden WinNetwork message window, thread FUN_00B1DC90 pumps it every 40 ms (Sleep at 0x00B1DD2C)"
@@ -257,8 +257,8 @@ va,name,conf,area,src,note
 0x008826B0,RemoveCountryModifierEffect_Tooltip,C,effects,cp,"same shape"
 0x008CD650,HasCountryModifierTrigger_Parse,C,triggers,cp,"looks the name up in g_eventModifiers then g_staticModifiers; logs Unknown modifier; null is harmless (never matches)"
 0x008CDE00,HasProvinceModifierTrigger_Parse,C,triggers,cp,"g_eventModifiers only"
-0x0048E120,State_GetControllerTag,I,map,cp,"__fastcall(state in ECX, out[2] in EAX): controller {tag, index} of the state's first province (province+0x130/+0x134, or the first entry of province+0x110->+0x10 vector); state+0xC == 0 -> '---'/0"
-0x0048F070,State_HasHostilePresence,I,ai,cp,"(state, flag) RET 8; walks state+0x14 and state+0x04 lists for units of a country at war with the controller or REB; 13 callers, most test province+0xE8 first"
+0x0048E120,State_GetControllerTag,I,map,cp,"__fastcall(state in ECX, out[2] in EAX): controller {tag, index} of the state's first province (province+0x130/+0x134, or the first entry of province+0x110->+0x10 vector); state+0xC == 0 -> '---'/0; resume point of cp_state_tag_guard 0x0048E126 (the fault address seen in a user's log: read of 0x0000000C)"
+0x0048F070,State_HasHostilePresence,I,ai,cp,"(state, flag) RET 8; walks state+0x14 and state+0x04 lists for units of a country at war with the controller or REB; 13 callers, most test province+0xE8 first; resume point of cp_state_presence_guard 0x0048F078"
 0x00851BD0,AI_UnitTargetScan,I,ai,cp,"from AI_TargetScan at 0x0084B51B; walks the country's unit list (ai+0x214; unit+0xDC province index, +0xE8 flag) and calls State_HasHostilePresence(province+0xE8) at 0x00851C6D without a null test"
 0x00519A40,Country_RebuildPossibleVassals,C,diplomacy,cp,"empties and refills country+0xE2C/+0xE30 (8-byte entries, country at +4): dead countries with cores in its controlled provinces whose capital it holds; returns the vector; called by is_possible_vassal, can_create_vassals and two UI/effect functions"
 0x008D8030,IsPossibleVassalTrigger_Evaluate,C,triggers,cp,"searches Country_RebuildPossibleVassals(scope country) for trigger+0x20"
@@ -269,7 +269,7 @@ va,name,conf,area,src,note
 0x00475400,CSettings_dtor,C,engine,cp,"saves through Settings_Save, then frees the strings"
 0x009D7FA0,Settings_Save,C,engine,cp,"settings in ESI: opens the file named at +0xC0 (settings.txt) for writing and calls slot 2"
 0x00766B80,JoinIpDialog_Open,C,ui,cp,"title JOIN_IP_TITLE; child edit box 'edit' gets settings+0x124 (vt[0x40] SetText)"
-0x00767140,JoinIpDialog_OnJoin,C,ui,cp,"reads the edit box (vt[0x4C]), stores it in settings+0x124 at 0x00767328, then connects"
+0x00767140,JoinIpDialog_OnJoin,C,ui,cp,"reads the edit box (vt[0x4C]), stores it in settings+0x124 at 0x00767328, then connects; PUSH 0x666 (68 66 06 00 00) at 0x0076727B before the ConnectRequest_ctor call (cp_join_port)"
 0x009F8180,ConnectRequest_ctor,C,network,cp,"cdecl (request, name, host string*, port, string*, ...): copies name +0x08, second string +0x24, host +0x40, port +0x68; the join dialog passes 0x666 (1638)"
 0x0076BA60,Lobby_SaveSettings,I,ui,cp,"lastplayer = this+0x2D0; when [0x012589AC] == 2 (client) lasthost = (this+4)+0xF4 (the session host); then Settings_Save at 0x0076BE8E"
 0x009DFC70,App_WndProc,C,engine,cp,"main window procedure (stub 0x009E07F0, class from FUN_009DFA30): WM_CHAR -> input manager DAT_00F20C38+0xE8 vt[0x30] gate, then focused widget (window+0x80) vt[0x34] takes text, vt[0x28] insert for chars > 13"
@@ -327,7 +327,7 @@ va,name,conf,area,src,note
 0x0073CF00,CProvinceView_ctor,C,ui,cp,province_view; province at view+0x24; expand callback at view+0x7C
 0x00740050,CProvinceView_Update,C,ui,cp,"building rows: progress while building, else expand enabled by Province_CanExpandBuilding (call 0x0074356E)"
 0x007443D0,CProvinceView_OnTooltip,C,ui,cp,expand tooltip: Building_BuildExpandTooltip + PROVINCE_VIEW_BUILD_ALL_TOOLTIP unless one_per_state
-0x0073D6D0,CProvinceView_OnExpandClick,C,ui,cp,"thiscall (view, button), RET 4; Ctrl (input vt[0x30]) and not one_per_state -> every eligible province of the state; else one command without pre-check"
+0x0073D6D0,CProvinceView_OnExpandClick,C,ui,cp,"thiscall (view, button), RET 4; Ctrl (input vt[0x30]) and not one_per_state -> every eligible province of the state; else one command without pre-check; Ctrl test at 0x0073D75E (8B 4B 1C 8B 11 8B 42 30 89 74 24 0C FF D0 84 C0, no relocations; then JZ 0x0073D85E; EBX = idler, ESI = building)"
 0x0074A030,CForeignProvince_OnExpandClick,C,ui,cp,"same as CProvinceView_OnExpandClick, province at this+0x134"
 0x006E45F0,FactoryView_OnExpandClick,C,ui,cp,Ctrl/Shift bulk factory expansion with a running money total
 0x0057B560,ConstructBuildingCommand_ctor,C,buildings,cp,"stdcall (this, CBuilding*, provId, u32 tag, countryIdx), RET 0x14, returns this; 0x58 bytes, type 0x26E; main thread only (global id counter)"
@@ -341,14 +341,14 @@ va,name,conf,area,src,note
 0x0057C130,ConstructStateBuildingCommand_ctor,C,factories,cp,EDI = state-id source; type 0x84E
 0x0057C400,ConstructStateBuildingCommand_Execute,C,factories,cp,
 0x0057CAF0,ConstructStateBuildingCommand_Validate,C,factories,cp,"Factory_CanBuildNow, or FUN_0052D150 for an expansion"
-0x008569A0,AI_ConstructionUpdate,C,ai,cp,"slot 6 of the job vtable 0x00E284EC; fastcall ECX = job (+0x34 tag, +0x38 index); caches first province building of type 2/4/3 at +0x78/+0x7C/+0x80; rule flags +0x6C..+0x74; nothing at war (country+0x67C); one world-MT roll vs the CHANCE_* defines (g_economyDefines+0x60 +0x34..+0x44); see buildings.md"
+0x008569A0,AI_ConstructionUpdate,C,ai,cp,"slot 6 of the job vtable 0x00E284EC; fastcall ECX = job (+0x34 tag, +0x38 index); caches first province building of type 2/4/3 at +0x78/+0x7C/+0x80; rule flags +0x6C..+0x74; nothing at war (country+0x67C); one world-MT roll vs the CHANCE_* defines (g_economyDefines+0x60 +0x34..+0x44); see buildings.md; body 0x008569A0..0x00859550; the countdown's Rng_Next at 0x008569CF; the cached building searches CMP [EDI+0x10],2 / 3 / 4 at 0x00856C02 / 0x00856DC2 / 0x00856CB3"
 0x00858560,AI_BuildFort,C,ai,cp,needs money > 2x cost; posts ConstructBuildingCommand
 0x00857E60,AI_PickFortProvince,C,ai,cp,"owned, not colonial, Province_CanExpandBuilding; scored by capital and borders"
 0x00858460,AI_BuildNavalBase,C,ai,cp,"province from AI_PickNavalBaseProvince; money > cost; posts ConstructBuildingCommand with job+0x80"
 0x008582D0,AI_BuildRailroad,C,ai,cp,"ECX = country whose states are searched (own or a foreign investment target), EDI = job; own: money > cost; abroad: money > 3x cost"
 0x008580E0,AI_PickRailroadProvince,C,ai,cp,"(job, country); per state the first affordable controlled province passing Building_CanBuildInProvince; best state+0x68 (factory count, I)"
 0x00902790,CCanBuildInProvinceTrigger_Evaluate,C,triggers,cp,"Building_CanBuildInProvince(country, prov, 0, unciv, 0, unciv, unciv); +0x1C limit_to_world_greatest_level; no money or occupation check"
-0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,db+0x34 or db+0x38 (TGC: bank)
+0x00902A40,CCanBuildProvinceBuildingInCapitalTrigger_Evaluate,C,triggers,cp,db+0x34 or db+0x38 (a mod's fourth building type listed after the fort, e.g. a bank)
 0x008CE600,CHasBuildingTrigger_Evaluate,C,triggers,cp,level > 0
 0x00891CA0,CBuildingEffect_Execute,C,effects,cp,Province_SetBuildingLevel(value + pb+0x10); the +0x10 is odd (?)
 0x008948C0,CInfrastructureEffect_Execute,C,effects,cp,same on db+0x34 with pb+0x20
@@ -378,7 +378,7 @@ va,name,conf,area,src,note
 0x0041F170,Console_Event,C,ui,cp,"console ""event <id> [tag]"": looks the event up, builds the scope, EventWindow_ctor at 0x0041F54E, Window_Show"
 0x00466DE0,Event_GetPicture,C,events,cp,ESI = std::string out; copies event+0x184 (picture)
 0x009C4B50,TexturedSprite_ctor,C,ui,cp,"0x1AC-byte sprite with a texture from a file: (this, packed size, const std::string* path, sprite-type template, device); event pictures, news pictures, leader portraits, tech images (19 callers)"
-0x005C2AD0,SpriteTypes_Find,C,ui,cp,"EAX = table (g_renderDevice+0xA0), push const std::string* name; hash (h + c) * 61, chained buckets; returns the sprite type or 0. type->vt[0x48]() makes a sprite of it"
+0x005C2AD0,SpriteTypes_Find,C,ui,cp,"EAX = table (g_renderDevice+0xA0), push const std::string* name; hash (h + c) * 61, chained buckets; returns the sprite type or 0. type->vt[0x48]() makes a sprite of it; a new sprite of a type is type->vt[0x48]() (the idiom at 0x00405B5A and seven more sites)"
 0x009EF5B0,Button_SetSprite,C,ui,cp,"vt slot 0xE0 of CEU3Button / the base button; replaces +0xA0, deletes the old sprite (FUN_009963D0), copies position/frame/alpha and the element size to the new one"
 0x009C48D0,Icon_SetSprite,C,ui,cp,vt slot 0xE0 of the icon; as Button_SetSprite with the sprite at +0x94; used for the event picture
 0x009963D0,RenderList_RemoveAndDelete,I,ui,cp,ESI = list; removes the sprite from +0xB8 and +0xD8 and calls its vt[0x24](1)
@@ -394,12 +394,12 @@ va,name,conf,area,src,note
 0x009BC490,TextureManager_LoadFile,C,ui,cp,loads a texture through PhysFS (D3DXCreateTextureFromFileInMemoryEx); a .tga name is tried as .dds first
 0x004FB5C0,Country_GetMapColor,C,map,cp,"ESI = country, EAX = out CColor (0x1C); the per-government colour of country+0x15CC when [country+0xBD0]+0x40 has an entry, else country+0x924; returns EAX, plain RET, uses ECX/EDX/XMM0 only; 19 call sites (map-modes.md ""Political colours"")"
 0x007EBB80,CColor_Scale,C,render,cp,"ECX = source, EAX = out, XMM1 = factor: r/g/b * factor clamped to 1, alpha copied, +0x18 = all three > 0.999"
-0x007FCA30,MapColor_Political,C,map,cp,"mode 1, stdcall (CProvinceManager*), RET 4: owner colour * k (dim factor, kept in XMM1 across the owner Country_GetMapColor call), controller colour as secondary when it differs; no owner: white"
+0x007FCA30,MapColor_Political,C,map,cp,"mode 1, stdcall (CProvinceManager*), RET 4: owner colour * k (dim factor, kept in XMM1 across the owner Country_GetMapColor call), controller colour as secondary when it differs; no owner: white; passes the colour to CColor_Scale at 0x007FCAE2 (XMM1 live; a replacement of the Country_GetMapColor call must keep it)"
 0x007FCBD0,MapColor_PoliticalPlain,C,map,cp,"stdcall (CProvinceManager*), RET 4: as MapColor_Political without dimming; no owner: 0x99999999; 7 callers (CSetHistoryDate_Execute, MapView_ColorPolitical, ...)"
 0x00645D90,MapView_ColorPolitical,C,map,cp,EAX = map view: MapColor_PoliticalPlain(view+0x20BC)
-0x007FF880,MapColor_Sphere,C,map,cp,"mode 13: a GP (country+0x31) its own colour, a sphere member (country+0x142C) its leader colour; with a selected country, its sphere and influence"
+0x007FF880,MapColor_Sphere,C,map,cp,"mode 13: a GP (country+0x31) its own colour, a sphere member (country+0x142C) its leader colour; with a selected country, its sphere and influence; Country_GetMapColor at 0x007FFABF, 0x007FFB05, 0x007FFB74, 0x007FFBB7 (a GP's own colour; a sphere member its leader's, country+0x142C)"
 0x007FC980,MapColor_Terrain,C,map,cp,"mode 0, EDI = CProvinceManager: one constant colour for every province"
-0x0051B870,Country_RewriteColorFile,I,map,cp,copies a text file line by line and rewrites the color = { } lines with Country_GetMapColor * 255; why it is called is ?
+0x0051B870,Country_RewriteColorFile,I,map,cp,"copies a text file line by line and rewrites the color = { } lines with Country_GetMapColor * 255; why it is called is ?; Country_GetMapColor at 0x0051BB10, 0x0051BB4F, 0x0051BB8E"
 0x008D7760,IsSubstateTrigger_Evaluate,C,triggers,cp,country+0xCF4
 0x008D7A40,IsVassalTrigger_Evaluate,C,triggers,cp,country+0xCF5 or +0xCF4
 0x008D8B50,SubstateOfTrigger_Evaluate,C,triggers,cp,+0xCF4 and overlord index +0xCFC == target
@@ -408,7 +408,7 @@ va,name,conf,area,src,note
 0x008FA9C0,HasSphereLeaderTrigger_Evaluate,C,triggers,cp,country+0x142C != 0
 0x008F9C70,InSphereTrigger_Evaluate,C,triggers,cp,country+0x142C == target index
 0x0090A800,CB_HasPeaceOption,C,cb,cp,"EAX = cb, ECX = po token; AL = the list at cb+0x120 has it"
-0x0094E660,WarGoal_Execute,C,cb,cp,"(warGoal at [ebp+8]): one block per peace option; po_demand_state at 0x0094E707 annexes a last state or transfers the state (call 0x0094E844); 8 calls from FUN_00916F00 / FUN_0091B1D0"
+0x0094E660,WarGoal_Execute,C,cb,cp,"(warGoal at [ebp+8]): one block per peace option; po_demand_state at 0x0094E707 annexes a last state or transfers the state (call 0x0094E844); 8 calls from FUN_00916F00 / FUN_0091B1D0; po_transfer_provinces calls TransferProvinces at 0x0094E958; Country_SetGovernment at 0x0094FA66 (po_install_communist_gov_type)"
 0x00951920,WarGoal_PeaceCost,C,cb,cp,"stdcall (warGoal, int* out, bool), RET 0xC; po_demand_state / po_transfer_provinces sum FUN_004B79A0 over the provinces of the states; other options add a define"
 0x009500E0,WarGoal_Infamy,C,cb,cp,"EDI = int* out; sum of one define per peace option x badboy_factor (cb+0xF4) / 1000"
 0x004B5A90,TransferProvinces,C,provinces,cp,"cdecl (vector<int>* provinceIds, receiver ref*, date*, bool cultureEffects, cores ref*); reads only begin/end; pop +0x250 wiped, SetController + SetOwner + RemoveCore, constructions and timed modifiers deleted, Country_RebuildStates(receiver); no death or capital handling; 10 callers"
@@ -692,7 +692,7 @@ va,name,conf,area,src,note
 0x008CDFC0,HasProvinceModifierTrigger_Evaluate,C,triggers,cp,"vt+0x18; scans province +0xC8 for +0x1C; null never matches"
 0x008CE000,HasProvinceModifierTrigger_Tooltip,C,triggers,cp,"vt+0x28, same as the country one; unchecked modifier"
 0x008B7F70,TriggerList_Tooltip,I,triggers,cp,"AND/OR children tooltip: calls each child's vt+0x28 (return address 0x008B7FFD)"
-0x00639120,App_LoadGameData,I,loading,cp,"one-time setup: pop types, issues, then static/event modifiers ('Static Modifiers Initialized' at 0x0063C345), buildings, technologies, CBs, ..."
+0x00639120,App_LoadGameData,I,loading,cp,"one-time setup: pop types, issues, then static/event modifiers ('Static Modifiers Initialized' at 0x0063C345), buildings, technologies, CBs, ...; BuildingDb_Load at 0x0063C945"
 0x008577B0,AI_PickNavalBaseProvince,C,ai,cp,"arg = job; upgrade of an existing coastal base first, else the coastal province in the emptiest of 8 directions x 3 distances from the capital (+ worldMT() % 3 per candidate)"
 0x008571A0,AI_FactoryScore,I,ai,cp,"(building, country): output price against input prices, plus factory modifiers; also ranks factories to delete"
 0x00857430,AI_PickFactoryType,I,ai,cp,"(country): best AI_FactoryScore over buildings whose vt[0x24] is true"
@@ -703,3 +703,131 @@ va,name,conf,area,src,note
 0x00859180,AI_InvestPopProject,I,ai,cp,"arg = job; funds the neediest state pop project, capped by POP_PROJECT_INVESTMENT_MAX_BUDGET_FACTOR (AI define +0x28) x money; cmd 0x00588650"
 0x008AE8A0,CMeanTimeToHappen_OnToken,C,events,cp,"vt slot 4: factor 0x3BE / base 0x56A / days 0x3C0 set +8 (x1000), months 0x3BF x30, years 0x3C1 x365, modifier 0x3B8 appends a 0x24-byte modifier; else 'unknown command ... for MTTH'"
 0x008AE250,CMtthModifier_ctor,C,events,cp,"ESI = this (0x24 bytes): vtable 0x00E2CE78, factor +0x20 = 1000"
+0x004010C0,Object_EmptyMethod,C,engine,cp,"RET: slot 5 of objects without an end-of-block step (CEvent, script blocks read by Persistent_ReadBlock)"
+0x0050E450,FUN_0050E450,?,ai,cp,"EAX = country: among the groups at country+0xA08 the one holding the capital (prov+0xE8), else the one with the highest +0x30; the fort scoring gives +500 to its provinces (the group is probably the home land mass)"
+0x0051F2E0,FUN_0051F2E0,?,ai,cp,"naval base supply score: NAVAL_BASE_SUPPLY_SCORE_BASE x 2^(level - 1) (NAVAL_BASE_SUPPLY_SCORE_EMPTY at level 0), x NAVAL_BASE_NON_CORE_SUPPLY_SCORE outside the owner's cores and home land; AI_PickNavalBaseProvince ranks coastal provinces by it"
+0x0057CC60,FUN_0057CC60,?,factories,cp,"command the AI posts to delete the closed or unprofitable factory with the lowest AI_FactoryScore (states with more than 6 factories)"
+0x00825CF0,FUN_00825CF0,?,ai,cp,AiConstructionJob vtable 0x00E284EC slot 3: calls slot 6 (AI_ConstructionUpdate)
+0x00826480,FUN_00826480,?,ai,cp,"AiConstructionJob vtable 0x00E284EC slot 5: the countdown tick; 4.1 ms/day sampled (1837), no hot spot"
+0x00844050,FUN_00844050,?,ai,cp,the AI's answer to diplomatic actions; reads the AI tables next to AI_GetBaseRelation
+0x00844140,FUN_00844140,?,ai,cp,the AI's answer to diplomatic actions; reads the AI tables next to AI_GetBaseRelation
+0x0047D0F0,FUN_0047D0F0,?,ui,cp,CPoliticsView: evaluates decisions on UI refresh (player only)
+0x0053A6D0,FUN_0053A6D0,?,ui,cp,decision tooltip: evaluates the decision for the player on UI refresh
+0x006D2DD0,FUN_006D2DD0,?,ui,cp,evaluates decisions on UI refresh (player only)
+0x006DB2E0,FUN_006DB2E0,?,ui,cp,evaluates decisions on UI refresh (player only)
+0x00876B30,EffectBlock_AddChild,C,effects,cp,"effect vtable slot 4 (OnKeyword) of every compound effect: thiscall (block, parser, token) RET 8; the switch on the token allocates the child, appends it to block+0x08/+0x0C/+0x10 (0x10-byte nodes {effect, prev, next, u8}) and calls its slot 7 with the parser value (0x104 bytes from parser+0x228); the default case tries a tag (FUN_004DC420 / FUN_004DACC0) or a region scope, else logs an unknown effect; also called directly at 0x00886DF0, 0x00888B32, 0x0088E915, 0x008A2AAB; prologue 55 8B EC 83 E4 F8 (se_treaty_effect_factory)"
+0x0087A3F0,Effect_dtor,C,effects,cp,vtable slot 0 shared by the simple effects (CReleaseVassalEffect)
+0x0087A6C0,FUN_0087A6C0,?,effects,cp,"effect vtable slot 8, shared (29 callers)"
+0x0088DE60,CReleaseVassalEffect_ctor,C,effects,cp,"EAX = memory (0x2C bytes), vtable 0x00E2B4AC; built by EffectBlock_AddChild for token 0x700 (release_vassal)"
+0x0088DEA0,CReleaseVassalEffect_ParseValue,C,effects,cp,"slot 7: thiscall (token, 0x100-byte text) RET 0x104; THIS 0x405 -> +0x1C, FROM 0x3DE -> +0x1D, 0x70C (random vassal) -> +0x28, else a tag (FUN_0055C6C0 on g_countryManager) into +0x20/+0x24"
+0x0088DF10,CReleaseVassalEffect_Execute,C,effects,cp,"slot 11: thiscall (CEventScope* scope, ?) RET 8"
+0x0088E2D0,CReleaseVassalEffect_Tooltip,C,effects,cp,"slot 9: thiscall (std::string* out, CEventScope* scope, std::string by value, int) RET 0x28; out is uninitialised on entry and returned; frees the by-value string's buffer when its capacity > 15"
+0x0088E620,CReleaseVassalEffect_ResolveTarget,C,effects,cp,"EAX = effect, ESI = out {tag, index}, stack = scope: THIS from scope+0x24 (+0x08/+0x0C, else the owner of +0x10), FROM from the THIS scope's +0x2C/+0x30 (else the owner of +0x34), otherwise the stored tag"
+0x00803210,FUN_00803210,?,map,cp,map cache: saves with D3DXSaveTextureToFileInMemory D3DXIFF_DDS (4) at 0x00803A52
+0x0066C290,MapModeButton_Terrain,C,map,cp,mode 0 button handler (jump table); colour 0x007FC980
+0x0066C400,MapModeButton_Political,C,map,cp,mode 1 button handler; colour MapColor_Political
+0x0066C6F0,MapModeButton_Diplomatic,C,map,cp,mode 2 button handler; colour MapColor_Diplomatic
+0x0066C870,MapModeButton_Region,C,map,cp,mode 3 button handler; colour MapColor_Region
+0x0066C570,MapModeButton_RevoltRisk,C,map,cp,mode 5 button handler; colour MapColor_RevoltRisk
+0x0066CCF0,MapModeButton_Administrative,C,map,cp,mode 6 button handler; colour MapColor_Administrative
+0x0066CB70,MapModeButton_Colonial,C,map,cp,mode 7 button handler; colour MapColor_Colonial
+0x0066CE70,MapModeButton_Recruitment,C,map,cp,mode 8 button handler; colour MapColor_Recruitment
+0x0066E240,MapModeButton_NationalFocus,C,map,cp,mode 9 button handler; colour MapColor_NationalFocus; sets settings+0xE6 = 1
+0x0066E120,MapModeButton_RgoOutput,C,map,cp,mode 10 button handler; colour MapColor_RgoOutput; map style 7
+0x0066E000,MapModeButton_PopulationDensity,C,map,cp,mode 11 button handler; colour MapColor_PopulationDensity
+0x0066D4F0,MapModeButton_Nationality,C,map,cp,mode 12 button handler; colour MapColor_Nationality
+0x0066D2B0,MapModeButton_Sphere,C,map,cp,mode 13 button handler; colour MapColor_Sphere
+0x0066DEE0,MapModeButton_SupplyLimit,C,map,cp,mode 14 button handler; colour MapColor_SupplyLimit
+0x0066DDC0,MapModeButton_PartyLoyalty,C,map,cp,mode 15 button handler; colour MapColor_PartyLoyalty
+0x0066D610,MapModeButton_Ranking,C,map,cp,mode 16 button handler; colour MapColor_Ranking
+0x0066DA90,MapModeButton_Migration,C,map,cp,mode 17 button handler; colour MapColor_Migration
+0x0066D730,MapModeButton_Civilization,C,map,cp,mode 18 button handler; colour MapColor_Civilization
+0x0066D3D0,MapModeButton_Relations,C,map,cp,mode 19 button handler; colour MapColor_Relations
+0x0066D970,MapModeButton_Crisis,C,map,cp,mode 20 button handler; colour MapColor_Crisis
+0x0066D850,MapModeButton_NavalBase,C,map,cp,mode 21 button handler; colour MapColor_NavalBase
+0x007FCCD0,MapColor_Diplomatic,C,map,cp,"mode 2 colour function (stdcall (CProvinceManager*), as the others)"
+0x008010D0,MapColor_Region,C,map,cp,mode 3 colour function
+0x00801230,MapColor_RevoltRisk,C,map,cp,mode 5 colour function
+0x008019B0,MapColor_Administrative,C,map,cp,mode 6 colour function
+0x00801C50,MapColor_Colonial,C,map,cp,mode 7 colour function
+0x00801FF0,MapColor_Recruitment,C,map,cp,mode 8 colour function
+0x00802490,MapColor_NationalFocus,C,map,cp,mode 9 colour function
+0x00800D60,MapColor_RgoOutput,C,map,cp,mode 10 colour function
+0x00800880,MapColor_PopulationDensity,C,map,cp,mode 11 colour function
+0x00800690,MapColor_Nationality,C,map,cp,mode 12 colour function
+0x007FF310,MapColor_SupplyLimit,C,map,cp,mode 14 colour function
+0x007FEB80,MapColor_PartyLoyalty,C,map,cp,mode 15 colour function
+0x007FE6B0,MapColor_Ranking,C,map,cp,mode 16 colour function
+0x007FD390,MapColor_Migration,C,map,cp,mode 17 colour function
+0x007FD860,MapColor_Civilization,C,map,cp,mode 18 colour function
+0x00800280,MapColor_Relations,C,map,cp,mode 19 colour function
+0x007FDAF0,MapColor_Crisis,C,map,cp,mode 20 colour function
+0x007FE1F0,MapColor_NavalBase,C,map,cp,mode 21 colour function
+0x0060CA30,FUN_0060CA30,?,ui,cp,colours of the debt_listbox chart; Country_GetMapColor at 0x0060CEB5
+0x00652A10,FUN_00652A10,?,ui,cp,"game start/load (?); Country_GetMapColor at 0x00653379, 0x00653446, 0x0065349C"
+0x006881D0,FUN_006881D0,?,ui,cp,Country_GetMapColor at 0x00688985 and 0x00688992
+0x00785400,FUN_00785400,?,ui,cp,UI (?); Country_GetMapColor at 0x0078636B
+0x00786780,FUN_00786780,?,ui,cp,UI (?); Country_GetMapColor at 0x007867C7
+0x00756170,FUN_00756170,?,ui,cp,calls MapColor_PoliticalPlain (which screen is open)
+0x0076B930,FUN_0076B930,?,ui,cp,calls MapColor_PoliticalPlain (which screen is open)
+0x0076D340,FUN_0076D340,?,ui,cp,calls MapColor_PoliticalPlain from two sites (which screen is open)
+0x00777470,FUN_00777470,?,ui,cp,calls MapColor_PoliticalPlain (which screen is open)
+0x0072F1E0,CClientPingCommand_Execute,C,network,cp,"host: stores the client's date in its player entry (world+0x18 list, +0x34) and compares it with the host's: 6-10 days behind lowers the speed (idler vt[0x168], LAG_DECREASE_SPEED), 11 or more pauses (LAG_PAUSE); a day stamp at 0x013F3034/0x013F3038 (flags 0x013F303C) keeps it to once per host day"
+0x008687E0,Lua_GetAIRand,C,ai,cp,Lua binding of the world RNG (world+0xB4); unused
+0x009AEB90,SessionManager_Start,I,network,cp,creates the client or server from a request passed by value
+0x00954A40,Pop_ctor,I,pops,cp,pop constructor (behind CNullPop 0x01258A10): the only MT draw (Rng_Next) and most other writes reachable from the daily event scan's triggers
+0x00485390,FUN_00485390,?,economy,cp,"per-pop artisan/needs helper under Market_UpdateCountryPops (1.7 ms/day own, sampled 1837); hottest sample 0x004853D7 right after [pop+0x1B4]"
+0x004B9C60,FUN_004B9C60,?,tick,cp,"DayTick's province pop pass, CALL at 0x00685B09; walks pops through +0x27C; 1.3 ms/day, 89 % at 0x004B9C9B (cp_prefetch_pops_daytick)"
+0x00522CF0,FUN_00522CF0,?,economy,cp,"CALL at 0x00487483 in Market_AddRealDemand; walks the living countries (world+0xADC) and reads relation +0x34 of each; 5.6 ms/day, 90 % at 0x00522E27 (cp_prefetch_market)"
+0x0052FCD0,FUN_0052FCD0,?,tick,cp,"stdcall (country, 0) RET 8, once per country from Country_DailyUpdate at 0x0050B6B9: for every country of world+0xADC with provinces other than self reads other+0x1580[self] (8 bytes); 1.9 ms/day, 48 % at 0x00530388 (cp_prefetch_pair_array)"
+0x0095A5F0,FUN_0095A5F0,?,pops,cp,"2.1 ms/day sampled (1837); 46 % at 0x0095A66D on pop +0x180..+0x21C; open"
+0x0095EB00,FUN_0095EB00,?,economy,cp,"market distribution per pop, ESI = pop, CALL at 0x00481860 in ProcessMarketAndGoodsDistribution (next pop in EAX); 1.4 ms/day, 90 % at 0x0095EB63 on pop +0x11C (cp_prefetch_pops_distribution)"
+0x009E6C10,FUN_009E6C10,?,util,cp,"flag trie lookup (has_country_flag): 2.2 ms/day, 67 % at 0x009E6C2F on the trie node; mostly decision triggers, already culled"
+0x0051FD10,FUN_0051FD10,?,tick,cp,"stdcall (country) RET 4, CALL at 0x0050861B in Country_PrePass: resets country+0x1514 (goods x 0x18-byte entries, count from DAT_012587F0) and country+0x14F4 (types x rows of goods, count from g_buildingDb 0x0125CE80) to the constant pair at DAT_013F3688/+4, resizing first when the sizes differ; stores at 0x0051FEA4..; skipped by skip_clean_resets when the tables already hold the constant (cp_prepass_reset)"
+0x008EEC40,Country_IsSecondaryPower,C,country,cp,"civilized (+0x12D0), not a great power, and rank (+0x1404) up to *(g_economyDefines+0x40)+0x50 / 1000"
+0x0063F870,Camera_Update,C,ui,cp,"ESI = map view, EDI = mouse, fifth stack argument = edge-scroll flag; CInGameIdler_Update calls it at 0x00656275 (flag 1, active window; cp_edge_scroll_camera) and 0x00656321 (flag 0)"
+0x0099C370,FUN_0099C370,?,render,cp,"device-lost handler (exclusive fullscreen): TestCooperativeLevel, Sleep(1000) at 0x0099C3D5 on the first failure, on DEVICENOTRESET releases the tracked resource lists, Resets and restores them; a failed Reset retries every frame"
+0x009DFA30,App_CreateWindow,C,engine,cp,"fastcall ECX = app, called once at 0x009DEEBF (cp_borderless_create_window); reads the settings at app+0xEC (+0x40 width, +0x44 height, +0x4C fullscreen, +0x4D borderless) and stores the app pointer at g_app 0x00F20C38"
+0x009F2A50,ChatMessage_BaseCtor,I,ui,cp,stdcall 5: base constructor of the chat messages (ChatMessage_ctor 0x009F3290 calls it)
+0x009F2FF0,ChatMessage_BaseGetText,I,ui,cp,vt[0x20] of the base chat message: builds the line text
+0x009F3550,ChatMessage_GetText,I,ui,cp,ChatMessage vt[0x20]: builds the line text
+0x00A79F20,FUN_00A79F20,?,ui,cp,DirectInput mouse class; never built (the game uses the Win32 mouse)
+0x00A7A970,Mouse_GetClientPos,C,ui,cp,"mouse vt[0x4C], RET 4: client position = GetCursorPos minus GetWindowRect plus a hard-coded frame (4 px left, SM_CYDLGFRAME + SM_CYCAPTION top) in a framed window; mouse+0xCC HWND, +0xD0 frameless flag; replaced by fix_edge_scroll (cp_edge_scroll_mouse_pos)"
+0x0093AA90,War_CanDeclare,C,war,cp,"cdecl (actor ref*, target ref*, bool needsCb) -> AL; false for a vassal/substate target (needsCb), the same sphere (FUN_00534000), an alliance (relation+0x28), either in the crisis (FUN_0042B220), military access not from the overlord (relation+0x20), a truce (relation+0x70), already at war (country+0x7B4), no usable CB (needsCb, CBManager_IsAnyCBUsable); world+0xD11 (debug flag, I) makes it true; called at 0x00915DE7 and 0x0093B9E8"
+0x0093AE10,War_CannotDeclareReason,C,war,cp,"cdecl (std::string* out, actor ref*, target ref*, bool) -> out: the localised reason, the same tests; called at 0x00915DA9 and 0x0093BAF5"
+0x00915DD0,CDeclareWarAction_CanPerform,C,war,cp,"slot 36: War_CanDeclare(actor, recipient, 1) at 0x00915DE7, then WarGoal_IsValid and no token 0x8DA in the CB's list"
+0x00915CB0,CDeclareWarAction_GetCannotReason,C,war,cp,"slot 37: War_CannotDeclareReason at 0x00915DA9, else ACT_WARDESC"
+0x0093B950,War_CanDeclareTooltip,I,war,cp,"one line per country of a list with the reason; War_CanDeclare at 0x0093B9E8, War_CannotDeclareReason at 0x0093BAF5"
+0x00913510,CDeclareWarAction_Execute,C,war,cp,"slot 32 (0x00E34314), thiscall (ctx) RET 4: nothing when relation+0x34 holds a war; infamy (country+0x1430); new CWar (0x10C bytes, FUN_009318B0) appended to world+0xB3C..0xB44; War_AddAttacker at 0x00913891 / 0x009139C7 / 0x00913A70 and War_AddDefender at 0x009138A6 / 0x00913A27 / 0x00913AC0 (leader, crisis leader, crisis side; action+0x69 = crisis flag); action+0x68 (call allies) sends a CCallAllyAction to each ally (country+0xD58) through the gate; AGRESSOR / DEFENDER messages, WAR_JUST / WAR_INJUST; called directly by WarEffect_Execute and the console war"
+0x009134B0,CDeclareWarAction_ctor,I,war,cp,builds the declare-war action (WarEffect_Execute)
+0x00885CA0,WarEffect_Execute,I,effects,cp,"the war = {} effect, thiscall (scope): builds a CDeclareWarAction (0x009134B0), calls CDeclareWarAction_Execute directly at 0x00885E2C, then adds its goals only if relation+0x34 (the war) is set"
+0x00427FD0,Console_War,I,console,cp,console war: calls CDeclareWarAction_Execute directly at 0x00428143
+0x00934280,War_AddAttacker,C,war,cp,"stdcall (war, bool, bool notify, tag, index) RET 0x14; returns at once when the index is already in war+0x2C; direct calls: CDeclareWarAction_Execute (3), CCallAllyAction_Execute 0x0091E7C0, join/leave commands 0x005F6BEC / 0x005F6E5C (I), a command with war index +0x44 and side +0x48 at 0x00585B71 (I), FUN_004E7290 at 0x004E7892, FUN_00933560 at 0x0093367F"
+0x00935390,War_AddDefender,C,war,cp,"same convention, side war+0x3C; direct calls: CDeclareWarAction_Execute (3), CCallAllyAction_Execute 0x0091E7E7, commands 0x005F709C / 0x005F730C (I), 0x00585C03 (I), FUN_004E7290 at 0x004E78A4, FUN_00933560 at 0x009337B7"
+0x0091E5E0,CCallAllyAction_Execute,C,war,cp,slot 32: War_AddAttacker at 0x0091E7C0 and War_AddDefender at 0x0091E7E7
+0x0091EF50,CCallAllyAction_CanPerform,C,war,cp,"slot 36: the caller at war (country+0x67C) and the called country an ally (relation+0x20), the caller's vassal or in its sphere"
+0x0091E530,CCallAllyAction_AutoAccept,C,war,cp,"slot 27: overlord and vassal, in either direction"
+0x004E7290,FUN_004E7290,?,war,cp,calls War_AddAttacker at 0x004E7892 and War_AddDefender at 0x004E78A4
+0x00933560,FUN_00933560,?,war,cp,calls War_AddAttacker at 0x0093367F and War_AddDefender at 0x009337B7
+0x0091DF80,CAllianceAction_CanPerform,C,diplomacy,cp,slot 36 of CAllianceAction (vtable 0x00E26CC4)
+0x00927130,CMakeCBAction_CanPerform,C,diplomacy,cp,slot 36 of CMakeCBAction (vtable 0x00E343D4)
+0x00911290,CDiplomaticActionCommand_Validate,I,command,cp,runs the action's gate (slot 36) on every machine
+0x0042A130,CrisisManager_DayTick,C,war,cp,"stdcall (mgr), called from DayTick at 0x00686240. Flashpoint crisis when none exists and the cooldown passed: top 3 flashpoint states (state+0x27C, tension state+0x280 > 50000; flag test at 0x0042A245 = CMP [EDI+0x27C],BL; JZ 0x0042A2A5), a roll from the tension, neither owner nor claimant at war, CCrisis_CtorFlashpoint at 0x0042AB06. Else colonial: regions of g_provinceSource+0x2A88 with [+0x80] == 2 and [+0x88] >= 100000, FUN_004CD2A0 picks the competitors (indices in ECX / ESI at 0x0042ABEE), CCrisis_CtorColonial at 0x0042B1F3"
+0x00426570,CCrisis_DailyUpdate,C,war,cp,stdcall (crisis) RET 4
+0x0042B270,Crisis_End,C,war,cp,
+0x00424F90,CCrisis_CtorFlashpoint,C,war,cp,thiscall RET 0xC; liberation or claim crisis by whether the claimant owns provinces; ends in FUN_00425590 (backer queues)
+0x00425270,CCrisis_CtorColonial,C,war,cp,ends in FUN_00425590 (backer queues)
+0x00425A40,Crisis_GetAttackerLeader,C,war,cp,"ECX = crisis, EAX = out: the original leader if it is a GP, else the first GP of that side"
+0x00425AC0,Crisis_GetDefenderLeader,C,war,cp,"ECX = crisis, EAX = out: same rule"
+0x004264D0,Crisis_BuildBackerQueue,C,war,cp,queues the GPs (world+0xBE0) for each side whose leader is not a GP
+0x00425B40,Crisis_CanJoinInterest,C,war,cp,"ESI = crisis, EDI = country ref*, plain RET, result in AL: a GP that is not a leader, not on a side, not interested yet and not at war; callers: on_crisis_declare_interest 0x00426D8E, the add_crisis_interest effect 0x0089057E, CJoinCrisisInterest Validate 0x00589417, UI 0x0062DF1D"
+0x00425E20,Crisis_CanBackSide,C,war,cp,"EAX = country ref*, EDI = crisis, (bool attacker) RET 4: the same rules plus country+0xBB8 == 0 (?); callers: Crisis_ProcessBackerQueue 0x00427983 / 0x00427A22, CBackCrisisSideAction_CanPerform 0x009282D8, CJoinCrisisSide Validate 0x0058977B, UI 0x0062ECB0"
+0x004278C0,Crisis_ProcessBackerQueue,C,war,cp,asks the queued GPs (Crisis_CanBackSide at 0x00427983 and 0x00427A22; on false the next GP is asked)
+0x00428D70,Crisis_JoinAttacker,C,war,cp,"stdcall (crisis, country*), no check of its own; from the Execute of CJoinCrisisSide and CCrisisOfferAction"
+0x00428E50,Crisis_JoinDefender,C,war,cp,"stdcall (crisis, country*), no check of its own"
+0x00427B70,Crisis_BackerResponse,C,war,cp,adds a backer to a side with no check of its own
+0x00927E40,CCrisisOfferAction_CanPerform,C,war,cp,"slot 36: only the cooldown and the war goal, never the recipient"
+0x009278A0,CCrisisOfferAction_Execute,C,war,cp,slot 32: adds the goal before the join
+0x0091CA90,CCrisisBackDownAction_CanPerform,C,war,cp,slot 36 (vtable 0x00E34514)
+0x00928260,CBackCrisisSideAction_CanPerform,C,war,cp,slot 36: Crisis_CanBackSide at 0x009282D8
+0x00425610,FUN_00425610,?,war,cp,console crisis command (with FUN_0042B470); not covered

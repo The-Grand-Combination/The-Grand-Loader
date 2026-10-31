@@ -120,10 +120,18 @@ uint32_t __cdecl draw(uintptr_t return_address) {
         uint32_t value;
         uintptr_t state = g_mt_state;
         uintptr_t fn = g_rng_next;
+        // EBX/ESI/EDI are pinned around the game call (modifier_guard does the same): the compiler
+        // assumes the asm block keeps them, and Rng_Next is LTCG code with no convention to rely on.
         __asm {
+            push ebx
+            push esi
+            push edi
             mov eax, state
             call fn
             mov value, eax
+            pop edi
+            pop esi
+            pop ebx
         }
         return value;
     }

@@ -8,6 +8,7 @@
 
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04 (docs/re/systems/multiplayer.md):
@@ -181,7 +182,11 @@ void __cdecl depth_exceeded() {
 
 // Replaces the CALL DayTick. The site pushes the world and DayTick pops it (RET 4), so the return
 // address is swapped for `after` and saved on a small stack of ours; `after` runs the hashing with
-// every register preserved and returns to the site. Past kMaxDepth the call is passed through untouched.
+// every register, the flags and XMM0-7 preserved (CP_SAVE_ALL: the hashes and logf use SSE) and
+// returns to the site. Past kMaxDepth the call is passed through untouched, after a logged note
+// (same save around it). Stack at entry: [return to site][world]; at `after`: [return to site] (the
+// world was popped by DayTick's RET 4, and the site's own return address was put back by the thunk
+// from g_saved_return). Each restore leaves the stack exactly as before the matching save.
 __declspec(naked) void day_tick_thunk() {
     __asm {
         // stack: [return to site][world]
@@ -201,16 +206,20 @@ __declspec(naked) void day_tick_thunk() {
     too_deep:
         pop ecx
         pop eax
-        pushad
-        call depth_exceeded
-        popad
+    }
+    CP_SAVE_ALL
+    __asm call depth_exceeded
+    CP_RESTORE_ALL
+    __asm {
         jmp dword ptr [g_original_day_tick]
     after:
-        // DayTick's RET 4 popped the world; the site's return address is on our stack. Flags need no
-        // saving across a call return.
-        pushad
-        call after_day_tick
-        popad
+        // DayTick's RET 4 popped the world; the site's return address is on our stack. DayTick's EAX
+        // and flags are restored as they were, below.
+    }
+    CP_SAVE_ALL
+    __asm call after_day_tick
+    CP_RESTORE_ALL
+    __asm {
         push eax
         push ecx
         mov ecx, g_depth

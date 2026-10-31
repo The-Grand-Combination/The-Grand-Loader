@@ -2,6 +2,7 @@
 #include <cstring>
 #include <vector>
 
+#include "features/performance/ai_queue.h"
 #include "features/performance/decision_cull.h"
 #include "features/performance/decision_cull_internal.h"
 #include "game/world.h"
@@ -199,8 +200,10 @@ int resolve_parallel_mode(const Config& config) {
         logf("parallel_decisions: needs cull_decision_checks = 1 (it extends the cull's per-country lists), off");
     } else if (config.decision_profiling) {
         logf("parallel_decisions: off while decision_profiling is on (the timing hook is not thread-safe)");
-    } else if (!config.fast_ai_queue) {
-        logf("parallel_decisions: needs fast_ai_queue = 1 (the batch runs in the frame that drains the AI queue), off");
+    } else if (!ai_queue_installed()) {
+        logf("parallel_decisions: needs fast_ai_queue active (the batch runs in the frame that drains the AI queue; "
+             "fast_ai_queue = %d, its site may be taken by tick_profiler), off",
+             config.fast_ai_queue ? 1 : 0);
     } else if (!hooks::expect_bytes(g_decision_check_trivial, "\xB0\x01\xC3", 3)) {
         logf("parallel_decisions: CDecision slot 6 not recognised, off");
     } else {

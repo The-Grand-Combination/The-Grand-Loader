@@ -16,10 +16,20 @@ disassembly for the crisis manager). Confidence: **[C]** confirmed from code, **
   itself, call to arms, crisis sides and the join commands. Both return at once for a country already on
   that side. **[C]**
 - **Puppets are protected by the vassal rules, not by a flag.** A country that is a vassal or substate
-  cannot be declared on (`War_CanDeclare` with "needs CB"). The TGC mod's neutrality uses that by making
-  neutral countries puppets of the dummy tag `U02`. **[C]**
+  cannot be declared on (`War_CanDeclare` with "needs CB"). A mod can keep countries neutral that way, by
+  making them puppets of a dummy tag. **[C]**
 - **There is no single crisis predicate.** A crisis is created in `CrisisManager_DayTick`. Countries enter
   it through two tests, `Crisis_CanJoinInterest` and `Crisis_CanBackSide`. **[C]**
+
+## Entry points
+
+| Entry | Called from | Conf |
+|---|---|---|
+| `War_CanDeclare` `0x0093AA90` | `CDeclareWarAction_CanPerform` (slot 36, the buttons and the AI through the generic gate) and `War_CanDeclareTooltip` | C |
+| `CDeclareWarAction_Execute` `0x00913510` | slot 32 of the action (the command), `WarEffect_Execute` and the console `war` directly | C |
+| `War_AddAttacker` `0x00934280` / `War_AddDefender` `0x00935390` | 18 direct calls (table under "Joining a war") | C |
+| `CrisisManager_DayTick` `0x0042A130` | `DayTick` at `0x00686240`, once a day | C |
+| `Crisis_CanJoinInterest` `0x00425B40` / `Crisis_CanBackSide` `0x00425E20` | the on_action, the effect, the command Validates and the UI (listed under "Entering a crisis") | C |
 
 ## Declaring a war
 
@@ -163,11 +173,19 @@ EAX = out) return the original leader if it is a GP, else the first member of th
 
 The command Validate (`0x00911290`) runs the gate, and so slot 36, on every machine.
 
-### Not covered
+## Data
 
-- A crisis loaded from a save.
-- The console `crisis` command (`FUN_0042B470`, `0x00425610`).
-- Who writes `state+0x280`.
+- `World+0xB3C..0xB44`: the list of ongoing wars; `World+0xCF8`: the crisis manager (`CCrisisManager`,
+  `+0x08` the current crisis, `+0x0C` the cooldown date). Rows in `structs.csv` (`World`).
+- `CWar` (0x10C bytes): `+0x2C` attackers and `+0x3C` defenders, vectors of 8-byte `{tag, index}`, the
+  leader first.
+- `CCrisis` (0xB4 bytes): the table above, rows in `structs.csv` (`CCrisis`).
+- `CCountry`: `+0x67C` at war, `+0x7B4` wars, `+0xD58` allies, `+0x1430` infamy; `Relation`: `+0x20`
+  military access / alliance flags, `+0x28` alliance, `+0x34` the war between the two, `+0x70` truce.
+- `CState`: `+0x27C` flashpoint flag, `+0x280` tension, `+0x284/+0x288` claimant.
+- Vtables: `CDeclareWarAction` `0x00E34294` (slot 32 at `0x00E34314`), `CCallAllyAction` `0x00E34654`,
+  `CAllianceAction` `0x00E26CC4`, `CCrisisOfferAction` `0x00E346F4`, `CCrisisBackDownAction` `0x00E34514`,
+  `CCrisisManager` `0x00DF31A4`, `CCrisis` `0x00DF3188`, `CNeutralityEffect` `0x00E2BECC`.
 
 ## Hook points for a neutrality feature (designed, not implemented)
 
@@ -182,3 +200,19 @@ to compile on 2026-10-25, then left out):
 | slots 36 / 37 of alliance, justify war, call ally, crisis offer, crisis back down | false / the reason |
 | `0x0042A245`, `0x0042ABEE` | a flashpoint state with a neutral owner or claimant, or a colonial crisis with a neutral competitor, is skipped |
 | `Crisis_CanJoinInterest`, `Crisis_CanBackSide` | entry detours: false for a neutral |
+
+## Patch sites
+
+None. No shipped patch of this repo touches the functions of this page; the table above lists the
+candidate sites of the neutrality feature, which has no rows in `patch_sites.csv` because it was left out.
+
+## Open questions
+
+1. The meaning of `world+0xD11`, which makes `War_CanDeclare` true (a debug flag **[I]**).
+2. The `country+0xBB8 == 0` test in `Crisis_CanBackSide` **[?]**.
+3. The callers `FUN_004E7290` and `FUN_00933560` of `War_AddAttacker` / `War_AddDefender` **[?]**, and
+   which commands the join/leave calls (`0x005F6BEC`, `0x005F6E5C`, `0x005F709C`, `0x005F730C`) and the
+   war-index command (`0x00585B71`, `0x00585C03`) belong to **[I]**.
+4. A crisis loaded from a save (not traced).
+5. The console `crisis` command (`FUN_0042B470`, `0x00425610`).
+6. Who writes `state+0x280` (the tension).

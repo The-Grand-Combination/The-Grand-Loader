@@ -14,6 +14,7 @@
 #include "game/world.h"
 #include "hooks/hourly_tick.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 #include "util/clock.h"
 
@@ -171,19 +172,19 @@ uintptr_t __cdecl manager_for_country(uint32_t country) {
 uintptr_t(__cdecl* volatile g_manager_for_country)(uint32_t) = &manager_for_country;
 
 // The getter takes no arguments; the AI object is in ESI at both call sites (+0xC = country index,
-// game::kAiDailyCountry).
+// game::kAiDailyCountry). Stack at entry: [ret]. manager_for_country runs memcpy and vector code
+// (XMM registers), so everything is saved; its result goes to the saved EAX slot
+// ([esp + CP_SAVED_EAX]) and comes back in EAX after the restore, as the getter's would.
 __declspec(naked) void getter_stub() {
+    CP_SAVE_ALL
     __asm {
-        push ecx
-        push edx
-        mov eax, dword ptr [esi + 0xC]
-        push eax
+        push dword ptr [esi + 0xC]
         call dword ptr [g_manager_for_country]
         add esp, 4
-        pop edx
-        pop ecx
-        ret
+        mov [esp + CP_SAVED_EAX], eax
     }
+    CP_RESTORE_ALL
+    __asm ret
 }
 
 // AI_DecisionUpdate reads the manager through the global, so the global itself is pointed at the
@@ -360,7 +361,8 @@ bool hook_slot(uint32_t slot_rva, uint32_t expected_rva, uintptr_t replacement, 
     uintptr_t slot = hooks::exe_addr(slot_rva);
     *original = read32(slot);
     if (*original != hooks::exe_addr(expected_rva) || !hooks::replace_pointer(slot, *original, replacement)) {
-        logf("decision_cull: %s slot not recognised, feature off", what);
+        logf("decision_cull: %s slot %08X not recognised (expected %08X, holds %08X), feature off", what,
+             hooks::listing_va(slot_rva), hooks::listing_va(expected_rva), hooks::listing_va_of(*original));
         return false;
     }
     return true;
@@ -396,7 +398,8 @@ bool install_cull_hooks() {
     uintptr_t ai_decisions = hooks::exe_addr(kAiDecisionsRva);
     if (!hooks::expect_bytes(hooks::exe_addr(kAiDecisionsCallSiteRva), "\xE8", 1) ||
         !hooks::expect_bytes(ai_decisions, "\x55\x8B\xEC\x6A\xFF", 5)) {
-        logf("decision_cull: AI_DecisionUpdate call site not recognised, feature off");
+        logf("decision_cull: AI_DecisionUpdate call site %08X or its prologue at %08X not recognised, feature off",
+             hooks::listing_va(kAiDecisionsCallSiteRva), hooks::listing_va(kAiDecisionsRva));
         return false;
     }
     uintptr_t getter = hooks::exe_addr(kDecisionManagerGetterRva);
@@ -410,7 +413,8 @@ bool install_cull_hooks() {
     g_original_ai_decisions = reinterpret_cast<AiDecisionsFn>(ai_decisions);
     if (!hooks::redirect_call(hooks::exe_addr(kAiDecisionsCallSiteRva), ai_decisions,
                               reinterpret_cast<uintptr_t>(&ai_decisions_hook))) {
-        logf("decision_cull: AI_DecisionUpdate call site does not call it, feature off");
+        logf("decision_cull: AI_DecisionUpdate call site %08X does not call it or is already hooked, feature off",
+             hooks::listing_va(kAiDecisionsCallSiteRva));
         return false;
     }
     return true;
@@ -495,7 +499,8 @@ void install_decision_cull(const Config& config) {
     resolve_vtables();
     if (!profiling_install(g_and_vtable) ||
         !hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_scope_ctor), "\x55\x8B\xEC", 3)) {
-        logf("decision_cull: CAndTrigger::Evaluate / CEventScope ctor not recognised, feature off");
+        logf("decision_cull: CAndTrigger::Evaluate (vtable %08X) / CEventScope ctor %08X not recognised, feature off",
+             hooks::listing_va(game::kAndTriggerVtableRva), hooks::listing_va(game::kScopeCtorRva));
         return;
     }
     if (g_cull && !install_cull_hooks()) {

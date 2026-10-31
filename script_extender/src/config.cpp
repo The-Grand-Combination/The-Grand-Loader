@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <charconv>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -12,13 +13,20 @@ namespace se {
 
 namespace {
 
+constexpr int kNoMin = INT_MIN;
+constexpr int kNoMax = INT_MAX;
+
 struct Key {
     const char* name;
     bool Config::*flag;  // one of the two is set
     int Config::*value;
+    int min = kNoMin;  // `value` keys: the range; a value outside it is clamped and logged
+    int max = kNoMax;
 };
 
-// Every ini key, in the order of Config. `flag` keys take 0/1, `value` keys an integer.
+// Every ini key, in the order of Config. `flag` keys take 0/1, `value` keys an integer within min..max.
+// Ranges: percents and point counts cannot be negative (a negative one would invert a term of the AI's
+// score or a budget); what divides (money_per_point) or is a budget (the dismantle points) at least 1.
 constexpr Key kKeys[] = {
     {"building_map_mode", &Config::building_map_mode, nullptr},
     {"country_upgrade", &Config::country_upgrade, nullptr},
@@ -26,32 +34,32 @@ constexpr Key kKeys[] = {
     {"demand_province", &Config::demand_province, nullptr},
     {"event_background", &Config::event_background, nullptr},
     {"vassal_map_color", &Config::vassal_map_color, nullptr},
-    {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own},
+    {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own, 0, 100},
     {"treaty", &Config::treaty, nullptr},
     {"treaty_infamy", &Config::treaty_infamy, nullptr},
-    {"treaty_ai_reluctance", nullptr, &Config::treaty_ai_reluctance},
-    {"treaty_ai_give_weight", nullptr, &Config::treaty_ai_give_weight},
-    {"treaty_ai_money_per_point", nullptr, &Config::treaty_ai_money_per_point},
-    {"treaty_ai_relation", nullptr, &Config::treaty_ai_relation},
-    {"treaty_ai_core_gain", nullptr, &Config::treaty_ai_core_gain},
-    {"treaty_ai_core_give", nullptr, &Config::treaty_ai_core_give},
-    {"treaty_ai_power", nullptr, &Config::treaty_ai_power},
-    {"treaty_ai_power_cap", nullptr, &Config::treaty_ai_power_cap},
-    {"treaty_ai_neighbour", nullptr, &Config::treaty_ai_neighbour},
-    {"treaty_ai_coerce_ratio", nullptr, &Config::treaty_ai_coerce_ratio},
-    {"treaty_ai_hostile", nullptr, &Config::treaty_ai_hostile},
-    {"treaty_ai_third_party", nullptr, &Config::treaty_ai_third_party},
-    {"treaty_dismantle_leader", nullptr, &Config::treaty_dismantle_leader},
-    {"treaty_dismantle_gp", nullptr, &Config::treaty_dismantle_gp},
-    {"treaty_dismantle_secondary", nullptr, &Config::treaty_dismantle_secondary},
-    {"treaty_dismantle_other", nullptr, &Config::treaty_dismantle_other},
-    {"treaty_dismantle_gw", nullptr, &Config::treaty_dismantle_gw},
-    {"treaty_dismantle_infamy_min", nullptr, &Config::treaty_dismantle_infamy_min},
-    {"treaty_dismantle_infamy_max", nullptr, &Config::treaty_dismantle_infamy_max},
-    {"treaty_dismantle_infamy_half", nullptr, &Config::treaty_dismantle_infamy_half},
+    {"treaty_ai_reluctance", nullptr, &Config::treaty_ai_reluctance, 0},
+    {"treaty_ai_give_weight", nullptr, &Config::treaty_ai_give_weight, 0},
+    {"treaty_ai_money_per_point", nullptr, &Config::treaty_ai_money_per_point, 1},
+    {"treaty_ai_relation", nullptr, &Config::treaty_ai_relation, 0},
+    {"treaty_ai_core_gain", nullptr, &Config::treaty_ai_core_gain, 0},
+    {"treaty_ai_core_give", nullptr, &Config::treaty_ai_core_give, 0},
+    {"treaty_ai_power", nullptr, &Config::treaty_ai_power, 0},
+    {"treaty_ai_power_cap", nullptr, &Config::treaty_ai_power_cap, 0},
+    {"treaty_ai_neighbour", nullptr, &Config::treaty_ai_neighbour, 0},
+    {"treaty_ai_coerce_ratio", nullptr, &Config::treaty_ai_coerce_ratio, 0},
+    {"treaty_ai_hostile", nullptr, &Config::treaty_ai_hostile, 0},
+    {"treaty_ai_third_party", nullptr, &Config::treaty_ai_third_party, 0},
+    {"treaty_dismantle_leader", nullptr, &Config::treaty_dismantle_leader, 1},
+    {"treaty_dismantle_gp", nullptr, &Config::treaty_dismantle_gp, 1},
+    {"treaty_dismantle_secondary", nullptr, &Config::treaty_dismantle_secondary, 1},
+    {"treaty_dismantle_other", nullptr, &Config::treaty_dismantle_other, 1},
+    {"treaty_dismantle_gw", nullptr, &Config::treaty_dismantle_gw, 1},
+    {"treaty_dismantle_infamy_min", nullptr, &Config::treaty_dismantle_infamy_min, 0, 1000},
+    {"treaty_dismantle_infamy_max", nullptr, &Config::treaty_dismantle_infamy_max, 0},  // >= infamy_min: check_pairs
+    {"treaty_dismantle_infamy_half", nullptr, &Config::treaty_dismantle_infamy_half, 0, 100},
     {"treaty_dismantle_ai_overspend", nullptr, &Config::treaty_dismantle_ai_overspend},
-    {"treaty_dismantle_ai_max_states", nullptr, &Config::treaty_dismantle_ai_max_states},
-    {"treaty_dismantle_ai_max_new", nullptr, &Config::treaty_dismantle_ai_max_new},
+    {"treaty_dismantle_ai_max_states", nullptr, &Config::treaty_dismantle_ai_max_states, 0},
+    {"treaty_dismantle_ai_max_new", nullptr, &Config::treaty_dismantle_ai_max_new, 0},
 };
 
 std::string_view trim(std::string_view s) {
@@ -106,8 +114,21 @@ void parse_line(std::string_view line, Config& config) {
     }
     if (key->flag) {
         config.*key->flag = value != 0;
-    } else {
-        config.*key->value = value;
+        return;
+    }
+    int clamped = value < key->min ? key->min : value > key->max ? key->max : value;
+    if (clamped != value) {
+        logf("config: %s: %d out of range, clamped to %d", key->name, value, clamped);
+    }
+    config.*key->value = clamped;
+}
+
+// Ranges between two keys, checked once the whole file is read.
+void check_pairs(Config& config) {
+    if (config.treaty_dismantle_infamy_max < config.treaty_dismantle_infamy_min) {
+        logf("config: treaty_dismantle_infamy_max: %d out of range, clamped to %d",
+             config.treaty_dismantle_infamy_max, config.treaty_dismantle_infamy_min);
+        config.treaty_dismantle_infamy_max = config.treaty_dismantle_infamy_min;
     }
 }
 
@@ -134,6 +155,7 @@ Config load_config(const std::wstring& config_file) {
     while (std::getline(in, raw)) {
         parse_line(raw, config);
     }
+    check_pairs(config);
     log_config(config);
     return config;
 }

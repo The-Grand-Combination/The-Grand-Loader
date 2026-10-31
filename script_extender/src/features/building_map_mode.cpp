@@ -211,7 +211,9 @@ using LocalizeFn = void*(__stdcall*)(void* out, const GameString* key);
 
 // Texts of MAPMODE_6 and of every province building, read from the CSVs on first use. The game keeps
 // its localisation only as parsed segments, so the plain text comes from the files.
-std::map<std::string, std::string> g_texts;
+// Function-local statics: first built from a hook, never under the loader lock (docs/CODING.md, 1).
+using Texts = std::map<std::string, std::string>;
+Texts& g_texts() { static Texts v; return v; }
 bool g_texts_read = false;
 
 constexpr const char* kModeKey = "MAPMODE_6";
@@ -225,13 +227,13 @@ void read_texts() {
         for (size_t i = 0; i < buildings.size(); ++i) {
             keys.emplace_back(building_name(buildings.begin[i]));
         }
-        g_texts = game::read_localisation(keys);
+        g_texts() = game::read_localisation(keys);
     }
 }
 
 std::string localized(const std::string& key) {
-    auto it = g_texts.find(key);
-    return it != g_texts.end() && !it->second.empty() ? it->second : key;
+    auto it = g_texts().find(key);
+    return it != g_texts().end() && !it->second.empty() ? it->second : key;
 }
 
 void replace_all(std::string& text, const std::string& from, const std::string& to) {
@@ -240,7 +242,8 @@ void replace_all(std::string& text, const std::string& from, const std::string& 
     }
 }
 
-std::string g_title;  // the composed MAPMODE_6 text; outlives the Localize call it is passed to
+// The composed MAPMODE_6 text; outlives the Localize call it is passed to.
+std::string& g_title() { static std::string v; return v; }
 
 // Replaces the menubar tooltip's Localize call: the infrastructure title names the shown building.
 void* __stdcall localize_tooltip(void* out, const GameString* key) {
@@ -251,14 +254,14 @@ void* __stdcall localize_tooltip(void* out, const GameString* key) {
         return original(out, key);
     }
     read_texts();
-    auto title = g_texts.find(kTitleKey);
-    if (title == g_texts.end()) {
+    auto title = g_texts().find(kTitleKey);
+    if (title == g_texts().end()) {
         return original(out, key);  // no title text: the vanilla one
     }
-    g_title = title->second;
-    replace_all(g_title, "$MODE$", localized(kModeKey));
-    replace_all(g_title, "$BUILDING$", localized(building_name(buildings.begin[g_selected])));
-    GameString text(g_title);
+    g_title() = title->second;
+    replace_all(g_title(), "$MODE$", localized(kModeKey));
+    replace_all(g_title(), "$BUILDING$", localized(building_name(buildings.begin[g_selected])));
+    GameString text(g_title());
     return original(out, &text);
 }
 

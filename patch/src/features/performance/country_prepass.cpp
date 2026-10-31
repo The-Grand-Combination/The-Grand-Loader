@@ -8,6 +8,7 @@
 #include "features/performance/relations_prefetch.h"
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04 (docs/re/systems/performance.md):
@@ -120,16 +121,19 @@ uint8_t __stdcall before_reset(uintptr_t country) {
     return skip;
 }
 
-// Stack at entry: [ret][country]. After pushad (32) + pushfd (4), country is at [esp+40].
+// Stack at entry: [ret][country]. After CP_SAVE_ALL (CP_SAVED_ALL_BYTES = 164: PUSHAD, PUSHFD,
+// XMM0-7; the prefetch helpers and logf use SSE), country is at [esp + 168]. The restore puts the
+// stack back as at entry before the jump to the original. On the skip path EAX is left as at entry:
+// FUN_0051FD10 is void (docs/re/decomp), so the caller reads nothing from it.
 __declspec(naked) void reset_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 40]
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 4]   ; country
         call before_reset
         mov byte ptr [g_skip], al
-        popfd
-        popad
+    }
+    CP_RESTORE_ALL
+    __asm {
         cmp byte ptr [g_skip], 0
         jne skip
         jmp dword ptr [g_reset]

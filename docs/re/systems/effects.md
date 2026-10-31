@@ -21,6 +21,16 @@ Confidence: **[C]** confirmed from code, **[I]** inferred, **[?]** guess.
   receive the current `CEventScope`. **[C]**
 - **Effects run on every machine** in multiplayer, from synced state, so they must be deterministic. **[C]**
 
+## Entry points
+
+| Entry | Role | Conf |
+|---|---|---|
+| `EffectBlock_AddChild` `0x00876B30` | builds one child per keyword while a file is parsed: slot 4 of every compound effect, plus four direct calls | C |
+| effect slot 7 (`CReleaseVassalEffect_ParseValue` `0x0088DEA0` for the template) | takes the value the parser read | C |
+| effect slot 11 (`CReleaseVassalEffect_Execute` `0x0088DF10`) | runs the effect with the current `CEventScope`; `WarGoal_Execute` runs a CB's `on_po_accepted` through it | C |
+| effect slot 9 (`CReleaseVassalEffect_Tooltip` `0x0088E2D0`) | the tooltip text, evaluated on every hover | C |
+| `Token_AddDynamic` `0x009902D0` | registers a new keyword before the files that use it are parsed | C |
+
 ## The factory `0x00876B30` **[C]**
 
 1. It switches on `token` and allocates the child. A known effect gets its own class and ctor; for
@@ -149,3 +159,20 @@ one template, one vtable copy per keyword, and the vtable tells them apart in Ex
   factory's default case logs it as unknown and drops it.
 - **Dynamic token ids.** They differ between installations and between runs. Only compare them with the
   id returned at run time.
+
+## Patch sites
+
+| id (`patch_sites.csv`) | site | what |
+|---|---|---|
+| `se_treaty_effect_factory` | `0x00876B30`, entry of `EffectBlock_AddChild` | the dismantle keywords build a `release_vassal` template and get the plugin's vtable |
+| `se_treaty_peace_execute` | `0x00E344F4`, `CPeaceAction` slot 32 | the work queued by the effect is taken after the peace |
+| `cp_add_province_modifier_tooltip` / `_execute`, `cp_add_country_modifier_tooltip` / `_execute`, `cp_remove_province_modifier_tooltip` / `_execute`, `cp_remove_country_modifier_tooltip` / `_execute` | slots 9 and 11 of the four modifier effects | `fix_missing_modifier`: a null modifier gives an empty tooltip and a skipped Execute |
+| `cp_clr_country_flag_slot`, `cp_clr_global_flag_slot` | slot 11 of `CClrCountryFlagEffect` / `CClrGlobalFlagEffect` | `cull_decision_checks` notices a cleared flag |
+
+## Open questions
+
+1. The role of slot 8 (`0x0087A6C0`, shared by 29 callers) **[?]**.
+2. The second argument of Execute (`(scope, ?)`).
+3. The common fields `+0x04` (`0x18D`) and `+0x14` of the simple effects are read from the ctors only **[I]**.
+4. An in-memory parser source (`FileBuffer_ctor` `0x009D5450`) would let a plugin read effects without a
+   generated file; not done.

@@ -4,6 +4,8 @@
 
 #include <cstring>
 
+#include "log.h"
+
 namespace se::hooks {
 
 namespace {
@@ -53,6 +55,15 @@ bool replace_pointer(uintptr_t slot, uintptr_t expected, uintptr_t replacement) 
     return write_bytes(slot, &replacement, sizeof(replacement));
 }
 
+uintptr_t call_target(uintptr_t site) {
+    if (*reinterpret_cast<const unsigned char*>(site) != kCall) {
+        return 0;
+    }
+    int32_t rel;
+    std::memcpy(&rel, reinterpret_cast<const void*>(site + 1), sizeof(rel));
+    return site + kRel32Size + static_cast<uintptr_t>(rel);
+}
+
 bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) {
     unsigned char expected[kRel32Size];
     encode_call(site, expected_target, expected);
@@ -62,6 +73,23 @@ bool redirect_call(uintptr_t site, uintptr_t expected_target, uintptr_t target) 
     unsigned char patched[kRel32Size];
     encode_call(site, target, patched);
     return write_bytes(site, patched, sizeof(patched));
+}
+
+bool chain_call(uintptr_t site, uintptr_t target, uintptr_t& previous) {
+    previous = call_target(site);
+    return previous != 0 && redirect_call(site, previous, target);
+}
+
+bool chain_call_logged(const char* feature, uint32_t site_va, uint32_t expected_va, uintptr_t target,
+                       uintptr_t& previous) {
+    if (!chain_call(exe_va(site_va), target, previous)) {
+        logf("%s: could not patch the call at %08X, off", feature, site_va);
+        return false;
+    }
+    if (previous != exe_va(expected_va)) {
+        logf("%s: the call at %08X was already redirected; chaining to it", feature, site_va);
+    }
+    return true;
 }
 
 uintptr_t make_trampoline(uintptr_t site, size_t size) {

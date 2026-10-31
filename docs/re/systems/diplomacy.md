@@ -416,8 +416,8 @@ Other helpers **[C]**:
 - `CDiplomacyView_Setup` `0x00622270` creates 17 `diplomacy_option` windows, attaches them as
   `action<i>` and binds every `action_option` button to `CDiplomacyView_OnActionClick`.
 - The button text is `<NAME>_BUTTON`: "Justify war" is `MAKE_CB_BUTTON` (vanilla `housedivided.csv`). **[C]**
-  `CDiplomacyView_MakeAction` keeps 0x931 (its alternative is also 0x931). TGC renames the text "Diplomatic
-  Play" in its own localisation.
+  `CDiplomacyView_MakeAction` keeps 0x931 (its alternative is also 0x931). A mod may rename the text (e.g. "Diplomatic
+  Play") in its own localisation.
 - `CDiplomacyView_RefreshActions` re-enables the buttons from `CanPerform` (call at `0x0062B9FC`, ESI =
   action; the Script Extender's `se_treaty_button` site).
 

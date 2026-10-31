@@ -187,7 +187,7 @@ bytes). It returns EAX unchanged, uses only ECX, EDX and XMM0, and ends with a p
 2. Otherwise it copies the base colour `country+0x924`, a `CColor` that is `color = { r g b }` of
    `common/countries/<name>.txt`. **[I]**
 3. The vector holds the per-government lines of the same files, such as
-   `democracy = { 155 78 75 }` in TGC's `Austria.txt`. **[I]**
+   a mod's per-government colour, e.g. `democracy = { r g b }`. **[I]**
 
 The function has 19 call sites:
 

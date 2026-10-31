@@ -3,10 +3,11 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #include "features/performance/cb_cull_triggers.h"
@@ -72,7 +73,18 @@ bool g_profiling = false;
 uintptr_t g_and_vtable = 0;
 uintptr_t g_or_vtable = 0;
 uintptr_t g_not_vtable = 0;
-std::unordered_set<uintptr_t> g_attacker_only_classes;
+// Vtables of the attacker-only trigger classes (cb_cull_triggers.h), resolved and sorted at install
+// and searched with std::binary_search: a plain array, so no dynamic initialiser runs under the
+// loader lock.
+constexpr size_t kAttackerOnlyClassCount =
+    std::size(cb_cull_triggers::kCountryRef) + std::size(cb_cull_triggers::kScalar);
+uintptr_t g_attacker_only_classes[kAttackerOnlyClassCount];
+size_t g_attacker_only_class_count = 0;
+
+bool is_attacker_only_class(uintptr_t vtable) {
+    return std::binary_search(g_attacker_only_classes, g_attacker_only_classes + g_attacker_only_class_count,
+                              vtable);
+}
 
 // Per CB type, static once the files are loaded.
 struct TypeInfo {
@@ -145,7 +157,7 @@ bool is_attacker_only(uintptr_t trigger) {
     if (vtable == g_and_vtable || vtable == g_or_vtable || vtable == g_not_vtable) {
         return children_attacker_only(trigger);
     }
-    if (!g_attacker_only_classes.contains(vtable)) {
+    if (!is_attacker_only_class(vtable)) {
         return false;
     }
     return read8(trigger + game::kTriggerThisFlag) == 0 && read8(trigger + game::kTriggerFromFlag) == 0;
@@ -402,18 +414,21 @@ void install_cb_cull(const Config& config) {
     g_and_vtable = hooks::exe_addr(game::kAndTriggerVtableRva);
     g_or_vtable = hooks::exe_addr(game::kOrTriggerVtableRva);
     g_not_vtable = hooks::exe_addr(game::kNotTriggerVtableRva);
+    g_attacker_only_class_count = 0;
     for (const auto& t : cb_cull_triggers::kCountryRef) {
-        g_attacker_only_classes.insert(hooks::exe_addr(t.vtable_rva));
+        g_attacker_only_classes[g_attacker_only_class_count++] = hooks::exe_addr(t.vtable_rva);
     }
     for (const auto& t : cb_cull_triggers::kScalar) {
-        g_attacker_only_classes.insert(hooks::exe_addr(t.vtable_rva));
+        g_attacker_only_classes[g_attacker_only_class_count++] = hooks::exe_addr(t.vtable_rva);
     }
+    std::sort(g_attacker_only_classes, g_attacker_only_classes + g_attacker_only_class_count);
     g_scope_ctor = reinterpret_cast<game::ScopeCtorFn>(hooks::exe_addr(game::kScopeCtorRva));
 
     uintptr_t original_scan = hooks::exe_addr(kIsAnyCBUsableRva);
     if (!hooks::expect_bytes(reinterpret_cast<uintptr_t>(g_scope_ctor), "\x55\x8B\xEC", 3) ||
         !hooks::expect_bytes(original_scan, "\x55\x8B\xEC\x83\xE4\xF8", 6)) {
-        logf("cb_cull: IsAnyCBUsable / CEventScope ctor not recognised, feature off");
+        logf("cb_cull: IsAnyCBUsable %08X / CEventScope ctor %08X not recognised, feature off",
+             hooks::listing_va(kIsAnyCBUsableRva), hooks::listing_va(game::kScopeCtorRva));
         return;
     }
     for (uint32_t site : kScanCallSites) {
@@ -432,7 +447,7 @@ void install_cb_cull(const Config& config) {
     }
     logf("cb_cull: active (one scope pair per target, can_use only for live `always` and held types; %zu attacker-only "
          "trigger classes), profiling %s",
-         g_attacker_only_classes.size(), g_profiling ? "on" : "off");
+         g_attacker_only_class_count, g_profiling ? "on" : "off");
 }
 
 }  // namespace cp::features

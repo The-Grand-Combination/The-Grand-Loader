@@ -150,8 +150,8 @@ T vt(uintptr_t object, uint32_t slot) {
     return read<T>(read<uintptr_t>(object) + slot);
 }
 
-void* game_new(size_t size) { return fn<void*(__cdecl*)(size_t)>(0x00AAE9AF)(size); }
-void game_delete(void* p) { fn<void(__cdecl*)(void*)>(0x00AAE91B)(p); }
+using game::game_delete;
+using game::game_new;
 
 // --- Loading the plugin's .gfx / .gui ------------------------------------------------------------
 
@@ -245,11 +245,12 @@ uintptr_t localisation_find(uintptr_t localisation, const std::string& key) {
 
 // CBs with `po_demand_province = yes` (demand_province): their terms take one province, so the editor
 // lists provinces for them and states for the others. Read from the cb_types.txt text CBManager_Load gets,
-// since after loading such a CB has the same peace options as a po_demand_state one.
-std::vector<std::string> g_province_cbs;
+// since after loading such a CB has the same peace options as a po_demand_state one. A function-local
+// static: built from the CBManager_Load hook, never under the loader lock (docs/CODING.md, 1).
+std::vector<std::string>& g_province_cbs() { static std::vector<std::string> v; return v; }
 
 void find_province_cbs(const std::string& text) {
-    g_province_cbs.clear();
+    g_province_cbs().clear();
     std::vector<std::string> words;
     std::string word;
     bool comment = false;
@@ -285,7 +286,7 @@ void find_province_cbs(const std::string& text) {
             depth = depth > 0 ? depth - 1 : 0;
         } else if (depth == 1 && words[i] == "po_demand_province" && i + 2 < words.size() && words[i + 1] == "=" &&
                    words[i + 2] == "yes") {
-            g_province_cbs.push_back(cb);
+            g_province_cbs().push_back(cb);
         }
     }
 }
@@ -294,7 +295,7 @@ void find_province_cbs(const std::string& text) {
 
 bool takes_one_province(uintptr_t cb) {
     std::string name = GameString::copy(cb + kCbName);
-    return std::find(g_province_cbs.begin(), g_province_cbs.end(), name) != g_province_cbs.end();
+    return std::find(g_province_cbs().begin(), g_province_cbs().end(), name) != g_province_cbs().end();
 }
 
 // The texts of the answer messages and of the treaty CBs (name, _desc, _setup, _short), from our CSV into
@@ -374,7 +375,7 @@ uintptr_t merged_cb_block() {
     }
     std::string game((std::istreambuf_iterator<char>(game_in)), std::istreambuf_iterator<char>());
     find_province_cbs(game + "\n" + ours);
-    logf("treaty: %u CBs with po_demand_province (listed by province)", static_cast<unsigned>(g_province_cbs.size()));
+    logf("treaty: %u CBs with po_demand_province (listed by province)", static_cast<unsigned>(g_province_cbs().size()));
     std::ofstream out(plugin + L"\\common\\se_cb_types.generated.txt", std::ios::binary | std::ios::trunc);
     out << game << "\r\n\r\n# --- Script Extender: common/se_treaty_cbs.txt ---\r\n" << ours << "\r\n";
     out.close();
@@ -1130,8 +1131,29 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
     }
 }
 
-uintptr_t g_forced_dialog = 0;                                // the dismantle editor on screen
-std::deque<std::pair<uintptr_t, uintptr_t>> g_forced_waiting;  // {gui owner, invitation} to show next
+// The forced editors, one at a time. show_forced is reached from slot 13 inside GuiOwner_UpdateDialogs'
+// walk of the pending list (0x006481D0: it writes action+0x20 = 1 after slot 13 returns, then reads the
+// node's next), so nothing may be taken out of that list there: open_next_forced only queues and opens,
+// and an invitation it cannot show (the loser gone, or at war again) goes to g_forced_dropped. That list
+// is emptied by drop_forced from the editor's per-frame slot 1 (editor_update: the dialogs loop runs
+// before the pending walk, in the same function) and from the Impose button (forced_agree), both outside
+// the walk. Function-local statics: never built under the loader lock (docs/CODING.md, 1).
+uintptr_t g_forced_dialog = 0;  // the dismantle editor on screen
+using ForcedQueue = std::deque<std::pair<uintptr_t, uintptr_t>>;
+ForcedQueue& g_forced_waiting() { static ForcedQueue v; return v; }  // {gui owner, invitation} to show next
+using Dropped = std::vector<std::pair<int, uintptr_t>>;
+Dropped& g_forced_dropped() { static Dropped v; return v; }  // {country, invitation}: to leave its pending list
+
+// Takes the dropped invitations out of their pending lists (which deletes them). Only from a point outside
+// GuiOwner_UpdateDialogs' pending walk.
+void drop_forced() {
+    for (auto [me, invitation] : g_forced_dropped()) {
+        if (treaty::is_pending(me, invitation)) {
+            treaty::remove_pending(me, invitation);
+        }
+    }
+    g_forced_dropped().clear();
+}
 
 uintptr_t __fastcall editor_dtor(uintptr_t dialog, void*, int flags) {
     if (g_forced_dialog == dialog) {
@@ -1150,6 +1172,7 @@ uintptr_t __fastcall editor_dtor(uintptr_t dialog, void*, int flags) {
 }
 
 bool __fastcall editor_update(uintptr_t dialog, void*) {
+    drop_forced();  // the dialogs loop: outside the pending walk
     Editor* e = editor_of(dialog);
     if (e && e->dirty) {
         refresh(*e);
@@ -1184,11 +1207,12 @@ void __fastcall forced_agree(uintptr_t dialog, void*) {
         treaty::send(e->action, e->owner);
     }
     if (e->invitation) {
-        treaty::remove_pending(e->me, e->invitation);
+        treaty::remove_pending(e->me, e->invitation);  // a button click: outside the pending walk
         e->invitation = 0;
     }
     *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
     g_forced_dialog = 0;
+    drop_forced();
     open_next_forced();
 }
 
@@ -1300,9 +1324,9 @@ bool open_editor(uintptr_t owner, int me, int them, uintptr_t invitation = 0, in
 }
 
 void open_next_forced() {
-    while (!g_forced_dialog && !g_forced_waiting.empty()) {
-        auto [owner, invitation] = g_forced_waiting.front();
-        g_forced_waiting.pop_front();
+    while (!g_forced_dialog && !g_forced_waiting().empty()) {
+        auto [owner, invitation] = g_forced_waiting().front();
+        g_forced_waiting().pop_front();
         // A dismantle invitation is in the winner's (the actor's) pending list; a notice in the loser's.
         bool notice = treaty::is_notice(invitation);
         int me = read<int>(invitation + (notice ? kActionRecipientIndex : kActionActorIndex));
@@ -1311,8 +1335,8 @@ void open_next_forced() {
             continue;  // already dealt with
         }
         if (!notice && !treaty::possible(me, them)) {
-            treaty::remove_pending(me, invitation);  // the loser is gone, or at war again
-            continue;
+            g_forced_dropped().emplace_back(me, invitation);  // the loser is gone, or at war again: dropped
+            continue;                                         // later, outside the pending walk (drop_forced)
         }
         open_editor(owner, me, them, invitation, treaty::budget(invitation));
     }
@@ -1441,8 +1465,10 @@ void build_vtable(uintptr_t* storage, uintptr_t dtor, uintptr_t update, uintptr_
 
 }  // namespace
 
+// From slot 13, inside the pending walk: queues, and opens the editor when none is open (as the vanilla
+// slot 13 adds its dialog there); frees nothing (see g_forced_dropped).
 void show_forced(uintptr_t owner, uintptr_t invitation) {
-    g_forced_waiting.emplace_back(owner, invitation);
+    g_forced_waiting().emplace_back(owner, invitation);
     open_next_forced();
 }
 
