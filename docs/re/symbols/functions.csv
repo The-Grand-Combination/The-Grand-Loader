@@ -14,7 +14,7 @@ va,name,conf,area,src,note
 0x004B1A10,Province_DailyUpdate,C,tick,cp,
 0x005091A0,Country_DailyUpdate,C,tick,cp,"(country, random array), RET 8; 683 calls/day; on_action pulses at 0x0050B1F4; delayed events counter (country+0x68, +0x54) at 0x0050B5CE; Player_DecisionAlert for the player at 0x0050B792 (guarded at 0x0050B780); FUN_0052FCD0 at 0x0050B6B9"
 0x00508590,Country_PrePass,I,tick,cp,"per-country pre-pass: units, relations, truces; ~21 ms/day; Country_Recalculate at 0x005089DB (tags with provinces only); FUN_0051FD10 at 0x0050861B; the loop at 0x00508DA7 reads relation +0x2C/+0x30 of the tag with every tag (stall at 0x00508DEE, 70 %, 3.6 ms/day)"
-0x0068F390,Entity_RegisterSpatial,I,tick,cp,"entity / spatial registration with a TBB parallel_for inside; 19 047 calls/day"
+0x0068F390,Vector_PushBackPtr,C,util,cp,"vector<T*>::push_back: EDI = vector {begin, end, capacity}, EAX = &value (may point into the vector), grows through 0x00A513F0; plain RET (corrected 2026-10-31: was Entity_RegisterSpatial)"
 0x00957EA0,Pop_MonthlyUpdate,I,pops,re,"called from Country_DailyUpdate when pop.id % month_length == day_of_month"
 0x004B9250,Pop_MergeEmpty,I,pops,re,merges a pop that reached size 0 into another of the same type
 0x004BA430,Migration_Distribute,I,pops,re,
@@ -845,3 +845,15 @@ va,name,conf,area,src,note
 0x004B2610,Province_RecalcModifiers,C,provinces,cp,"EDI = province: rebuilds the modifier sum at province+0x9C (i64 per definition) from terrain, climate, crime, buildings, static and province modifiers; no country modifier"
 0x00449120,ModifierDefinitions_Init,C,loading,cp,"fills g_modifierDefinitions once (126 CModifierDefinition, MODIFIER_NONE first): the position is the index into every modifier sum (rich_income_modifier 87, middle 88, poor 89, rich_vote 33, tax_efficiency 21)"
 0x00449070,CModifierDefinition_ctor,C,loading,cp,"(this, token id, ...) vtable 0x00DF98D0, +0x20 token id, +0x24 name string, +0x28/+0x29 display flags"
+0x008B33E0,TriggerBlock_AddChild,C,triggers,cp,"trigger vtable slot 4 of every trigger block: thiscall (block, parser, token) RET 8; the switch on the token allocates the child, push_backs it into block+0x08/+0x0C (Vector_PushBackPtr) and calls its slot 9 with the parser value (0x104 bytes from parser+0x228); no case for has_province_flag (0x43B): the default case tries a tag / region / unit scope, else logs an unknown trigger and appends nothing; prologue 55 8B EC 83 E4 F8 (se_province_flags_factory)"
+0x008B6BC0,CHasCountryFlagTrigger_ctor,C,triggers,cp,"EAX = memory (0x38 bytes): vtable 0x00E307E8, +0x04 0x18D, flag name std::string at +0x1C"
+0x008CCB90,CHasCountryFlagTrigger_Evaluate,C,triggers,cp,"slot 6, thiscall (scope) RET 4: CFlags slot 2 lookup of +0x1C in country(scope+0x0C)+0x1B0, true when the entry's +0x1C is set"
+0x008CCBF0,CHasCountryFlagTrigger_Tooltip,C,triggers,cp,"slot 10, thiscall (out, ?, bool negated, ?) RET 0x10; assigns the key HAVE_NOT_COUNTRY_FLAG at 0x008CCC8A, HAVE_COUNTRY_FLAG at 0x008CCF37 (std_string_assign)"
+0x008CD1B0,CHasGlobalFlagTrigger_Evaluate,C,triggers,cp,"slot 6: lookup in the CFlags at world+0x64"
+0x00882A90,CSetProvinceFlagEffect_Execute,C,effects,cp,"vtable 0x00E2ACF8 slot 11, thiscall (scope, ?) RET 8: sets (or CFlags_Add) the name at +0x20 in province(scope+0x10)+0x328, then g_mapView+0x3A28 = 1"
+0x00882B00,CClrProvinceFlagEffect_Execute,C,effects,cp,"vtable 0x00E2AD30 slot 11, RET 8: clears the entry's +0x1C (the entry stays), then g_mapView+0x3A28 = 1"
+0x0043C3F0,CFlags_Add,C,util,cp,"EDI = const char* name, stack = CFlags*: new 0x20-byte entry {std::string name, u8 set = 1 at +0x1C}, inserted through CFlags slot 6"
+0x0043C490,CFlags_WriteSet,C,util,cp,"recursive walk of the tree writing `name = yes` (token 0x29F) for every entry whose +0x1C is set; cleared entries are not saved"
+0x0043C510,CFlags_ParseEntry,C,util,cp,"parser interface (CFlags+0x24) slot: `name = value` -> new entry, set when the value token is yes (0x29F)"
+0x004A8E50,Province_WriteFields,I,province,cp,"province save writer; writes `flags` (token 0x40D) through the CFlags parser interface at +0x34C when the count at +0x334 is not 0 [C for that part]"
+0x004A9980,Province_OnKeyword,I,province,cp,"province load keywords; `flags` (0x40D) reads into the CFlags interface at +0x34C"

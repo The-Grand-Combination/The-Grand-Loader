@@ -8,7 +8,9 @@ struct Config {
     bool building_map_mode = false;  // infrastructure map mode cycles through the province buildings
     bool country_upgrade = false;    // Ctrl+Shift+click on expand: expand in every province of the country
     bool buildings_ai = false;       // AI builds what the mod's common/buildings_ai.txt lists
+    bool buildings_ai_log = false;   // buildings_ai: log constructions and a summary every 30 days
     bool income_modifiers = false;   // rich/middle/poor_income_modifier scale pop income, country ones too
+    bool province_flags = false;     // has_province_flag works (the engine never implemented the trigger)
     bool demand_province = false;    // cb_types.txt `po_demand_province = yes`: the peace takes one province
     bool event_background = false;   // `background = "name"` in an event body: gfx/pictures/events/backgrounds/name
     bool vassal_map_color = false;   // political map: substates and puppets in a shade of their overlord

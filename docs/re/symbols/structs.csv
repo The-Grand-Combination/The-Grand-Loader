@@ -446,3 +446,12 @@ CProvince,0x9C,modifierSum,i64*,C,cp,"one entry per g_modifierDefinitions, value
 CCountry,0xA60,modifierSum,i64*,C,cp,"the country's modifier sum, same layout (rich_vote at +0x108); a second sum at +0xA90 (?)"
 CModifier,0x18,values,i64*,C,cp,"one entry per modifier definition, value x1000"
 CModifierDefinition,0x20,token,int,C,cp,"script token id of the key (0x681 rich_income_modifier)"
+CProvince,0x328,flags,CFlags,C,cp,"set_province_flag / clr_province_flag; saved under `flags` when the count (+0x334) is not 0; parser interface at +0x34C"
+CCountry,0x1B0,flags,CFlags,C,cp,"set / clr / has_country_flag; parser interface at +0x1D4 (CCountry_WriteFields, CCountry_OnKeyword)"
+CFlags,0x00,vtable,ptr,C,cp,"CTernary<CFlag*,0> base: slot 2 find(const char* name) -> entry or 0 (thiscall, RET 4), slot 6 insert, slot 7 free nodes"
+CFlags,0x04,root,ptr,C,cp,"tree of nodes {entry, ?, left +0x08, next +0x0C, right +0x10} (CFlags_WriteSet walk)"
+CFlags,0x0C,count,u32,I,cp,entries ever added (clearing keeps the entry)
+CFlags,0x24,parserVtable,ptr,C,cp,"CFlags::vftable of the persistent interface: slot 1 writes (CFlags_WriteSet), slot 3 reads a block"
+CFlagEntry,0x00,name,std::string,C,cp,0x20-byte entry
+CFlagEntry,0x1C,set,u8,C,cp,"1 = set; clr_*_flag writes 0"
+CHasCountryFlagTrigger,0x1C,flagName,std::string,C,cp,0x38-byte object; has_global_flag has the same layout

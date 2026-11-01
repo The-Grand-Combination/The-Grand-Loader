@@ -72,6 +72,36 @@ crashed on load).
 | `CClrCountryFlagEffect` | `0x00E2ACC0` | `0x00882A40` (flag name std::string at `+0x20`, country = `scope+0x0C`) |
 | `CSetGlobalFlagEffect` | `0x00E2AD68` | `0x00882B60` |
 | `CClrGlobalFlagEffect` | `0x00E2ADA0` | `0x00882BA0` |
+| `CSetProvinceFlagEffect` | `0x00E2ACF8` | `0x00882A90` |
+| `CClrProvinceFlagEffect` | `0x00E2AD30` | `0x00882B00` |
+
+## Flags (2026-10-31)
+
+Names and addresses in `symbols/` (`CFlags_*`, `CHasCountryFlagTrigger_*`, struct rows `CFlags`,
+`CFlagEntry`, `CProvince+0x328`, `CCountry+0x1B0`).
+
+- **Storage.** A `CFlags` is a tree of 0x20-byte entries `{std::string name, u8 set}`: the global flags
+  at `world+0x64`, a country's at `+0x1B0`, a province's at `+0x328`. Lookup is the object's slot 2
+  with the name. `set_*_flag` sets the entry (or adds one), `clr_*_flag` writes 0 and keeps the entry.
+  **[C]**
+- **Save.** The country and the province write `flags = { name = yes ... }` (token 0x40D), set entries
+  only, and read it back on load; a province writes the block only when its count is not 0. **[C]**
+- **Province effects.** `set_province_flag` / `clr_province_flag` act on the scope's province
+  (`CEventScope+0x10`) and set `g_mapView+0x3A28`, the map's dirty flag: the map draws a sprite for
+  some province flags. **[C]** effects, **[I]** purpose.
+- **`has_province_flag` is missing.** The keyword exists (token 0x43B), but there is no trigger class
+  and `TriggerBlock_AddChild` has no case for it. Its default case tries a tag, region or unit scope,
+  then logs an unknown trigger and appends nothing. So `has_province_flag = x` is always true, and so is
+  `NOT = { has_province_flag = x }`, because an empty `NOT` is true. The vanilla localisation has the
+  keys `HAVE_PROVINCE_FLAG` / `HAVE_NOT_PROVINCE_FLAG`, which the exe never references. **[C]**
+- **Fix** (Script Extender `province_flags`, sites `se_province_flags_*`): a hook on the factory entry
+  builds a `has_country_flag` trigger for 0x43B and gives it a copied vtable:
+  - Evaluate looks the name up in the province of the scope, and is false without one, like
+    `CTerrainTrigger`;
+  - the tooltip is the `has_country_flag` one, but its two key assignments take the province keys
+    while it runs for this trigger.
+
+  **[C]**
 
 ## Keywords
 

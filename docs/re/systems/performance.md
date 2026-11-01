@@ -62,7 +62,7 @@ the frame side. At max speed a game day is **3–4 frames** (~50 ms each), not o
 (`Render_MapFrame`) is only ~14.5 ms/day. **[M]** The largest block is `CommandQueue_Process`: called
 from five sites in `CInGameIdler_Update`, it runs the queued commands through virtual calls (`CALL EAX`
 on `vt+0x1C`, `+0x20`, `+0x38`). The hourly-tick command, and therefore the whole simulation, is one of
-them. It also loops `Entity_RegisterSpatial` + `FUN_005F2AE0` over a queue. **[C]** Its 51 ms of own
+them. It also loops `Vector_PushBackPtr` (a `vector<T*>::push_back`) + `FUN_005F2AE0` over a queue. **[C]** Its 51 ms of own
 time are those unhooked virtual calls: probably the commands the AI issues (diplomacy, units,
 construction) and their execution.
 

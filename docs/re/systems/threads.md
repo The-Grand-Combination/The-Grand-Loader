@@ -8,7 +8,7 @@ Sources: research log 2026-10-01 (TBB); `Economy/economy-market.md` (worker fram
 ## Summary
 
 - The engine links Intel TBB. `task_scheduler_init::initialize(threads)` only matters for three
-  `parallel_for` sites: entity/spatial registration near `Entity_RegisterSpatial` (`0x0068F390`) and
+  `parallel_for` sites: entity/spatial registration (the old name of `Vector_PushBackPtr` `0x0068F390` pointed there; it is only a `push_back`) and
   graphics near `Render_InitRestore` (`0x0099DA20`). The daily simulation is single-threaded. The
   shipped option `engine_worker_threads` hooks that import (IAT) and sets the thread count.
 - There is also a small generic worker-thread class (vtable `0x00E439F8`): `WorkerThread_Create`

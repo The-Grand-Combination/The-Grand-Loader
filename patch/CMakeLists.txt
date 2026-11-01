@@ -57,6 +57,7 @@ target_compile_definitions(performance_patch PRIVATE PERFORMANCE_PATCH_VERSION="
 set_target_properties(performance_patch PROPERTIES PREFIX "" OUTPUT_NAME "performance_patch")
 
 install(TARGETS performance_patch RUNTIME DESTINATION mod/performance_patch COMPONENT performance_patch)
-install(FILES mod/performance_patch.ini DESTINATION mod COMPONENT performance_patch)
+install(FILES mod/performance_patch.mod DESTINATION mod COMPONENT performance_patch)
+install(FILES mod/performance_patch/performance_patch.ini DESTINATION mod/performance_patch COMPONENT performance_patch)
 
 set(PERFORMANCE_PATCH_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

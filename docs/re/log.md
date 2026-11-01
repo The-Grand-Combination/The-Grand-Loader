@@ -707,3 +707,16 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   income calls told apart by the income tax call before them.
 - **Built:** Script Extender `income_modifiers`.
 - **Open:** the categories 5 and 7 of the pop income array; whether `+0xA90` is a second country sum.
+
+## 2026-10-31 — set/clr/has_province_flag "do not work"
+
+- **Question:** whether the three province flag keywords work.
+- **Answer:** the two effects work and the flags are saved; `has_province_flag` has no trigger class and
+  no case in `TriggerBlock_AddChild`, so it is logged as unknown and dropped: always true, inside `NOT`
+  too. The vanilla localisation has `HAVE_PROVINCE_FLAG`, the exe never uses it. → [systems/triggers.md](systems/triggers.md)
+- **Method:** RTTI list (`CSetProvinceFlagEffect`, `CClrProvinceFlagEffect`, no `CHasProvinceFlagTrigger`);
+  the token switch of both factories; province save and load (`flags` = token 0x40D at `+0x34C`).
+- **Correction:** `0x0068F390` is `vector<T*>::push_back` (`Vector_PushBackPtr`), not entity registration.
+- **Built:** Script Extender `province_flags`.
+- **Open:** the two unnamed arguments of the trigger tooltip slot 10; who reads `g_mapView+0x3A28` after
+  a province flag changes (the map draws sprites for some province flags, `0x00643xxx`).

@@ -12,6 +12,7 @@ add_library(script_extender SHARED
     src/features/demand_province.cpp
     src/features/event_background.cpp
     src/features/income_modifiers.cpp
+    src/features/province_flags.cpp
     src/features/treaty.cpp
     src/features/treaty_ui.cpp
     src/features/vassal_map_color.cpp
@@ -27,7 +28,8 @@ target_compile_definitions(script_extender PRIVATE SCRIPT_EXTENDER_VERSION="${PR
 set_target_properties(script_extender PROPERTIES PREFIX "" OUTPUT_NAME "script_extender")
 
 install(TARGETS script_extender RUNTIME DESTINATION mod/script_extender COMPONENT script_extender)
-install(FILES mod/script_extender.ini DESTINATION mod COMPONENT script_extender)
+install(FILES mod/script_extender.mod DESTINATION mod COMPONENT script_extender)
+install(FILES mod/script_extender/script_extender.ini DESTINATION mod/script_extender COMPONENT script_extender)
 install(DIRECTORY mod/script_extender/localisation mod/script_extender/interface mod/script_extender/gfx
                   mod/script_extender/common
         DESTINATION mod/script_extender

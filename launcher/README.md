@@ -12,10 +12,18 @@ DirectInput call to the system library, so input works as before.
 
 ## What it loads
 
-For every `mod/<name>.ini` in the game folder that has a `mod/<name>/<name>.dll` next to it, the loader
-loads that DLL and calls its `TGL_PluginInit` export. Plugins are loaded in file-system order (usually
-alphabetical). An `.ini` without a matching DLL is ignored, so content mods are not affected; the game
-itself only reads `.mod` descriptors, so plugins never appear in its mod list.
+Plugins are declared by the mods ticked in the launcher. Each `.mod` file the game receives with `-mod=`
+may contain any number of `load = "<path>"` lines, with the path relative to `mod/`:
+
+```
+name = "Performance Patch"
+load = "performance_patch/performance_patch.dll"
+```
+
+The loader loads each DLL and calls its `TGL_PluginInit` export, in the order of the `-mod=` arguments
+and of the lines in each file. A DLL named by several mods (a plugin's own `.mod` and a content mod
+that ships it) is loaded once, at its first mention. The plugin's settings are `<name>.ini` next to its
+DLL. The game ignores the `load` lines, as it ignores any key it does not know in a `.mod`.
 
 Every line the loader and the plugins log goes to `the_grand_loader.log` in the game folder. A second instance started from the same folder while the first runs (a local multiplayer test) writes to `the_grand_loader.<pid>.log` instead, so neither overwrites the other.
 

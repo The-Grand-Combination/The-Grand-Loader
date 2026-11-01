@@ -1,4 +1,4 @@
-# Writing a plugin for The Grand Loader
+| `plugin_name` | `<name>`, the DLL file stem |# Writing a plugin for The Grand Loader
 
 The loader (`dinput8.dll`) loads any number of plugins. A plugin is a 32-bit Windows DLL with one
 export; it gets a small host API and patches the game from there.
@@ -8,11 +8,14 @@ export; it gets a small host API and patches the game from there.
 ```
 v2game.exe
 dinput8.dll                      the loader
-mod/<name>.ini                   your plugin's settings (its presence enables the plugin)
+mod/<name>.mod                   a mod descriptor with load = "<name>/<name>.dll" (tick it in the launcher)
 mod/<name>/<name>.dll            your plugin
+mod/<name>/<name>.ini            its settings, next to the DLL (optional)
 ```
 
-`<name>` is the same in both places. Delete the `.ini` (or the DLL) to disable the plugin.
+Any `.mod` the game is started with may carry `load = "<path>"` lines (relative to `mod/`), so a content
+mod can ship its plugins in its own descriptor; a DLL declared by several mods is loaded once. Untick
+the mod to disable the plugin.
 
 ## The contract (`include/tgl/plugin_api.h`)
 
