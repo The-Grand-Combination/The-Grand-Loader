@@ -1,6 +1,7 @@
 #include "features/treaty.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "features/treaty_ui.h"
+#include "game/console.h"
 #include "game/localisation.h"
 #include "game/objects.h"
 #include "game/script.h"
@@ -2255,6 +2257,56 @@ std::string tag_name(int index) {
     return effect_text(std::string(reinterpret_cast<const char*>(&tag), 3));
 }
 
+// The country with tag `word` (any case), or 0.
+int country_by_tag(std::string word) {
+    if (word.size() != 3) {
+        return 0;
+    }
+    for (char& ch : word) {
+        ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+    }
+    int count = read<int>(read<uintptr_t>(hooks::exe_va(game::kCountryManager)));
+    for (int c = 1; c < count; ++c) {
+        uint32_t tag = read<uint32_t>(game::country(c) + kCountryTag);
+        if (std::memcmp(&tag, word.data(), 3) == 0) {
+            return c;
+        }
+    }
+    return 0;
+}
+
+// The console command `dismantle <TAG> [<TAG>] [gw]`, for testing: the second country (the local player
+// when left out) dismantles the first, as the dismantle (or dismantle_gw) effect would. On this machine
+// only: in multiplayer it desyncs, as the game's own cheats do.
+std::string console_dismantle(const std::vector<std::string>& args, bool& ok) {
+    ok = false;
+    std::vector<std::string> tags;
+    bool gw = false;
+    for (const std::string& a : args) {
+        if (_stricmp(a.c_str(), "gw") == 0) {
+            gw = true;
+        } else {
+            tags.push_back(a);
+        }
+    }
+    if (tags.empty() || tags.size() > 2) {
+        return "Usage: dismantle <loser TAG> [<winner TAG>] [gw]";
+    }
+    int loser = country_by_tag(tags[0]);
+    int winner = tags.size() == 2 ? country_by_tag(tags[1]) : read<int>(game::world() + kWorldLocalPlayer);
+    if (loser <= 0 || winner <= 0 || winner == loser || !exists(winner) || !exists(loser)) {
+        return "Needs two different existing countries";
+    }
+    int budget = dismantle_budget(winner, loser, gw);
+    g_dismantles().push_back({winner, loser, budget});
+    bool war = read<uintptr_t>(relation(winner, loser) + kRelationWar) != 0;
+    logf("treaty: console: %d is to dismantle %d (%d points)%s", winner, loser, budget, war ? ", after the peace" : "");
+    take_dismantles();
+    ok = true;
+    return tag_name(winner) + " dismantles " + tag_name(loser) + ": " + std::to_string(budget) + " points" +
+           (war ? ", after the peace" : "");
+}
+
 // Effect slot 9, the tooltip: thiscall (std::string* out, scope, std::string by value, int), RET 0x28.
 // `out` is uninitialised (the result), and the callee destroys the string it got by value.
 uintptr_t __fastcall dismantle_tooltip(uintptr_t effect, void*, uintptr_t out, uintptr_t scope, GameString by_value, int) {
@@ -2328,6 +2380,10 @@ void install_dismantle() {
         logf("treaty: CPeaceAction's Execute slot could not be replaced; dismantling waits for no peace");
     }
     logf("treaty: dismantle, dismantle_gw, dismantled_by, dismantled_by_gw effects on");
+    if (game::add_console_command("dismantle", "Dismantles a country (Script Extender, for testing)",
+                                  {"loser TAG", "<winner TAG>", "<gw>"}, &console_dismantle)) {
+        logf("treaty: console command dismantle <TAG> [<TAG>] [gw] on");
+    }
 }
 
 }  // namespace

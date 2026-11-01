@@ -427,3 +427,22 @@ CCrisis,0x78,defenderBackerQueue,queue,C,cp,Great Powers to ask to back the defe
 CCrisis,0x88,attackerGoal,CWarGoal (0x40),C,cp,war goal of the attacker side
 CCrisis,0x98,defenderGoal,CWarGoal (0x40),C,cp,war goal of the defender side
 CCrisis,0xB0,interestFired,u8,C,cp,the interest on_action already fired
+CConsoleCommand,0x00,enabled,u8,C,cp,0: Console_Dispatch refuses it (developers only)
+CConsoleCommand,0x01,hidden,u8,I,cp,1: left out of the command list (only cthulhu)
+CConsoleCommand,0x04,name,const char*,C,cp,
+CConsoleCommand,0x08,aliasCount,int,C,cp,
+CConsoleCommand,0x0C,aliases,const char*[3],C,cp,
+CConsoleCommand,0x18,description,const char*,C,cp,
+CConsoleCommand,0x1C,handler,fn*,C,cp,"cdecl (result*, const vector<std::string>* args) -> result*; args = words after the name; result = {u8 ok; std::string text at +4}, caller copies and frees the text"
+CConsoleCommand,0x20,argCount,int,C,cp,
+CConsoleCommand,0x24,argNames,const char*[10],C,cp,"for Console_CommandUsage; entry size 0x4C"
+Pop,0x64,province,CProvince*,C,cp,
+Pop,0x68,type,CPopType*,C,cp,"type+0x3C strata: 0 poor, 1 middle, 2 rich"
+Pop,0x180,money,i64,C,cp,"the save's money (0x4F0); Pop_AddMoney"
+Pop,0x188,workingCash,i64,I,cp,"artisan input budget; Pop_AddWorkingCash"
+Pop,0x1D8,incomeByCategory,i64[8],C,cp,"category 0 needs, 1 unemployment (I), 2 pay, 3 artisan budget transfer, 4 money effect, 5 ?, 6 bank withdrawal"
+Pop,0x218,dayIncome,i64,C,cp,
+CProvince,0x9C,modifierSum,i64*,C,cp,"one entry per g_modifierDefinitions, value x1000 in the low half; Province_RecalcModifiers"
+CCountry,0xA60,modifierSum,i64*,C,cp,"the country's modifier sum, same layout (rich_vote at +0x108); a second sum at +0xA90 (?)"
+CModifier,0x18,values,i64*,C,cp,"one entry per modifier definition, value x1000"
+CModifierDefinition,0x20,token,int,C,cp,"script token id of the key (0x681 rich_income_modifier)"

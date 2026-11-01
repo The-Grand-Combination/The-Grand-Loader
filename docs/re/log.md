@@ -683,3 +683,27 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Answer:** yes. A decision's `ai_will_do` is a `CMeanTimeToHappen` (`0x00E2CEB0`). Its slot 4 (`0x008AE8A0`) reads `factor`/`base`/`days`/`months`/`years` and `modifier`; the modifiers are `CAndTrigger`s with a factor at `+0x20`. `Persistent_ReadBlock` calls only slots 4 and 5 of the object it reads into, so an object with a vtable of our own can walk any file with the game's parser. The Lua the game embeds (5.1 + luabind) serves only `defines.lua` and the tutorial. → [systems/buildings.md](systems/buildings.md) ("Built: buildings_ai")
 - **Built:** Script Extender `buildings_ai`: wrapper on the construction job's slot (`0x00E28504`); `common/buildings_ai.txt` per building (`chance`, `money`, `weight`); vanilla fort / naval base / railroad found by name. Shared helpers `game/script.h` (parser block, script blocks) and `game/buildings.h` (expand check, cost, construction command), now also used by `country_upgrade` and `treaty_ui`.
 - **Open:** in-game test (the file is read on the first AI run: its log lines, then the constructions); whether the parser block is safe to build mid-game (it is during loading).
+
+## 2026-10-31 — Console commands of our own
+
+- **Question:** how does the console find a command, and can a plugin add one (a `dismantle` test command)?
+- **Answer:** a static table of 60 `CConsoleCommand` entries (0x4C bytes) collected into a vector at console
+  creation; the dispatcher only searches that vector. Appending an entry pointer is enough. → [systems/ui-console.md](systems/ui-console.md)
+- **Correction:** `Console_Execute` (`0x00420EB0`) was named as the central dispatcher; it is the handler of
+  `debug`. The dispatcher is `Console_Dispatch` (`0x00423B50`).
+- **Built:** `script_extender/src/game/console.cpp` (site `se_console_commands`), first user the treaty
+  feature's `dismantle <TAG> [<TAG>] [gw]`.
+- **Open:** whether the console is reachable in multiplayer at all; the `hidden` byte (`+1`) is inferred
+  from the single entry that sets it.
+
+## 2026-10-31 — rich/middle/poor_income_modifier do nothing
+
+- **Question:** why the three income modifiers barely work, and where to fix them.
+- **Answer:** their only reader, `Pop_AddWorkingCash`, is on the artisan path and scales the artisan's
+  input budget, not income, from the province modifier sum, which no country modifier reaches. Pop pay
+  goes through `Pop_AddMoney` with no modifier. → [systems/economy.md](systems/economy.md)
+- **Method:** modifier index from the order of `ModifierDefinitions_Init` (87-89); byte scan for reads of
+  `+0x2B8/+0x2C0/+0x2C8` after a load of the country (`+0xA60`) and province (`+0x9C`) sums: one reader;
+  income calls told apart by the income tax call before them.
+- **Built:** Script Extender `income_modifiers`.
+- **Open:** the categories 5 and 7 of the pop income array; whether `+0xA90` is a second country sum.

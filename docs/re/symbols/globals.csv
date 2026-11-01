@@ -235,3 +235,5 @@ va,name,kind,conf,src,note
 0x00F20C38,g_app,ptr,C,cp,CEU3Application*; set by App_CreateWindow; +0xD8 window
 0x013F3688,k_prepassResetValue,u32[2],C,cp,constant pair (DAT_013F3688/DAT_013F368C) FUN_0051FD10 stores into country+0x1514 and country+0x14F4 every day
 0x012587F0,g_goodsSource,ptr,C,cp,"+0xC/+0x10 vector; count = number of goods (FUN_0051FD10, country_prepass)"
+0x00F09740,g_consoleCommands,CConsoleCommand[60],C,cp,"static console command table, 0x4C bytes per entry (structs.csv CConsoleCommand), to 0x00F0A910"
+0x0125A5B4,g_modifierDefinitions,vector<CModifierDefinition*>,C,cp,"begin/end at 0x0125A5B4/0x0125A5B8; index = position (ModifierDefinitions_Init)"

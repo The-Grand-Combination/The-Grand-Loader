@@ -154,7 +154,7 @@ va,name,conf,area,src,note
 0x0068F340,Vector_Equals,C,util,cp,"(ECX = a, EAX = b) vector<int>: returns 1 when sizes or any element differ, 0 when equal"
 0x00676500,ResignCommand_Handle,C,ui,re,"compares the command with ""RESIGN""; calls [this+8]->vt[0x114/4]"
 0x0067D940,Engine_Shutdown,I,engine,re,
-0x00420EB0,Console_Execute,C,console,re,"central console dispatcher; debug cb_use / cb_countries / cb_state"
+0x00420EB0,Console_Execute,C,console,re,"handler of the debug command (g_consoleCommands entry at 0x00F0A748; cp 2026-10-31: not the dispatcher, see Console_Dispatch); debug cb_use / cb_countries / cb_state"
 0x0099DA20,Render_InitRestore,I,render,re,
 0x006592F0,Render_MapFrame,I,render,re,"the condition before 0x006594B4 decides the fog of war (next to understand; no safe patch yet)"
 0x006DFE80,Westernize_OnClick,C,ui,re,
@@ -779,7 +779,7 @@ va,name,conf,area,src,note
 0x004B9C60,FUN_004B9C60,?,tick,cp,"DayTick's province pop pass, CALL at 0x00685B09; walks pops through +0x27C; 1.3 ms/day, 89 % at 0x004B9C9B (cp_prefetch_pops_daytick)"
 0x00522CF0,FUN_00522CF0,?,economy,cp,"CALL at 0x00487483 in Market_AddRealDemand; walks the living countries (world+0xADC) and reads relation +0x34 of each; 5.6 ms/day, 90 % at 0x00522E27 (cp_prefetch_market)"
 0x0052FCD0,FUN_0052FCD0,?,tick,cp,"stdcall (country, 0) RET 8, once per country from Country_DailyUpdate at 0x0050B6B9: for every country of world+0xADC with provinces other than self reads other+0x1580[self] (8 bytes); 1.9 ms/day, 48 % at 0x00530388 (cp_prefetch_pair_array)"
-0x0095A5F0,FUN_0095A5F0,?,pops,cp,"2.1 ms/day sampled (1837); 46 % at 0x0095A66D on pop +0x180..+0x21C; open"
+0x0095A5F0,Pop_AddMoney,C,pops,cp,"EAX = pop, ESI = income category, stack i64 amount (2^15), RET 8, returns EAX = pop: money +0x180 (saturating), category +0x1D8 + 8 x cat, day income +0x218; no modifier. 15 callers: 7 income calls after PopIncome_Tax, the rest transfers (bank, merges, needs, money effect). 2.1 ms/day sampled (1837); 46 % at 0x0095A66D"
 0x0095EB00,FUN_0095EB00,?,economy,cp,"market distribution per pop, ESI = pop, CALL at 0x00481860 in ProcessMarketAndGoodsDistribution (next pop in EAX); 1.4 ms/day, 90 % at 0x0095EB63 on pop +0x11C (cp_prefetch_pops_distribution)"
 0x009E6C10,FUN_009E6C10,?,util,cp,"flag trie lookup (has_country_flag): 2.2 ms/day, 67 % at 0x009E6C2F on the trie node; mostly decision triggers, already culled"
 0x0051FD10,FUN_0051FD10,?,tick,cp,"stdcall (country) RET 4, CALL at 0x0050861B in Country_PrePass: resets country+0x1514 (goods x 0x18-byte entries, count from DAT_012587F0) and country+0x14F4 (types x rows of goods, count from g_buildingDb 0x0125CE80) to the constant pair at DAT_013F3688/+4, resizing first when the sizes differ; stores at 0x0051FEA4..; skipped by skip_clean_resets when the tables already hold the constant (cp_prepass_reset)"
@@ -830,3 +830,18 @@ va,name,conf,area,src,note
 0x0091CA90,CCrisisBackDownAction_CanPerform,C,war,cp,slot 36 (vtable 0x00E34514)
 0x00928260,CBackCrisisSideAction_CanPerform,C,war,cp,slot 36: Crisis_CanBackSide at 0x009282D8
 0x00425610,FUN_00425610,?,war,cp,console crisis command (with FUN_0042B470); not covered
+0x00613380,CConsole_ctor,C,console,cp,"builds the console; console+0x48 = new vector<CConsoleCommand*> filled by Console_CollectCommands (call at 0x00613845); callers Game_FinalizeLoadAndEnterGameplay, 0x006B8960"
+0x00423990,Console_CollectCommands,C,console,cp,"EAX = vector<CConsoleCommand*>*: pushes a pointer to each of the 60 entries of g_consoleCommands"
+0x00423A50,Console_FindCommand,C,console,cp,"thiscall (vector<CConsoleCommand*>*) (const std::string* word): first entry whose name or one of its aliases equals the word, or 0"
+0x00423B50,Console_Dispatch,C,console,cp,"(result*, vector<std::string>* words): Console_FindCommand on words[0]; enabled = 0 -> 'Command available only for developers.'; else handler (cdecl, CALL ECX at 0x00423C6B) with the words after the name"
+0x00419E60,Console_CommandUsage,C,console,cp,"(std::string* out, CConsoleCommand*): name, aliases and argument names for the help line"
+0x0095A6A0,Pop_AddWorkingCash,C,pops,cp,"ESI = pop, EDI = income category, stack i64 amount, RET 8: amount x (1000 + province+0x9C modifier 87/88/89 by strata) / 1000 into pop +0x188 (artisan input budget), +0x1D8 + 8 x cat, +0x218; the only reader of the income modifiers; 4 callers (Artisan_Produce x3, Market_PostProcess)"
+0x00439780,PopIncome_Tax,C,economy,cp,"(pop, i64 gross) ESI = strata tax ledger (+8 country, +0x10 rate), EDI = i64* out: tax = gross x (tax_efficiency (modifier 21) + define + country+0xBCC+0xD8) x rate; books it; the caller pays gross - tax through Pop_AddMoney. 7 callers"
+0x00483AA0,Artisan_Produce,I,economy,cp,"(?, ?, pop, bool, bool): an artisan's inputs: pays from +0x188, refills it from bank (+0x250, FUN_004D1CD0) and money (+0x180) through Pop_AddMoney(-x) + Pop_AddWorkingCash(+x); called from Market_UpdateCountryPops"
+0x00485390,Pop_BuyNeeds,I,economy,cp,"EAX = pop, param need level 0 life / 1 everyday / 2 luxury: bank withdrawal (category 6) and spending (category 0) through Pop_AddMoney"
+0x004CFE20,PopType_PayInCountry,I,economy,cp,"EAX = source: spreads an amount over the pops of one type in the provinces of a list by size, taxed (PopIncome_Tax), category 2; from FUN_004C1200 (Market_PostProcess) and FUN_004F4B30"
+0x004EF240,PopType_PayInCountry2,I,economy,cp,"same shape as PopType_PayInCountry (taxed, category 2); from FUN_004C1200 and FUN_004F4B30 under Market_PostProcess"
+0x0050B9B0,Country_PaySocialSpending,I,economy,cp,"from Country_PrePass: per pop type and province, taxed pay through Pop_AddMoney: by size (category 2, pensions I) and by unemployed size (category 1, unemployment benefit I)"
+0x004B2610,Province_RecalcModifiers,C,provinces,cp,"EDI = province: rebuilds the modifier sum at province+0x9C (i64 per definition) from terrain, climate, crime, buildings, static and province modifiers; no country modifier"
+0x00449120,ModifierDefinitions_Init,C,loading,cp,"fills g_modifierDefinitions once (126 CModifierDefinition, MODIFIER_NONE first): the position is the index into every modifier sum (rich_income_modifier 87, middle 88, poor 89, rich_vote 33, tax_efficiency 21)"
+0x00449070,CModifierDefinition_ctor,C,loading,cp,"(this, token id, ...) vtable 0x00DF98D0, +0x20 token id, +0x24 name string, +0x28/+0x29 display flags"

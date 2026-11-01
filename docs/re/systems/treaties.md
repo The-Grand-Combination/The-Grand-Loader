@@ -283,6 +283,11 @@ the treaty AI accepts everything then. Log line:
 treaty: AI <r> accepts|refuses <a>: gain G - give V + relation R + power P - reluctance K = S[ (yesmen)]
 ```
 
+**`dismantle <TAG> [<TAG>] [gw]`** (console, ours, [ui-console.md](ui-console.md)) queues a dismantle turn
+as the effect does: the second country (the local player when left out) dismantles the first, with the
+`gw` budget when asked. For testing on one machine; in multiplayer it desyncs. Log line
+`treaty: console: <w> is to dismantle <l> (<points> points)`.
+
 ## Answer messages **[C]**
 
 - `CDiplomaticActionCommand_Execute` builds the message key from slot 10 (if non-empty) else the slot 9

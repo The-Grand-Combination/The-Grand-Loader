@@ -6,9 +6,27 @@ version label from this repo.
 
 ## Console
 
-`Console_Execute` (`0x00420EB0`) is the whole console: tokenised input against a cascade of string
-compares. Disabling it removes every command. **[C]** Useful entries: `debug cb_use <type> <TAG> <TAG>`
-(prints `can_use.Describe`), `cb_countries`, `cb_state`, `fow`.
+**Commands are a static table.** `g_consoleCommands` holds 60 `CConsoleCommand` entries of 0x4C bytes:
+enabled flag, name, up to three aliases, description, handler, argument names (`structs.csv`). **[C]**
+
+- `CConsole_ctor` builds a `vector<CConsoleCommand*>` at console `+0x48`. It fills it through
+  `Console_CollectCommands` (EAX = the vector), called at `0x00613845`. **[C]**
+- `Console_Dispatch` gets the line as words, looks `words[0]` up with
+  `Console_FindCommand` (name or alias, exact case) and calls the handler, cdecl
+  `(result*, const vector<std::string>* args)`, with the words after the name. **[C]**
+- The result is `{u8 ok; std::string text at +4}`. The dispatcher copies the text and frees the
+  handler's, so the handler builds it on the game's heap. **[C]**
+- An entry with `enabled = 0` answers "Command available only for developers."; a null handler
+  "Console Error - command has missing action.". **[C]**
+- `Console_Execute` (`0x00420EB0`) is not the dispatcher but the handler of `debug`, itself a cascade of
+  string compares: `debug cb_use <type> <TAG> <TAG>` (prints `can_use.Describe`), `cb_countries`,
+  `cb_state`. **[C]**
+
+**Adding a command.** Appending an entry pointer to the vector after `Console_CollectCommands` is all it
+takes: lookup, usage line (`Console_CommandUsage`) and the command list read only the vector. The Script
+Extender does this (`se_console_commands`, `script_extender/src/game/console.cpp`). Console commands run
+on the local machine only; a command that changes the game desyncs multiplayer, as the game's own
+cheats do. **[C]** layout, **[I]** multiplayer.
 
 ## Fog of war
 
