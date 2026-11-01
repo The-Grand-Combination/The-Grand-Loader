@@ -1,3 +1,4 @@
+| [colonisation.md](systems/colonisation.md) | colonial range: Country_HasColonialRangeTo (naval bases, 100 + level x colonial_range), Province_Distance and the province source's distance table, Country_CanColonizeProvince; used by the Script Extender's AI dismantler |
 # Reverse engineering of `v2game.exe` 3.04
 
 Everything known about the game binary that the patches rely on, in one place.

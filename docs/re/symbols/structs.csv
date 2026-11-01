@@ -61,7 +61,7 @@ CMapProvince,0x384,delayedEvents,vector,C,re,"+0x384/+0x388"
 CState,0x48,provinceIds,vector<int>,C,re,"province ids; passed to TransferProvinces by po_demand_state"
 CState,0x60,buildings,ptr,I,re,
 CState,0x68,factoryCount,u32,C,re,< 8 to build
-CState,0x84,colonyStatus,u32,C,re,> 0 = colonial
+CState,0x84,colonyStatus,u32,C,cp,"> 0 = colonial (is_colonial: CIsColonialTrigger_Evaluate 0x008FACB0 reads it through province+0x188; was src=re)"
 CStateBuilding,0x20,level,u32,I,re,
 CStateBuilding,0x188,closed,u8,I,re,
 CStateBuilding,0x224,nextInState,ptr,I,re,
@@ -455,3 +455,14 @@ CFlags,0x24,parserVtable,ptr,C,cp,"CFlags::vftable of the persistent interface: 
 CFlagEntry,0x00,name,std::string,C,cp,0x20-byte entry
 CFlagEntry,0x1C,set,u8,C,cp,"1 = set; clr_*_flag writes 0"
 CHasCountryFlagTrigger,0x1C,flagName,std::string,C,cp,0x38-byte object; has_global_flag has the same layout
+CCountry,0xA38,controlledProvinces,list,I,cp,"nodes {province, ?, next}; Country_HasColonialRangeTo walks it and skips controller != owner, so owned provinces (I)"
+CCountry,0x10C,distanceCache,ptr,I,cp,"map keyed by province id, entry +0x10 distance, +0x14 id; Province_Distance; meaning open"
+CProvince,0x58,id,u32,C,cp,"province id (Province_Distance, Country_HasColonialRangeTo)"
+CProvince,0xDC,distanceProxy,u32,I,cp,"province whose distance node stands in when +0xE0 is -1 (ProvinceSource_PairDistance)"
+CProvince,0xE0,distanceNode,i32,I,cp,"index into the province source's distance table; -1 = none"
+CProvince,0x15C,colonisation,ptr,I,cp,"-> CColonizationData* (colonists at +0x98, 4 x 0x1C; MapColor_Colonial)"
+CProvince,0x164,colonisable,u32,I,cp,"non-zero with +0x15C: the province is being colonised / colonisable (MapColor_Colonial, Country_CanColonizeProvince)"
+ProvinceSource,0x2AA4,provinces,CProvince*[],I,cp,by id (ProvinceSource_PairDistance)
+ProvinceSource,0x2AB0,distanceNodes,u32,I,cp,count n of the triangular distance table
+ProvinceSource,0x2AB4,distances,u16[],I,cp,"pair (lo, hi) at (n-1) x lo - lo(lo-1)/2 + hi; map units (x1000 when read)"
+ProvinceSource,0x2AB8,distanceKnown,u8[],I,cp,same index: the pair has a distance

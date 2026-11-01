@@ -239,3 +239,4 @@ va,name,kind,conf,src,note
 0x0125A5B4,g_modifierDefinitions,vector<CModifierDefinition*>,C,cp,"begin/end at 0x0125A5B4/0x0125A5B8; index = position (ModifierDefinitions_Init)"
 0x00E2ACF8,CSetProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882A90
 0x00E2AD30,CClrProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882B00
+0x01258720,g_navalBaseIndex,u32,C,cp,index of the naval base building in CProvince+0x118 (Country_HasColonialRangeTo)

@@ -479,6 +479,27 @@ side list is the actor's.
 
 **AI dismantler.** Effects and peaces run on every machine, so it is done there: the picking reads only
 synced state.
+- **Interest lists (2026-11-01).** `common/ai_interests.txt` (the mod's, else the plugin's; the partitions
+  format, `TAG = { REGION ... provinces = { id ... } }`, loaded by the same `load_tag_lists`) names the land a
+  country wants. A land term whose gainer (the AI, or the ally that gets it) lists one of its provinces is
+  x `treaty_dismantle_ai_interest`% (200): after cores (3 x core_gain), before colonies (1.3). It is taken
+  across the sea like a colony (no exclave rule, the coastal-only rule still applies) and, when its CB costs
+  infamy, without the `treaty_dismantle_ai_infamy` discount, within `BADBOY_LIMIT`.
+- **Single provinces.** A `po_demand_province` term (cede province, for the AI or for an ally) is taken only
+  when that province itself borders, by land or strait, a province of its gainer or a state the treaty
+  already gives it (`province_borders`), colonial or not; land of the gainer's interest is the one
+  exception. No stray provinces across the map.
+- **Abroad (2026-11-01, evening).** The loser's non-colonial land on a continent other than that of the
+  gainer's capital is taken only when it borders land the gainer owned before the treaty (a state the
+  peace itself gave it, say), never chained through land it gets in the treaty, at
+  `treaty_dismantle_ai_abroad`% (50; 0 = never). Land of interest and colonies are not held to this. Seen in
+  game: a great power leading a great war took most of a European loser from a foothold, state by state.
+- **Colonial range (2026-11-01).** A colonial state goes to the AI, or to an ally, only when one of its
+  coastal provinces is within that country's colonial range as the game computes it
+  (`Country_HasColonialRangeTo`, [colonisation.md](colonisation.md)): naval bases, `100 + level x
+  colonial_range`. Land of interest is exempt; a colony bordering the gainer passes the border rule first.
+- **Diagnostics.** `treaty_dismantle_log = 1` logs every term an AI dismantler picks: CB, third country,
+  province, states, cost, value before and after the land rules, and the rule that set it.
 - Every term the editor would offer is weighed by its war score, with land holding the AI's cores worth
   `treaty_ai_core_gain`%, times the CB's `ai_dismantle_weight` (a factor, default 1; 0 keeps the AI off
   it). The plugin's CBs: own cores 3, allied cores 2, colonies and released puppets 1.5, liberate 1.5,

@@ -9,6 +9,7 @@ struct Config {
     bool country_upgrade = false;    // Ctrl+Shift+click on expand: expand in every province of the country
     bool buildings_ai = false;       // AI builds what the mod's common/buildings_ai.txt lists
     bool buildings_ai_log = false;   // buildings_ai: log constructions and a summary every 30 days
+    bool treaty_dismantle_log = false;  // treaty: log every term an AI dismantler picks and why it was valued so
     bool income_modifiers = false;   // rich/middle/poor_income_modifier scale pop income, country ones too
     bool province_flags = false;     // has_province_flag works (the engine never implemented the trigger)
     bool demand_province = false;    // cb_types.txt `po_demand_province = yes`: the peace takes one province
@@ -52,6 +53,8 @@ struct Config {
     int treaty_dismantle_ai_far = 50;         // percent of a land term's value there from near_range on
     int treaty_dismantle_ai_colony_repeat = 70;  // percent: each colony already taken on a near or coastal_only continent scales the next
     int treaty_dismantle_ai_infamy = 40;      // percent of the value of a term that costs infamy (land without a claim); 0 = never
+    int treaty_dismantle_ai_interest = 200;   // percent: land of the gainer's interest (common/ai_interests.txt)
+    int treaty_dismantle_ai_abroad = 50;      // percent: the loser's homeland off the gainer's continent, next to land it already owned; 0 = never
 };
 
 // Reads mod/script_extender.ini: `key = value` lines, `;` comments. Unknown keys are logged.

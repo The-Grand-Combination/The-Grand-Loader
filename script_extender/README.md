@@ -73,6 +73,9 @@ the AI accepts when it is at least 0. Details: `docs/re/systems/treaties.md` ("A
 | `treaty_dismantle_ai_far` | 50 | percent of a land term's value there from `near_range` on |
 | `treaty_dismantle_ai_colony_repeat` | 70 | percent: each colony the treaty already takes on a `near` or `coastal_only` continent scales the next one's value |
 | `treaty_dismantle_ai_infamy` | 40 | percent of the value of a term that costs the AI dismantler infamy (land without a claim); 0 = never; it stays under `BADBOY_LIMIT` |
+| `treaty_dismantle_ai_interest` | 200 | percent of the value of land listed for its gainer in the mod's `common/ai_interests.txt` (`TAG = { REGION ... provinces = { id ... } }`, as the partitions file): taken, or given to an ally, after cores and before colonies; a single province (cede province, for the AI or an ally) is taken only next to the gainer's land or land it gets in the treaty, interest land excepted |
+| `treaty_dismantle_ai_abroad` | 50 | percent of the value of the loser's homeland on a continent other than the gainer's: only next to land the gainer already owned, never chained through land it gets in the treaty (interest and colonies apart); 0 = never |
+| `treaty_dismantle_log` | 0 | diagnostics: log every term an AI dismantler picks, with its value and the land rule that set it |
 
 How it works, with the addresses: `docs/re/systems/map-modes.md` (map modes, political colours), `docs/re/systems/buildings.md` (province buildings, `country_upgrade`, `buildings_ai`), `docs/re/systems/casus-belli.md` (`po_demand_province`), `docs/re/systems/treaties.md` (`treaty`, the dismantle effects, partitions) and `docs/re/systems/effects.md` (how a plugin adds a script effect).
 

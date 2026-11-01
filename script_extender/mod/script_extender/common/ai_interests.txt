@@ -1,0 +1,9 @@
+# Interest lists (Script Extender): the land a country wants. An AI dismantler takes it from the loser, or
+# gives an ally its, after cores and before colonies (treaty_dismantle_ai_interest), paying any infamy the
+# term costs while it stays under BADBOY_LIMIT. A mod's common/ai_interests.txt replaces this file.
+#
+#   TAG = { REGION REGION ... provinces = { id id ... } }
+#
+# REGION: a region of map/region.txt (a state); provinces: single provinces.
+
+JAP = { CHI_1082 RUS_2618 RUS_1074 KOR_1619 KOR_1624 KOR_1627 KOR_1635 CHI_1485 }  # Primorye, Magadan, Kamchatka, Korea, Taiwan

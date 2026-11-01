@@ -32,6 +32,7 @@ constexpr Key kKeys[] = {
     {"country_upgrade", &Config::country_upgrade, nullptr},
     {"buildings_ai", &Config::buildings_ai, nullptr},
     {"buildings_ai_log", &Config::buildings_ai_log, nullptr},
+    {"treaty_dismantle_log", &Config::treaty_dismantle_log, nullptr},
     {"income_modifiers", &Config::income_modifiers, nullptr},
     {"province_flags", &Config::province_flags, nullptr},
     {"demand_province", &Config::demand_province, nullptr},
@@ -73,6 +74,8 @@ constexpr Key kKeys[] = {
     {"treaty_dismantle_ai_far", nullptr, &Config::treaty_dismantle_ai_far, 0},
     {"treaty_dismantle_ai_colony_repeat", nullptr, &Config::treaty_dismantle_ai_colony_repeat, 0},
     {"treaty_dismantle_ai_infamy", nullptr, &Config::treaty_dismantle_ai_infamy, 0},
+    {"treaty_dismantle_ai_interest", nullptr, &Config::treaty_dismantle_ai_interest, 0},
+    {"treaty_dismantle_ai_abroad", nullptr, &Config::treaty_dismantle_ai_abroad, 0},
 };
 
 // The text keys: lists of names.
