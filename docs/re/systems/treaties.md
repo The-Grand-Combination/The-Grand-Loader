@@ -417,6 +417,17 @@ not ended the war yet. `CPeaceAction` slot 32 (`0x00E344F4`, nothing calls `0x00
 and takes the waiting turns once the original returns. A turn whose countries are already at peace (an
 event, a decision) is taken at once.
 
+**Great wars (2026-11-01).** A great-war peace carries the `great_war_obligatory` CBs: `PeaceOffer_FillFromWar`
+(`0x00929BF0`) builds, for each such CB type, one goal from the leader of one side of the offer (the first
+of `CPeaceOffer+0x5C`) against every country of the other side (`+0x4C`) when that side's first is a war
+leader (`war+0x2C` / `+0x3C`), else one goal leader against leader (`CWarGoal_Ctor` `0x0094BDB0`). Their
+`on_po_accepted` runs once per accepted goal, with the conceding country in scope and the leader as THIS,
+so a mod that wants every great-war defeat to end in a forced treaty puts `dismantled_by_gw = THIS` in its
+obligatory CB (gated by rank or colonial status if it wants only the powers). Several effects on the same
+loser in one peace (the obligatory CB plus a dismantle CB) make one turn: `queue_dismantle` keeps the first
+winner and the highest budget, and logs `is already to be dismantled by`. **[C]** FillFromWar, **[I]** which
+side list is the actor's.
+
 **The forced treaty** is a `CTreatyAction` with a budget (`+0xA0`):
 - It is auto-accepted (slot 27) and has no travel time (slot 28).
 - It may only take from the recipient: every term's gainer is the actor, and money can only be paid by
@@ -473,12 +484,38 @@ synced state.
   it). The plugin's CBs: own cores 3, allied cores 2, colonies and released puppets 1.5, liberate 1.5,
   free peoples / sphere / ceded puppets 1.2, partition 0.5. A peace treaty's order: its own and its
   allies' cores, colonies and puppets, nations with cores, and new countries last.
-- Terms are taken greedily by value per point, then the bigger term first. The total stays within the
-  budget plus `treaty_dismantle_ai_overspend`.
+- Terms are taken one per round, the best value per point as the treaty stands, then the bigger term;
+  the total stays within the budget plus `treaty_dismantle_ai_overspend`. The value of a land term
+  depends on what the treaty already moves (2026-11-01, `situated_value`): x `treaty_dismantle_ai_border`%
+  (150) when one of its states borders, by land or strait (`CProvince+0x5C` geography, neighbours at
+  `+0xC8`), a province of its gainer or a state the treaty already gives that gainer; x `_adjacent`% (120)
+  when it borders a state given to someone else; x `_exclave`% (0: never, until a neighbour is taken) when it borders neither, unless it is colonial or
+  the first state of a country yet to exist. A colonial state on a continent named in
+  `treaty_dismantle_ai_coastal_only` (`europe`; ids from the mod's `map/continent.txt`) is taken only when
+  one of its provinces is coastal (`CProvince+0x158`) or it borders a state the treaty already gives the
+  same gainer: no colonies from the middle of a continent, which was the border gore seen in game. A colony on the
+  continent of the gainer's capital (`country+0xBE4`, the same table) is x `treaty_dismantle_ai_home_continent`%
+  (130). The colony CB weighs 1.3. On the continents of
+  `treaty_dismantle_ai_near_continents` (`asia`) a land term is worth 100 + `treaty_dismantle_ai_near` (50) percent at
+  distance 0, falling linearly to `treaty_dismantle_ai_far` (50) at `treaty_dismantle_ai_near_range` (1500)
+  map pixels and beyond; d = the shortest distance between its provinces and the gainer's (`unit` positions
+  of the mod's `map/positions.txt`). Each colonial state the treaty already takes on a near or
+  coastal-only continent scales the next colony there by `treaty_dismantle_ai_colony_repeat`% (70), so after
+  one or two the points go to releases, tributes or cores instead of ever farther colonies. A term that would split what the loser keeps
+  into more connected groups of states (an enclave, a detached part: `splits_loser`, `components` over the
+  same adjacency) is dropped. A partition term (`po_partition`) is eligible only while one of its states
+  borders land the treaty gives a third country (`next_to_freed`): partitions extend freed land, they
+  do not start it. Weights: liberate 2.5, free peoples 2, partition 0.3. A term whose third country is an ally of the AI
+  (`Relation+0x28` either way: allied cores, colonies to an ally) is x `treaty_dismantle_ai_ally`% (130), and
+  colonies go only to an ally that is a great or secondary power. The colony CB's weight is 1 (was 1.5),
+  the allied-core CB's 3 (was 2), the same as its own cores.
 - Limits, so the loser stays a country: it takes at most `treaty_dismantle_ai_max_states`% (35) of the
   loser's non-colonial states (`state+0x84` > 0 is colonial; colonies do not count), creates at most
   `treaty_dismantle_ai_max_new` (3) countries that do not exist yet, and always leaves one state.
-- It never picks a free term (they are in already) or a `dismantle_infamy` one, so it pays no infamy.
+- It never picks a free term (they are in already). A `dismantle_infamy` term (land without a claim) is
+  worth `treaty_dismantle_ai_infamy`% (40; 0 = never, as before 2026-11-01) and is skipped when the
+  dismantler's infamy plus what the picked terms cost (`WarGoal_Infamy`) would pass `BADBOY_LIMIT` (read
+  from the mod's `common/defines.lua`, 25 when unreadable); the treaty charges that infamy as it executes.
 - The treaty is then applied with slot 32 directly.
 - **A human loser** is shown the terms: on its own machine, before applying them, a copy of the treaty
   with budget −1 (a notice) goes into its pending list. Slot 13 opens it in the dismantle editor, read

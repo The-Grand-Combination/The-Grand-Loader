@@ -45,7 +45,7 @@ CCountry,0x1404,rank,u32,I,cp,
 CCountry,0x1430,infamyX1000,u32,C,cp,
 CCountry,0x156C,sphere,ptr,I,re,
 Relation,0x20,guarantee,ptr,I,cp,agreement object; purged daily
-Relation,0x28,agreement28,ptr,I,cp,agreement object owned by A; purged daily
+Relation,0x28,alliance,ptr,I,cp,"agreement object owned by A; purged daily; War_CanDeclare refuses a war while it is set (the alliance); the Script Extender's AI dismantler reads it both ways (allied)"
 Relation,0x2C,reparations,CPayingReparations*,C,cp,PayingReparations_Attach writes both ways; paid daily in Country_PrePass
 Relation,0x30,paidObject,ptr,?,cp,PrePass pays i64 +0x28 with SpendMoney + Country_RepayLoans; meaning unknown
 Relation,0x50,heldCBs,list,C,cp,"node +0 CCasusBelli*, +8 next"
@@ -209,7 +209,7 @@ CConstructBuildingCommand,0x40,provinceId,u32,C,cp,
 CConstructBuildingCommand,0x44,constructionId,u32[2],C,cp,
 CConstructBuildingCommand,0x4C,countryTag,char[4],C,cp,index at +0x50
 CConstructBuildingCommand,0x54,popProject,u8,C,cp,
-CProvince,0x5C,terrainData,ptr,I,cp,+0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C)
+CProvince,0x5C,geography,ptr,I,cp,"terrain and adjacency (was terrainData): +0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C); neighbours vector at +0xC8/+0xCC of 0x24-byte entries {kind (1 land, 2 strait), province id, ...}, land flag u8 +0x2A (AI_PickFortProvince)"
 CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0; nodes {entry, ?, next}; entry vt[0x30] (slot 12, thiscall -> bool) = is a building construction (CBuildingConstruction: 1), entry+0x58 = CBuilding*; vt[0x34] (slot 13) is also read by MapColor_Infrastructure (CBuildingConstruction: 0; meaning ?)"
 CProvince,0x110,foreignInvestBlock,u32,?,cp,must be 0 for a foreign railroad investment
 CProvince,0x118,buildings,vector<CProvinceBuilding*>,C,cp,indexed by CBuilding+0x134

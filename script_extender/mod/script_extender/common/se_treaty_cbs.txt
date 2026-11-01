@@ -144,7 +144,7 @@ treaty_cede_allied_core = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 2  # AI dismantler: then its allies' cores
+	ai_dismantle_weight = 3  # AI dismantler: its allies' cores as much as its own
 	dismantle_cost = 0.1  # a tenth of its points in a forced (dismantle) treaty
 
 	can_use = {
@@ -191,7 +191,7 @@ treaty_cede_colony = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 1.5  # AI dismantler: colonies before the homeland
+	ai_dismantle_weight = 1.3  # AI dismantler: colonies a little before other land (far from its coasts they are kept out anyway)
 
 	can_use = {
 		NOT = { war_with = THIS }
@@ -686,7 +686,7 @@ treaty_free_peoples = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 1.2  # AI dismantler: factor of its value
+	ai_dismantle_weight = 2  # AI dismantler: freeing cores before puppets, colonies and new countries
 	repeat_cost = 0.75  # each further state freed for the same people costs 75%
 
 	can_use = {
@@ -741,7 +741,7 @@ treaty_partition = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 0.5  # AI dismantler: new countries last
+	ai_dismantle_weight = 0.3  # AI dismantler: last, and only next to land the treaty frees
 	po_partition = yes  # countries and states from common/se_partitions.txt
 	repeat_cost = 0.75  # each further state for the same country costs 75%
 
@@ -787,7 +787,7 @@ treaty_liberate_country = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 1.5  # AI dismantler: nations with cores before new ones
+	ai_dismantle_weight = 2.5  # AI dismantler: freeing cores comes right after its own and allied cores
 
 	can_use = {
 		NOT = { war_with = THIS }

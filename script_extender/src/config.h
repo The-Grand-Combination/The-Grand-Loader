@@ -40,6 +40,18 @@ struct Config {
     int treaty_dismantle_ai_overspend = 0;  // points over the budget an AI dismantler may impose
     int treaty_dismantle_ai_max_states = 35;  // percent of the loser's non-colonial states an AI takes at most
     int treaty_dismantle_ai_max_new = 3;      // countries an AI dismantler creates at most in one treaty
+    int treaty_dismantle_ai_border = 150;    // percent: value of land bordering the gainer or land already its in the treaty
+    int treaty_dismantle_ai_adjacent = 120;  // percent: land bordering land the treaty gives to someone else
+    int treaty_dismantle_ai_exclave = 0;     // percent: land bordering neither (0 = never; colonies and a new country's first state apart)
+    int treaty_dismantle_ai_ally = 130;      // percent: a term that goes to an ally (goes_to_third)
+    int treaty_dismantle_ai_home_continent = 130;  // percent: a colony on the continent of the gainer's capital
+    std::string treaty_dismantle_ai_coastal_only;  // continents (map/continent.txt names) where the AI takes colonies on the coast only
+    std::string treaty_dismantle_ai_near_continents;  // continents where an AI dismantler prefers land near its own
+    int treaty_dismantle_ai_near = 50;        // percent added to a land term's value there at distance 0, fading to 0 at near_range
+    int treaty_dismantle_ai_near_range = 1500;  // map pixels (map/positions.txt) at which the near bonus is gone
+    int treaty_dismantle_ai_far = 50;         // percent of a land term's value there from near_range on
+    int treaty_dismantle_ai_colony_repeat = 70;  // percent: each colony already taken on a near or coastal_only continent scales the next
+    int treaty_dismantle_ai_infamy = 40;      // percent of the value of a term that costs infamy (land without a claim); 0 = never
 };
 
 // Reads mod/script_extender.ini: `key = value` lines, `;` comments. Unknown keys are logged.

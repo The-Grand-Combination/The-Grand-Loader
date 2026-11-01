@@ -63,6 +63,27 @@ constexpr Key kKeys[] = {
     {"treaty_dismantle_ai_overspend", nullptr, &Config::treaty_dismantle_ai_overspend},
     {"treaty_dismantle_ai_max_states", nullptr, &Config::treaty_dismantle_ai_max_states, 0},
     {"treaty_dismantle_ai_max_new", nullptr, &Config::treaty_dismantle_ai_max_new, 0},
+    {"treaty_dismantle_ai_border", nullptr, &Config::treaty_dismantle_ai_border, 0},
+    {"treaty_dismantle_ai_adjacent", nullptr, &Config::treaty_dismantle_ai_adjacent, 0},
+    {"treaty_dismantle_ai_exclave", nullptr, &Config::treaty_dismantle_ai_exclave, 0},
+    {"treaty_dismantle_ai_ally", nullptr, &Config::treaty_dismantle_ai_ally, 0},
+    {"treaty_dismantle_ai_home_continent", nullptr, &Config::treaty_dismantle_ai_home_continent, 0},
+    {"treaty_dismantle_ai_near", nullptr, &Config::treaty_dismantle_ai_near, 0},
+    {"treaty_dismantle_ai_near_range", nullptr, &Config::treaty_dismantle_ai_near_range, 1},
+    {"treaty_dismantle_ai_far", nullptr, &Config::treaty_dismantle_ai_far, 0},
+    {"treaty_dismantle_ai_colony_repeat", nullptr, &Config::treaty_dismantle_ai_colony_repeat, 0},
+    {"treaty_dismantle_ai_infamy", nullptr, &Config::treaty_dismantle_ai_infamy, 0},
+};
+
+// The text keys: lists of names.
+struct TextKey {
+    const char* name;
+    std::string Config::*value;
+};
+
+constexpr TextKey kTextKeys[] = {
+    {"treaty_dismantle_ai_coastal_only", &Config::treaty_dismantle_ai_coastal_only},
+    {"treaty_dismantle_ai_near_continents", &Config::treaty_dismantle_ai_near_continents},
 };
 
 std::string_view trim(std::string_view s) {
@@ -103,6 +124,12 @@ void parse_line(std::string_view line, Config& config) {
     }
     size_t eq = line.find('=');
     std::string_view name = trim(line.substr(0, eq));
+    for (const TextKey& k : kTextKeys) {
+        if (eq != std::string_view::npos && name == k.name) {
+            config.*k.value = std::string(trim(line.substr(eq + 1)));
+            return;
+        }
+    }
     const Key* key = eq == std::string_view::npos ? nullptr : find_key(name);
     if (!key) {
         logf("config: unknown key '%.*s' ignored", static_cast<int>(name.size()), name.data());
@@ -141,6 +168,13 @@ void log_config(const Config& config) {
     for (const Key& k : kKeys) {
         int value = k.flag ? (config.*k.flag ? 1 : 0) : config.*k.value;
         int n = std::snprintf(line + len, sizeof(line) - len, " %s=%d", k.name, value);
+        if (n < 0 || static_cast<size_t>(n) >= sizeof(line) - len) {
+            break;
+        }
+        len += static_cast<size_t>(n);
+    }
+    for (const TextKey& k : kTextKeys) {
+        int n = std::snprintf(line + len, sizeof(line) - len, " %s=%s", k.name, (config.*k.value).c_str());
         if (n < 0 || static_cast<size_t>(n) >= sizeof(line) - len) {
             break;
         }
