@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 // Reading script files with the game's own parser. Layouts: docs/re/systems/events.md ("Body keywords"),
 // buildings.md ("buildings_ai.txt").
@@ -49,5 +50,10 @@ void skip_value(uintptr_t parser);
 // The value just read, as text.
 std::string value_text(uintptr_t parser);
 bool value_is_block(uintptr_t parser);
+
+// Plain reading of a script file without the game's parser: the whole file, and its words (names, numbers,
+// `=`, `{`, `}`; comments dropped).
+std::string read_file(const std::wstring& path);
+std::vector<std::string> script_words(const std::string& text);
 
 }  // namespace se::game

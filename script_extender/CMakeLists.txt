@@ -14,12 +14,14 @@ add_library(script_extender SHARED
     src/features/income_modifiers.cpp
     src/features/province_flags.cpp
     src/features/treaty.cpp
+    src/features/treaty_ai_dismantle.cpp
     src/features/treaty_ui.cpp
     src/features/vassal_map_color.cpp
     src/game/buildings.cpp
     src/game/console.cpp
     src/game/localisation.cpp
     src/game/script.cpp
+    src/game/map.cpp
 )
 
 target_include_directories(script_extender PRIVATE src)

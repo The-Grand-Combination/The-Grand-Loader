@@ -111,6 +111,28 @@ bool term_allowed(uintptr_t action, const Term& term);
 // Posts the treaty to the recipient through the network session of `gui_owner` (a CEU3Dialog owner).
 void send(uintptr_t action, uintptr_t gui_owner);
 
+// For the AI dismantler (treaty_ai_dismantle.cpp): facts treaty.cpp keeps.
+int ai_weight(uintptr_t cb);      // percent: the CB's `ai_dismantle_weight` (default 100)
+bool goes_to_third(uintptr_t cb); // `goes_to_third = yes`: what the term takes goes to its third country
+bool is_partition(uintptr_t cb);  // `po_partition`
+// common/ai_interests.txt: the land `country` wants.
+bool of_interest(const std::vector<uintptr_t>& states, int country);
+bool province_of_interest(uint32_t province, int country);
+// The giver's states a land term moves (a single province: its state); empty when it moves no land.
+std::vector<uintptr_t> states_moved(const Term& term);
+int term_infamy(const Term& term);  // x1000, WarGoal_Infamy
+bool is_core_of(uint32_t province, int country);
+bool allied(int a, int b);
+bool is_great_power(int country);
+bool is_secondary_power(int country);
+int infamy_x1000(int country);
+std::string tag_name(int country);  // the tag, or the country's name when localised
+size_t goal_count(uintptr_t action);
+// A notice copy of the treaty (budget -1) into the country's pending list when it is the local human.
+void show_to_local_human(uintptr_t action, int country);
+// Applies a forced treaty (slot 32) and deletes it.
+void execute(uintptr_t action);
+
 }  // namespace treaty
 
 }  // namespace se::features

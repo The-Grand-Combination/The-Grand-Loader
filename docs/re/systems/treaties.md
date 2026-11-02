@@ -507,10 +507,11 @@ synced state.
   allies' cores, colonies and puppets, nations with cores, and new countries last.
 - Terms are taken one per round, the best value per point as the treaty stands, then the bigger term;
   the total stays within the budget plus `treaty_dismantle_ai_overspend`. The value of a land term
-  depends on what the treaty already moves (2026-11-01, `situated_value`): x `treaty_dismantle_ai_border`%
+  depends on what the treaty already moves (2026-11-01, `Picker::worth` in `treaty_ai_dismantle.cpp`): x `treaty_dismantle_ai_border`%
   (150) when one of its states borders, by land or strait (`CProvince+0x5C` geography, neighbours at
   `+0xC8`), a province of its gainer or a state the treaty already gives that gainer; x `_adjacent`% (120)
-  when it borders a state given to someone else; x `_exclave`% (0: never, until a neighbour is taken) when it borders neither, unless it is colonial or
+  when it is the first state of a country yet to exist and borders a state given to someone else (a
+  later state of that country must border its earlier ones, or it is an exclave: no country in two pieces); x `_exclave`% (0: never, until a neighbour is taken) when it borders neither, unless it is colonial or
   the first state of a country yet to exist. A colonial state on a continent named in
   `treaty_dismantle_ai_coastal_only` (`europe`; ids from the mod's `map/continent.txt`) is taken only when
   one of its provinces is coastal (`CProvince+0x158`) or it borders a state the treaty already gives the
@@ -523,9 +524,9 @@ synced state.
   of the mod's `map/positions.txt`). Each colonial state the treaty already takes on a near or
   coastal-only continent scales the next colony there by `treaty_dismantle_ai_colony_repeat`% (70), so after
   one or two the points go to releases, tributes or cores instead of ever farther colonies. A term that would split what the loser keeps
-  into more connected groups of states (an enclave, a detached part: `splits_loser`, `components` over the
+  into more connected groups of states (an enclave, a detached part: `splits_loser`, `game::components` over the
   same adjacency) is dropped. A partition term (`po_partition`) is eligible only while one of its states
-  borders land the treaty gives a third country (`next_to_freed`): partitions extend freed land, they
+  borders land the treaty gives a third country (`borders_others`): partitions extend freed land, they
   do not start it. Weights: liberate 2.5, free peoples 2, partition 0.3. A term whose third country is an ally of the AI
   (`Relation+0x28` either way: allied cores, colonies to an ally) is x `treaty_dismantle_ai_ally`% (130), and
   colonies go only to an ally that is a great or secondary power. The colony CB's weight is 1 (was 1.5),

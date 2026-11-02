@@ -2,6 +2,9 @@
 
 #include <windows.h>
 
+#include <fstream>
+#include <iterator>
+
 #include "game/objects.h"
 #include "hooks/memory.h"
 #include "log.h"
@@ -132,5 +135,40 @@ void skip_value(uintptr_t parser) {
 }
 
 std::string value_text(uintptr_t parser) { return reinterpret_cast<const char*>(parser + kParserValueText); }
+
+}  // namespace se::game
+
+namespace se::game {
+
+std::string read_file(const std::wstring& path) {
+    std::ifstream in(path, std::ios::binary);
+    return in ? std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()) : std::string();
+}
+
+std::vector<std::string> script_words(const std::string& text) {
+    std::vector<std::string> words;
+    std::string word;
+    bool comment = false;
+    for (char c : text + "\n") {
+        if (comment) {
+            comment = c != '\n';
+            continue;
+        }
+        bool separator = c == '#' || c == '=' || c == '{' || c == '}' || static_cast<unsigned char>(c) <= ' ';
+        if (!separator) {
+            word += c;
+            continue;
+        }
+        if (!word.empty()) {
+            words.push_back(word);
+            word.clear();
+        }
+        comment = c == '#';
+        if (c == '=' || c == '{' || c == '}') {
+            words.push_back(std::string(1, c));
+        }
+    }
+    return words;
+}
 
 }  // namespace se::game

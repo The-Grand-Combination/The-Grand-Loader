@@ -62,7 +62,7 @@ the AI accepts when it is at least 0. Details: `docs/re/systems/treaties.md` ("A
 | `treaty_dismantle_ai_max_states` | 35 | percent of the loser's non-colonial states an AI dismantler takes at most |
 | `treaty_dismantle_ai_max_new` | 3 | countries an AI dismantler creates at most in one treaty |
 | `treaty_dismantle_ai_border` | 150 | percent of a land term's value to an AI dismantler when it borders the gainer or land the treaty already gives it |
-| `treaty_dismantle_ai_adjacent` | 120 | percent when it borders land the treaty gives to someone else |
+| `treaty_dismantle_ai_adjacent` | 120 | percent for the first state of a country yet to exist when it borders land the treaty gives to someone else (later states must border its own) |
 | `treaty_dismantle_ai_exclave` | 0 | percent when it borders neither; 0 = never taken until a neighbour is (colonies and a new country's first state keep 100) |
 | `treaty_dismantle_ai_ally` | 130 | percent of the value of a term whose third country is an ally of the AI (allied cores, colonies to an ally; colonies go to great or secondary powers only) |
 | `treaty_dismantle_ai_coastal_only` | `europe` | continents (names of `map/continent.txt`) where an AI dismantler takes colonial states only on the coast or next to one it takes in the same treaty; empty = anywhere |

@@ -63,9 +63,9 @@ over the region's provinces, `FUN_004B7FD0`), else for a coastal province (`+0x1
 
 ## Use by the Script Extender
 
-`treaty.cpp` `in_colonial_range` calls `Country_HasColonialRangeTo` with a `CountryRef` built from the
-country's tag (`country+0x1C`) and index; `colonial_range_reaches` asks it for every coastal province of
-the states a term moves. An AI dismantler takes a colonial state only when that is true (land of
+`game/map.cpp` `in_colonial_range` calls `Country_HasColonialRangeTo` with a `CountryRef` built from the
+country's tag (`country+0x1C`) and index; the AI dismantler (`treaty_ai_dismantle.cpp`) asks it for every coastal province of
+the states a term moves, once per candidate. An AI dismantler takes a colonial state only when that is true (land of
 interest apart); a colony that borders its land passes the border rule before this one, as in the game.
 Reads only: deterministic on every machine.
 

@@ -751,4 +751,15 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Answer:** → [systems/colonisation.md](systems/colonisation.md). No stored range: `Country_HasColonialRangeTo` (`0x004BC020`) walks the country's provinces and is true when one with a naval base lies within `100 + effective level x colonial_range` (the building's `+0xDC`) of the target, distances from the province source's precomputed u16 table (`ProvinceSource_PairDistance`, x1000) through `Province_Distance`. `Country_CanColonizeProvince` uses it for coastal targets after adjacency; `MapColor_Colonial` colours by it.
 - **Method:** `MapColor_Colonial` (named earlier) led to both callees; dumpbin for the conventions (EAX = CountryRef*, stack province, RET 4).
 - **Built:** `in_colonial_range` / `colonial_range_reaches` in treaty.cpp: an AI dismantler takes a colonial state only when a coastal province of it is in its colonial range (interest apart; a bordering colony passes the border rule first). Reason `colony out of colonial range` in `treaty_dismantle_log`.
+- **Correction (same evening):** the first test still gave an ally a colony far from it (Magadan to Germany): the "adjacent to land given to another" bonus returned before the range check. The colonial-range test now runs right after the "borders the gainer" test, before any adjacency bonus.
 - **Open:** the country's distance cache at `+0x10C`; the distance table's coverage.
+
+## 2026-11-02 — New countries in two pieces
+
+- **Question:** an AI dismantle of Russia freed Ukraine as two separate blocks.
+- **Answer:** the `treaty_dismantle_ai_adjacent` bonus let a state join a new country because it bordered land given to another (Belarus, Poland), not that country's own. Now the bonus applies only to the first state of a country yet to exist; every later state must border the land it already gets (else the exclave rule drops it).
+
+## 2026-11-02 — AI dismantler reorganised
+
+- **Why:** after a month of rules added one by one, the picker was 900 lines inside treaty.cpp, mixed with map-file readers, with the rules split between three places and dependent on their order (the Magadan case).
+- **Done:** `game/map.{h,cpp}` holds the generic readers (adjacency, coasts, colonial status, connected components, continents and positions from the mod's map files, `BADBOY_LIMIT`, the game's colonial range), loaded once each; `script_words` / `read_file` moved to `game/script`. `features/treaty_ai_dismantle.cpp` holds the dismantler: a `Candidate` carries every fact the rules read, computed once (colonial, coastal, continents, interest, infamy, distance, colonial range); `Picker::worth` is the single rule chain for a term's value as the treaty stands, `Picker::rejected` the single list of hard limits, `Picker::take` the bookkeeping. Land moved by a single-province term is tracked as that province, not its state. treaty.cpp exposes the few facts it keeps through `treaty::` wrappers (treaty.h). No rule changed; `treaty_dismantle_log` also logs dropped terms with the reason.

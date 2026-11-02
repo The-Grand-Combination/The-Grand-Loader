@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -13,9 +12,11 @@
 #include <string>
 #include <vector>
 
+#include "features/treaty_ai_dismantle.h"
 #include "features/treaty_ui.h"
 #include "game/console.h"
 #include "game/localisation.h"
+#include "game/map.h"
 #include "game/objects.h"
 #include "game/script.h"
 #include "hooks/memory.h"
@@ -139,8 +140,6 @@ constexpr uint32_t kCountryIsVassal = 0xCF5;
 constexpr uint32_t kCountryOverlord = 0xCFC;      // index, with the tag at +0xCF8
 constexpr uint32_t kCountrySphereLeader = 0x142C;  // index, with the tag at +0x1428
 constexpr uint32_t kCountryStateCount = 0xE4C;
-constexpr uint32_t kCountryStates = 0xE44;  // list {state, ?, next}
-constexpr uint32_t kStateColonyStatus = 0x84;  // > 0: colonial
 constexpr uint32_t kCountryCapital = 0xBE4;
 constexpr uint32_t kCountryTreasury = 0xE78;   // i64, 2^15 fixed point
 constexpr uint32_t kCountryInfamy = 0x1430;    // x1000
@@ -420,37 +419,8 @@ bool is_partition_cb(uintptr_t cb) {
     return std::find(g_partition_cbs().begin(), g_partition_cbs().end(), cb) != g_partition_cbs().end();
 }
 
-// The words of a Paradox script: names, numbers, `=`, `{`, `}`; comments dropped.
-std::vector<std::string> script_words(const std::string& text) {
-    std::vector<std::string> words;
-    std::string word;
-    bool comment = false;
-    for (char c : text + "\n") {
-        if (comment) {
-            comment = c != '\n';
-            continue;
-        }
-        bool separator = c == '#' || c == '=' || c == '{' || c == '}' || static_cast<unsigned char>(c) <= ' ';
-        if (!separator) {
-            word += c;
-            continue;
-        }
-        if (!word.empty()) {
-            words.push_back(word);
-            word.clear();
-        }
-        comment = c == '#';
-        if (c == '=' || c == '{' || c == '}') {
-            words.push_back(std::string(1, c));
-        }
-    }
-    return words;
-}
-
-std::string read_file(const std::wstring& path) {
-    std::ifstream in(path, std::ios::binary);
-    return in ? std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()) : std::string();
-}
+using game::read_file;
+using game::script_words;
 
 std::wstring widen(const std::string& s) { return std::wstring(s.begin(), s.end()); }
 
@@ -2052,663 +2022,10 @@ std::vector<uintptr_t> states_moved(const treaty::Term& term) {
     return target_states(reinterpret_cast<uintptr_t>(g));
 }
 
-bool is_colonial_state(uintptr_t state) { return read<int>(state + kStateColonyStatus) > 0; }
-
-// The loser's states that are not colonial: its homeland, of which an AI dismantler takes a share only.
-int homeland_states(int country) {
-    int n = 0;
-    for (uintptr_t node = read<uintptr_t>(game::country(country) + kCountryStates); node; node = read<uintptr_t>(node + 8)) {
-        uintptr_t state = read<uintptr_t>(node);
-        n += state && !is_colonial_state(state) ? 1 : 0;
-    }
-    return n;
-}
-
 // Percent of a CB's value to an AI dismantler: its `ai_dismantle_weight` (default 100).
 int ai_weight(uintptr_t cb) {
     auto it = g_ai_weight_percent().find(cb);
     return it == g_ai_weight_percent().end() ? 100 : it->second;
-}
-
-struct Candidate {
-    treaty::Term term;
-    int cost;
-    int64_t value;  // x100: its war score, more for land with the winner's cores, x the CB's AI weight
-    std::vector<uintptr_t> states;  // the loser's states it moves (empty: no land)
-    int gainer;                     // who gets the land: the third country when there is one, else the winner
-    int near;                       // percent by the distance to the gainer's land (near_percent), 100 elsewhere
-    int infamy;                     // x1000: what the term costs the dismantler (dismantle_infamy CBs), else 0
-    bool interest;                  // the land is of the gainer's interest (common/ai_interests.txt)
-};
-
-// BADBOY_LIMIT of common/defines.lua (the mod's, else the game's), x1000; 25 when it cannot be read.
-int badboy_limit_x1000() {
-    static int limit = -1;
-    if (limit >= 0) {
-        return limit;
-    }
-    limit = 25000;
-    std::ifstream in(game::game_file(L"common\\defines.lua"));
-    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    size_t at = text.find("BADBOY_LIMIT");
-    if (at != std::string::npos) {
-        at = text.find('=', at);
-        if (at != std::string::npos) {
-            limit = static_cast<int>(std::atof(text.c_str() + at + 1) * 1000);
-        }
-    }
-    return limit;
-}
-
-// Province adjacency, as AI_PickFortProvince walks it (buildings.md "Fort"): the province's geography
-// (+0x5C) holds a vector of 0x24-byte entries {kind, province id, ...}, kind 1 = land border, 2 = strait.
-constexpr uint32_t kProvinceGeo = 0x5C;
-constexpr uint32_t kGeoNeighbours = 0xC8;  // begin; end at +0xCC
-constexpr uint32_t kNeighbourEntry = 0x24;
-
-// Land the forced treaty already moves: the loser's state and who gets it.
-struct Moved {
-    uintptr_t state;
-    int gainer;
-    bool listed_colony;  // colonial, on a near or coastal_only continent: each one taken discounts the next
-};
-
-// Whether one of `states` borders (by land or strait) a province owned by `gainer`, or a state the
-// treaty already gives to `gainer` (same = true) or to someone else (same = false).
-// Calls `visit(province, state)` for every province outside `states` that borders one of them, by land or
-// strait, until visit returns true.
-template <class Visit>
-bool borders_where(const std::vector<uintptr_t>& states, Visit visit) {
-    for (uintptr_t state : states) {
-        uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-        for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-            uintptr_t geo = read<uintptr_t>(game::province(read<uint32_t>(p)) + kProvinceGeo);
-            if (!geo) {
-                continue;
-            }
-            uintptr_t entries_end = read<uintptr_t>(geo + kGeoNeighbours + 4);
-            for (uintptr_t e = read<uintptr_t>(geo + kGeoNeighbours); e < entries_end; e += kNeighbourEntry) {
-                int kind = read<int>(e);
-                uint32_t id = read<uint32_t>(e + 4);
-                if ((kind != 1 && kind != 2) || !id) {
-                    continue;
-                }
-                uintptr_t other = game::province(id);
-                uintptr_t other_state = read<uintptr_t>(other + kProvinceState);
-                if (std::find(states.begin(), states.end(), other_state) != states.end()) {
-                    continue;
-                }
-                if (visit(other, other_state)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-bool borders(const std::vector<uintptr_t>& states, int gainer, const std::vector<Moved>& moved, bool same) {
-    bool owns = same && gainer && exists(gainer);
-    return borders_where(states, [&](uintptr_t province, uintptr_t state) {
-        if (owns && read<int>(province + kProvinceOwner) == gainer) {
-            return true;
-        }
-        return std::any_of(moved.begin(), moved.end(),
-                           [&](const Moved& m) { return m.state == state && (m.gainer == gainer) == same; });
-    });
-}
-
-// One of `states` borders land the treaty gives to someone other than `winner` (a freed country).
-bool next_to_freed(const std::vector<uintptr_t>& states, const std::vector<Moved>& moved, int winner) {
-    return borders_where(states, [&](uintptr_t, uintptr_t state) {
-        return std::any_of(moved.begin(), moved.end(),
-                           [&](const Moved& m) { return m.state == state && m.gainer != winner; });
-    });
-}
-
-// How many connected groups (by land or strait) `states` form.
-int components(std::vector<uintptr_t> states) {
-    int n = 0;
-    while (!states.empty()) {
-        n++;
-        std::vector<uintptr_t> group{states.back()};
-        states.pop_back();
-        for (size_t i = 0; i < group.size(); ++i) {
-            borders_where({group[i]}, [&](uintptr_t, uintptr_t state) {
-                auto it = std::find(states.begin(), states.end(), state);
-                if (it != states.end()) {
-                    group.push_back(state);
-                    states.erase(it);
-                }
-                return false;
-            });
-        }
-    }
-    return n;
-}
-
-// The loser's states the treaty leaves it, without `taken`.
-std::vector<uintptr_t> states_left_to(int loser, const std::vector<Moved>& moved, const std::vector<uintptr_t>& taken) {
-    std::vector<uintptr_t> out;
-    for (uintptr_t node = read<uintptr_t>(game::country(loser) + kCountryStates); node; node = read<uintptr_t>(node + 8)) {
-        uintptr_t state = read<uintptr_t>(node);
-        if (state && std::find(taken.begin(), taken.end(), state) == taken.end() &&
-            std::none_of(moved.begin(), moved.end(), [&](const Moved& m) { return m.state == state; })) {
-            out.push_back(state);
-        }
-    }
-    return out;
-}
-
-constexpr uint32_t kProvinceCoastal = 0x158;  // non-zero: a port can be built (building_map_mode reads it too)
-
-bool is_coastal_state(uintptr_t state) {
-    uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-    for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-        if (read<int>(game::province(read<uint32_t>(p)) + kProvinceCoastal) != 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// map/continent.txt (the mod's, else the game's: `<name> = { provinces = { ids } ... }`), read once: the
-// continent of every province (by index in `names`) and which continents treaty_dismantle_ai_coastal_only lists.
-struct Continents {
-    std::vector<std::string> names;        // lower case, in file order
-    std::vector<bool> coastal_only;        // per continent: named in treaty_dismantle_ai_coastal_only
-    std::vector<bool> near;                // per continent: named in treaty_dismantle_ai_near_continents
-    std::map<uint32_t, int> of_province;   // province id -> continent index
-};
-
-// The names of a space (or comma) separated ini list, lower case.
-std::vector<std::string> name_list(const std::string& text) {
-    std::vector<std::string> out;
-    std::string list = text;
-    for (char& ch : list) {
-        ch = ch == ',' || ch == ';' || ch == '\t' ? ' ' : static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    }
-    for (size_t at = 0; at < list.size();) {
-        size_t space = list.find(' ', at);
-        if (space == std::string::npos) {
-            space = list.size();
-        }
-        if (space > at) {
-            out.push_back(list.substr(at, space - at));
-        }
-        at = space + 1;
-    }
-    return out;
-}
-
-// The `unit` position of every province in map/positions.txt (the mod's, else the game's), read once.
-struct Position {
-    float x, y;
-};
-
-const std::map<uint32_t, Position>& positions() {
-    static std::map<uint32_t, Position> p;
-    static bool read_once = false;
-    if (read_once) {
-        return p;
-    }
-    read_once = true;
-    std::wstring path = game::game_file(L"map\\positions.txt");
-    std::ifstream in(path);
-    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    int depth = 0;
-    uint32_t province = 0;
-    bool in_unit = false;
-    std::string key, word;
-    Position pos{0, 0};
-    auto flush = [&] {
-        if (word.empty()) {
-            return;
-        }
-        if (depth == 0) {
-            province = static_cast<uint32_t>(std::atoi(word.c_str()));
-        } else if (depth == 1) {
-            in_unit = word == "unit";
-        } else if (depth == 2 && in_unit) {
-            if (key.empty()) {
-                key = word;
-            } else {
-                (key == "x" ? pos.x : pos.y) = static_cast<float>(std::atof(word.c_str()));
-                key.clear();
-            }
-        }
-        word.clear();
-    };
-    for (size_t i = 0; i < text.size(); ++i) {
-        char ch = text[i];
-        if (ch == '#') {
-            flush();
-            while (i < text.size() && text[i] != '\n') {
-                ++i;
-            }
-        } else if (ch == '{') {
-            flush();
-            depth++;
-        } else if (ch == '}') {
-            flush();
-            depth--;
-            if (depth == 1 && in_unit && province) {
-                p[province] = pos;
-                in_unit = false;
-            }
-            if (depth == 0) {
-                pos = {0, 0};
-                key.clear();
-            }
-        } else if (ch == '=' || std::isspace(static_cast<unsigned char>(ch))) {
-            flush();
-        } else {
-            word += ch;
-        }
-    }
-    logf("treaty: AI dismantler: %u province positions from %ls", static_cast<unsigned>(p.size()), path.c_str());
-    return p;
-}
-
-std::string lower_case(std::string s) {
-    for (char& ch : s) {
-        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    }
-    return s;
-}
-
-const Continents& continents() {
-    static Continents c;
-    static bool read_once = false;
-    if (read_once) {
-        return c;
-    }
-    read_once = true;
-    std::vector<std::string> listed = name_list(g_config.treaty_dismantle_ai_coastal_only);
-    std::vector<std::string> near = name_list(g_config.treaty_dismantle_ai_near_continents);
-    std::wstring path = game::game_file(L"map\\continent.txt");
-    std::ifstream in(path);
-    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    int depth = 0;
-    bool in_provinces = false;
-    std::string word;
-    auto flush = [&] {
-        if (word.empty()) {
-            return;
-        }
-        if (depth == 0) {
-            std::string name = lower_case(word);
-            c.names.push_back(name);
-            c.coastal_only.push_back(std::find(listed.begin(), listed.end(), name) != listed.end());
-            c.near.push_back(std::find(near.begin(), near.end(), name) != near.end());
-        } else if (depth == 1) {
-            in_provinces = word == "provinces";
-        } else if (depth == 2 && in_provinces && !c.names.empty() && std::isdigit(static_cast<unsigned char>(word[0]))) {
-            c.of_province[static_cast<uint32_t>(std::atoi(word.c_str()))] = static_cast<int>(c.names.size()) - 1;
-        }
-        word.clear();
-    };
-    for (size_t i = 0; i < text.size(); ++i) {
-        char ch = text[i];
-        if (ch == '#') {
-            flush();
-            while (i < text.size() && text[i] != '\n') {
-                ++i;
-            }
-        } else if (ch == '{') {
-            flush();
-            depth++;
-        } else if (ch == '}') {
-            flush();
-            depth--;
-            if (depth == 1) {
-                in_provinces = false;
-            }
-        } else if (ch == '=' || std::isspace(static_cast<unsigned char>(ch))) {
-            flush();
-        } else {
-            word += ch;
-        }
-    }
-    size_t restricted = static_cast<size_t>(std::count(c.coastal_only.begin(), c.coastal_only.end(), true));
-    size_t nearby = static_cast<size_t>(std::count(c.near.begin(), c.near.end(), true));
-    logf("treaty: AI dismantler: %u continents, %u provinces in %ls; coastal colonies only on %u (%s), land near "
-         "its own first on %u (%s)",
-         static_cast<unsigned>(c.names.size()), static_cast<unsigned>(c.of_province.size()), path.c_str(),
-         static_cast<unsigned>(restricted), g_config.treaty_dismantle_ai_coastal_only.c_str(),
-         static_cast<unsigned>(nearby), g_config.treaty_dismantle_ai_near_continents.c_str());
-    return c;
-}
-
-// The state has a province on a continent of treaty_dismantle_ai_near_continents.
-bool on_near_continent(uintptr_t state) {
-    const Continents& c = continents();
-    uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-    for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-        auto it = c.of_province.find(read<uint32_t>(p));
-        if (it != c.of_province.end() && c.near[static_cast<size_t>(it->second)]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// Percent of a land term's value by its distance to `gainer`'s provinces, on a near continent: 100 +
-// treaty_dismantle_ai_near at distance 0, falling to treaty_dismantle_ai_far at near_range map pixels, so
-// far land loses to anything else the points can buy.
-int near_percent(const std::vector<uintptr_t>& states, int gainer) {
-    const Config& k = g_config;
-    if (k.treaty_dismantle_ai_near <= 0 || states.empty() || !exists(gainer) ||
-        std::none_of(states.begin(), states.end(), on_near_continent)) {
-        return 100;
-    }
-    const std::map<uint32_t, Position>& pos = positions();
-    uintptr_t own = game::country(gainer);
-    float best = -1;
-    for (uintptr_t state : states) {
-        uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-        for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-            auto here = pos.find(read<uint32_t>(p));
-            if (here == pos.end()) {
-                continue;
-            }
-            for (const int* q = read<const int*>(own + kCountryProvinces); q < read<const int*>(own + kCountryProvinces + 4); ++q) {
-                auto there = pos.find(static_cast<uint32_t>(*q));
-                if (there == pos.end()) {
-                    continue;
-                }
-                float dx = here->second.x - there->second.x, dy = here->second.y - there->second.y;
-                float d = dx * dx + dy * dy;
-                if (best < 0 || d < best) {
-                    best = d;
-                }
-            }
-        }
-    }
-    if (best < 0) {
-        return 100;
-    }
-    float range = static_cast<float>(k.treaty_dismantle_ai_near_range);
-    float distance = std::sqrt(best);
-    float far = static_cast<float>(k.treaty_dismantle_ai_far);
-    if (distance >= range) {
-        return k.treaty_dismantle_ai_far;
-    }
-    float near = static_cast<float>(100 + k.treaty_dismantle_ai_near);
-    return static_cast<int>(far + (near - far) * (range - distance) / range);
-}
-
-// The continent of a province (-1: not listed).
-int continent_of(uint32_t province) {
-    const Continents& c = continents();
-    auto it = c.of_province.find(province);
-    return it == c.of_province.end() ? -1 : it->second;
-}
-
-// The state has a province on a continent of treaty_dismantle_ai_coastal_only.
-bool on_coastal_only_continent(uintptr_t state) {
-    const Continents& c = continents();
-    uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-    for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-        int index = continent_of(read<uint32_t>(p));
-        if (index >= 0 && c.coastal_only[static_cast<size_t>(index)]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// The state is on the continent of `country`'s capital.
-bool on_home_continent(uintptr_t state, int country) {
-    if (!exists(country)) {
-        return false;
-    }
-    int home = continent_of(read<uint32_t>(game::country(country) + kCountryCapital));
-    if (home < 0) {
-        return false;
-    }
-    uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-    for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-        if (continent_of(read<uint32_t>(p)) == home) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// Taking `states` would split what the loser keeps into more pieces: an enclave or a detached part.
-bool splits_loser(int loser, const std::vector<Moved>& moved, const std::vector<uintptr_t>& states) {
-    std::vector<uintptr_t> before = states_left_to(loser, moved, {});
-    std::vector<uintptr_t> after = states_left_to(loser, moved, states);
-    return !after.empty() && components(after) > components(before);
-}
-
-// The candidate's value once the treaty holds `moved`: land that borders what its gainer has, or gets
-// here, is worth treaty_dismantle_ai_border%; land next to what someone else gets, _adjacent%; land next
-// to neither, _exclave% (0, the default, rules it out until a neighbour is taken; colonies, and the first
-// state of a country yet to exist, keep their value, colonies on a coastal-only continent on the coast only).
-// The province itself borders (land or strait) a province of `gainer` or a state the treaty gives it.
-bool province_borders(uint32_t province, int gainer, const std::vector<Moved>& moved) {
-    uintptr_t geo = read<uintptr_t>(game::province(province) + kProvinceGeo);
-    if (!geo) {
-        return false;
-    }
-    bool owns = gainer && exists(gainer);
-    uintptr_t entries_end = read<uintptr_t>(geo + kGeoNeighbours + 4);
-    for (uintptr_t e = read<uintptr_t>(geo + kGeoNeighbours); e < entries_end; e += kNeighbourEntry) {
-        int kind = read<int>(e);
-        uint32_t id = read<uint32_t>(e + 4);
-        if ((kind != 1 && kind != 2) || !id) {
-            continue;
-        }
-        uintptr_t other = game::province(id);
-        if (owns && read<int>(other + kProvinceOwner) == gainer) {
-            return true;
-        }
-        uintptr_t other_state = read<uintptr_t>(other + kProvinceState);
-        if (std::any_of(moved.begin(), moved.end(), [&](const Moved& m) { return m.state == other_state && m.gainer == gainer; })) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// The game's colonial range (colonisation.md): Country_HasColonialRangeTo (0x004BC020, EAX = CountryRef*,
-// stack CProvince*, RET 4, AL) is true when one of the country's controlled, unblockaded provinces with a
-// naval base is within 100 + effective level x the building's colonial_range of the target province.
-constexpr uint32_t kCountryHasColonialRangeTo = 0x004BC020;
-
-bool in_colonial_range(uint32_t province_id, int country) {
-    uint32_t ref[2] = {read<uint32_t>(game::country(country) + kCountryTag), static_cast<uint32_t>(country)};
-    uintptr_t province = game::province(province_id);
-    uintptr_t f = hooks::exe_va(kCountryHasColonialRangeTo);
-    uint8_t result = 0;
-    __asm {
-        mov esi, esp
-        lea eax, ref
-        push province
-        call f
-        mov esp, esi
-        mov result, al
-    }
-    return result != 0;
-}
-
-// A coastal province of one of `states` is within `country`'s colonial range, as the game lets it colonise.
-bool colonial_range_reaches(const std::vector<uintptr_t>& states, int country) {
-    for (uintptr_t state : states) {
-        uintptr_t end = read<uintptr_t>(state + kStateProvinceIds + 4);
-        for (uintptr_t p = read<uintptr_t>(state + kStateProvinceIds); p < end; p += 4) {
-            uint32_t id = read<uint32_t>(p);
-            if (read<int>(game::province(id) + kProvinceCoastal) != 0 && in_colonial_range(id, country)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-int64_t situated_value(const Candidate& c, const std::vector<Moved>& moved, const char** why = nullptr) {
-    auto say = [&](const char* reason) {
-        if (why) {
-            *why = reason;
-        }
-    };
-    if (c.states.empty()) {
-        say("no land");
-        return c.value;
-    }
-    const Config& k = g_config;
-    // a single province (cede_province, for itself or an ally) only next to the gainer's land or land it
-    // gets here, colonial or not; land of interest is the one exception
-    if (treaty_ui::takes_one_province(c.term.cb) && !c.interest && !province_borders(c.term.province, c.gainer, moved)) {
-        say("province not adjacent");
-        return 0;
-    }
-    // the loser's homeland off the gainer's own continent (a foothold the peace gave it, say): only next to
-    // land the gainer owned before this treaty, never chained through land it gets here, and worth
-    // treaty_dismantle_ai_abroad%; land of interest and colonies are not held to this
-    bool colonial = std::all_of(c.states.begin(), c.states.end(), is_colonial_state);
-    if (!colonial && !c.interest && exists(c.gainer) &&
-        std::none_of(c.states.begin(), c.states.end(), [&](uintptr_t s) { return on_home_continent(s, c.gainer); })) {
-        if (k.treaty_dismantle_ai_abroad <= 0 || !borders(c.states, c.gainer, {}, true)) {
-            say("homeland off the gainer's continent");
-            return 0;
-        }
-        say("abroad, borders land the gainer already owned");
-        return c.value * k.treaty_dismantle_ai_border / 100 * c.near / 100 * k.treaty_dismantle_ai_abroad / 100;
-    }
-    if (borders(c.states, c.gainer, moved, true)) {
-        say("borders the gainer");
-        return c.value * k.treaty_dismantle_ai_border / 100 * c.near / 100;
-    }
-    if (borders(c.states, c.gainer, moved, false)) {
-        say("adjacent to land given to another");
-        return c.value * k.treaty_dismantle_ai_adjacent / 100 * c.near / 100;
-    }
-    bool gainer_has_land = exists(c.gainer) ||
-                           std::any_of(moved.begin(), moved.end(), [&](const Moved& m) { return m.gainer == c.gainer; });
-    if (!gainer_has_land) {
-        say("first state of a new country");
-        return c.value;
-    }
-    if (colonial || c.interest) {
-        // colonies and land of interest may be taken across the map, but on a treaty_dismantle_ai_coastal_only
-        // continent only on the coast (an inland one waits for a neighbour the treaty gives the same gainer: the
-        // test above); a colony on the continent of the gainer's capital is worth treaty_dismantle_ai_home_continent%
-        // a colony only within the gainer's colonial range, as the game lets it colonise (interest apart)
-        if (colonial && !c.interest && exists(c.gainer) && !colonial_range_reaches(c.states, c.gainer)) {
-            say("colony out of colonial range");
-            return 0;
-        }
-        bool restricted = std::any_of(c.states.begin(), c.states.end(), on_coastal_only_continent);
-        if (restricted && !std::any_of(c.states.begin(), c.states.end(), is_coastal_state)) {
-            say("inland colony on a coastal-only continent");
-            return 0;
-        }
-        if (!colonial) {
-            say("of interest, across the sea");
-            return c.value * c.near / 100;
-        }
-        bool home = std::any_of(c.states.begin(), c.states.end(), [&](uintptr_t s) { return on_home_continent(s, c.gainer); });
-        say(home ? "colony on the home continent" : "colony across the sea");
-        int64_t value = (home ? c.value * k.treaty_dismantle_ai_home_continent / 100 : c.value) * c.near / 100;
-        // the more colonies the treaty already takes on these continents, the less the next is worth
-        if (restricted || std::any_of(c.states.begin(), c.states.end(), on_near_continent)) {
-            for (const Moved& m : moved) {
-                if (m.listed_colony) {
-                    value = value * k.treaty_dismantle_ai_colony_repeat / 100;
-                }
-            }
-        }
-        return value;
-    }
-    say("exclave");
-    return c.value * k.treaty_dismantle_ai_exclave / 100;
-}
-
-// Every term the winner could impose on the loser now (as the editor offers them), with its value.
-std::vector<Candidate> dismantle_candidates(uintptr_t action, int winner, int loser) {
-    std::vector<Candidate> out;
-    int count = read<int>(read<uintptr_t>(hooks::exe_va(game::kCountryManager)));
-    uintptr_t giver = game::country(loser);
-    for (uintptr_t cb : g_cbs()) {
-        // free terms are in already; no CB weighed 0 (land that costs infamy: per term, below)
-        if (!is_dismantling_cb(cb) || is_free_cb(cb) || ai_weight(cb) <= 0 ||
-            treaty::cb_unsupported(cb) || !treaty::cb_usable(cb, winner, loser)) {
-            continue;
-        }
-        std::vector<int> thirds{0};
-        if (treaty::cb_needs_country(cb)) {
-            thirds.clear();
-            for (int c = 1; c < count; ++c) {
-                if (c != winner && c != loser && treaty::country_allowed(cb, winner, loser, c)) {
-                    thirds.push_back(c);
-                }
-            }
-        }
-        std::vector<uint32_t> places{0};
-        if (treaty::cb_needs_province(cb)) {
-            places.clear();
-            bool per_state = !treaty_ui::takes_one_province(cb);
-            std::vector<uintptr_t> listed;
-            for (const int* p = read<const int*>(giver + kCountryProvinces); p < read<const int*>(giver + kCountryProvinces + 4); ++p) {
-                uintptr_t state = read<uintptr_t>(game::province(static_cast<uint32_t>(*p)) + kProvinceState);
-                if (per_state && std::find(listed.begin(), listed.end(), state) != listed.end()) {
-                    continue;
-                }
-                listed.push_back(state);
-                places.push_back(static_cast<uint32_t>(*p));
-            }
-        }
-        for (int third : thirds) {
-            for (uint32_t province : places) {
-                treaty::Term term{cb, winner, loser, province, third};
-                if (!treaty::term_allowed(action, term)) {
-                    continue;
-                }
-                int cost = treaty::forced_cost(term);  // what it spends of the budget
-                if (treaty::term_cost(term) <= 0) {
-                    continue;  // nothing to weigh it by
-                }
-                int64_t value = static_cast<int64_t>(treaty::term_cost(term)) * 100;  // what it is worth
-                if (!third && is_core_of(province, winner)) {
-                    value = value * g_config.treaty_ai_core_gain / 100;
-                }
-                value = value * ai_weight(cb) / 100;
-                std::vector<uintptr_t> states = states_moved(term);
-                if (third && goes_to_third(cb) && !states.empty() &&
-                    std::all_of(states.begin(), states.end(), is_colonial_state) && !is_great_power(third) &&
-                    !is_secondary_power(third)) {
-                    continue;  // no colonies for a minor ally
-                }
-                if (third && allied(winner, third)) {
-                    value = value * g_config.treaty_dismantle_ai_ally / 100;  // an ally gets it (cores, colonies)
-                }
-                int gainer = third ? third : winner;
-                int near = near_percent(states, gainer);
-                bool interest = treaty_ui::takes_one_province(cb) ? province_of_interest(province, gainer)
-                                                                  : of_interest(states, gainer);
-                int term_infamy = 0;
-                if (charges_infamy(cb)) {
-                    if (g_config.treaty_dismantle_ai_infamy <= 0 && !interest) {
-                        continue;  // land without a claim only with treaty_dismantle_ai_infamy, or of interest
-                    }
-                    uint8_t g[kWarGoalSize];
-                    build_goal(g, term);
-                    term_infamy = infamy(reinterpret_cast<uintptr_t>(g));
-                    if (!interest) {
-                        value = value * g_config.treaty_dismantle_ai_infamy / 100;  // less likely
-                    }
-                }
-                if (interest) {
-                    value = value * g_config.treaty_dismantle_ai_interest / 100;  // after cores, before colonies
-                }
-                out.push_back({term, cost, value, std::move(states), gainer, near, term_infamy, interest});
-            }
-        }
-    }
-    return out;
 }
 
 // Appends `action` to the country's pending list; the game shows it through slot 13 when the country is
@@ -2725,123 +2042,6 @@ void add_pending(int country, uintptr_t action) {
         pop edi
         pop esi
     }
-}
-
-// An AI winner's forced treaty, as a peace treaty would read: the most valuable terms per point first
-// (the CBs' ai_dismantle_weight puts its own and its allies' cores before puppets and colonies, those
-// before new countries; land next to its gainer's, or to land moved here, is worth more and exclaves
-// less: situated_value), within the budget (plus treaty_dismantle_ai_overspend). It takes at most
-// treaty_dismantle_ai_max_states% of the loser's homeland (colonies apart), always leaves it one state,
-// and creates at most treaty_dismantle_ai_max_new countries. Applied at once; a human loser is shown the
-// terms (a notice in its pending list, on its machine).
-std::string tag_name(int index);
-
-void impose_by_ai(int winner, int loser, int budget) {
-    const Config& k = g_config;
-    uintptr_t action = treaty::create(winner, loser);
-    if (!action) {
-        return;
-    }
-    treaty::set_budget(action, budget);
-    treaty::add_free_terms(action);
-    std::vector<Candidate> candidates = dismantle_candidates(action, winner, loser);
-    int limit = budget + (k.treaty_dismantle_ai_overspend > 0 ? k.treaty_dismantle_ai_overspend : 0);
-    int spent = treaty::points(action);
-    int states_left = read<int>(game::country(loser) + kCountryStateCount) - 1;
-    int homeland_left = homeland_states(loser) * std::max(k.treaty_dismantle_ai_max_states, 0) / 100;
-    std::vector<int> new_countries;
-    std::vector<Moved> moved;
-    std::vector<bool> done(candidates.size(), false);
-    int infamy_taken = 0;  // x1000, by the dismantle_infamy terms picked
-    // One term per round: the best value per point as the treaty stands (land next to what its gainer
-    // has or gets here is worth more, exclaves less), then the bigger term. A term that does not fit is
-    // dropped; the round is repeated until nothing fits.
-    for (;;) {
-        size_t best = candidates.size();
-        int64_t best_value = 0;
-        for (size_t i = 0; i < candidates.size(); ++i) {
-            if (done[i]) {
-                continue;
-            }
-            // a partition only extends land the treaty frees; an exclave (value 0) waits for a neighbour
-            if (is_partition_cb(candidates[i].term.cb) && !next_to_freed(candidates[i].states, moved, winner)) {
-                continue;
-            }
-            int64_t value = situated_value(candidates[i], moved);
-            if (value <= 0) {
-                continue;
-            }
-            if (best == candidates.size()) {
-                best = i, best_value = value;
-                continue;
-            }
-            int64_t bc = std::max(candidates[best].cost, 1), ic = std::max(candidates[i].cost, 1);
-            int64_t lhs = value * bc, rhs = best_value * ic;  // value per point
-            if (lhs > rhs || (lhs == rhs && candidates[i].cost > candidates[best].cost)) {
-                best = i, best_value = value;
-            }
-        }
-        if (best == candidates.size()) {
-            break;
-        }
-        done[best] = true;
-        const Candidate& c = candidates[best];
-        if (spent + c.cost > limit || !treaty::term_allowed(action, c.term)) {
-            continue;
-        }
-        // a single province does not take its state from the loser: it counts for no state
-        bool one_province = treaty_ui::takes_one_province(c.term.cb);
-        int whole_states = one_province ? 0 : static_cast<int>(c.states.size());
-        int homeland = one_province ? 0 : static_cast<int>(std::count_if(c.states.begin(), c.states.end(), [](uintptr_t s) { return !is_colonial_state(s); }));
-        if (whole_states > states_left || homeland > homeland_left) {
-            continue;
-        }
-        int third = c.term.third;
-        bool is_new = third && !exists(third) && std::find(new_countries.begin(), new_countries.end(), third) == new_countries.end();
-        if (is_new && static_cast<int>(new_countries.size()) >= k.treaty_dismantle_ai_max_new) {
-            continue;
-        }
-        if (!one_province && !c.states.empty() && splits_loser(loser, moved, c.states)) {
-            continue;  // it would leave the loser an enclave or a detached part
-        }
-        if (c.infamy > 0 && read<int>(game::country(winner) + kCountryInfamy) + infamy_taken + c.infamy > badboy_limit_x1000()) {
-            continue;  // it would put the dismantler over BADBOY_LIMIT
-        }
-        infamy_taken += c.infamy;
-        if (k.treaty_dismantle_log) {
-            const char* why = "";
-            int64_t now = situated_value(c, moved, &why);
-            logf("treaty:   %s%s%s province %u (%u state%s%s): cost %d, value %lld -> %lld, %s%s", GameString::copy(c.term.cb + kCbName).c_str(),
-                 c.term.third ? " to " : "", c.term.third ? tag_name(c.term.third).c_str() : "", c.term.province,
-                 static_cast<unsigned>(c.states.size()), c.states.size() == 1 ? "" : "s",
-                 !c.states.empty() && std::all_of(c.states.begin(), c.states.end(), is_colonial_state) ? ", colonial" : "",
-                 c.cost, static_cast<long long>(c.value / 100), static_cast<long long>(now / 100), why,
-                 c.interest ? ", of interest" : "");
-        }
-        treaty::add_term(action, c.term);
-        spent = treaty::points(action);  // with repeat_cost discounts
-        states_left -= whole_states;
-        homeland_left -= homeland;
-        for (uintptr_t s : c.states) {
-            bool listed = is_colonial_state(s) && (on_near_continent(s) || on_coastal_only_continent(s));
-            moved.push_back({s, c.gainer, listed});
-        }
-        if (is_new) {
-            new_countries.push_back(third);
-        }
-    }
-    logf("treaty: AI %d dismantles %d: %u terms, %d of %d points, %u new countries (%u candidates)", winner, loser,
-         static_cast<unsigned>(goal_count(action)), spent, budget, static_cast<unsigned>(new_countries.size()),
-         static_cast<unsigned>(candidates.size()));
-    if (is_human(loser) && read<int>(game::world() + kWorldLocalPlayer) == loser) {
-        uintptr_t notice = slot_clone(action, nullptr);
-        if (notice) {
-            *reinterpret_cast<int*>(notice + kBudget) = kNoticeBudget;
-            add_pending(loser, notice);
-        }
-    }
-    slot_execute(action, nullptr, nullptr);
-    delete_treaty(action);
 }
 
 // A human winner's turn on one loser: a forced treaty in its own pending list, which the game shows to it
@@ -2870,7 +2070,7 @@ void take_dismantles() {
             continue;
         }
         if (!is_human(d.winner)) {
-            impose_by_ai(d.winner, d.loser, d.budget);
+            treaty_ai::impose(g_config, d.winner, d.loser, d.budget);
         } else if (local == d.winner) {
             invite(d.winner, d.loser, d.budget);
         }
@@ -3138,3 +2338,44 @@ void install_treaty(const Config& config) {
 }
 
 }  // namespace se::features
+
+// For the AI dismantler (treaty_ai_dismantle.cpp).
+namespace se::features::treaty {
+
+int ai_weight(uintptr_t cb) { return se::features::ai_weight(cb); }
+bool goes_to_third(uintptr_t cb) { return se::features::goes_to_third(cb); }
+bool is_partition(uintptr_t cb) { return se::features::is_partition_cb(cb); }
+bool of_interest(const std::vector<uintptr_t>& states, int country) { return se::features::of_interest(states, country); }
+bool province_of_interest(uint32_t province, int country) { return se::features::province_of_interest(province, country); }
+std::vector<uintptr_t> states_moved(const Term& term) { return se::features::states_moved(term); }
+bool is_core_of(uint32_t province, int country) { return se::features::is_core_of(province, country); }
+bool allied(int a, int b) { return se::features::allied(a, b); }
+bool is_great_power(int country) { return se::features::is_great_power(country); }
+bool is_secondary_power(int country) { return se::features::is_secondary_power(country); }
+int infamy_x1000(int country) { return read<int>(game::country(country) + kCountryInfamy); }
+std::string tag_name(int country) { return se::features::tag_name(country); }
+size_t goal_count(uintptr_t action) { return se::features::goal_count(action); }
+
+int term_infamy(const Term& term) {
+    uint8_t g[kWarGoalSize];
+    build_goal(g, term);
+    return infamy(reinterpret_cast<uintptr_t>(g));
+}
+
+void show_to_local_human(uintptr_t action, int country) {
+    if (!is_human(country) || read<int>(game::world() + kWorldLocalPlayer) != country) {
+        return;
+    }
+    uintptr_t notice = slot_clone(action, nullptr);
+    if (notice) {
+        *reinterpret_cast<int*>(notice + kBudget) = kNoticeBudget;
+        add_pending(country, notice);
+    }
+}
+
+void execute(uintptr_t action) {
+    slot_execute(action, nullptr, nullptr);
+    delete_treaty(action);
+}
+
+}  // namespace se::features::treaty
