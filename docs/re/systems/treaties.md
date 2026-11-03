@@ -146,11 +146,15 @@ All have `is_triggered_only = yes`, `constructing_cb = no`, `truce_months = 0`, 
 - Both CALLs of `CDiplomacyView_Setup` `0x00622270` (stdcall `(view)`, RET 4; in the ctor at `0x0061BE1B`
   and in `FUN_0061BF70` at `0x0061C096`, where the view is rebuilt) are redirected: the vanilla setup runs,
   then an 18th `diplomacy_option` is made the way Setup makes the 17 (`0x00623C41..0x0062410D`):
-  `g_gui->vt[0x2C]("diplomacy_option", owner->vt[0x3C]())`, attached to the view's window (`+0x4C`) by
+  `g_gui->vt[0x2C]("diplomacy_option", (world+0xB24)->vt[0x3C]())`, attached to the view's window (`+0x4C`) by
   `vt[0xBC]("se_treaty_option", window)`, placed by `vt[0x18]` at `diplomacy_actions_pos` plus the
   window's size (`vt[0x60]`) times the cell (column 17 % columns, row 17 / columns, with the columns of
   `diplomacy_actions_wrap_count`: Setup fills the grid column by column, so with vanilla's 2 columns the
-  free cell is right of "Command Units"), then `(window+0x494)->vt[0xB0]()` as Setup does.
+  free cell is right of "Command Units"), then `(window+0x494)->vt[0xB0]()` as Setup does, and last
+  Setup's ending again: `(view window+0x18)->vt[0x34]()` (`0x00624266`) shows the window and its
+  children (without it the 18th is made and placed but never drawn), then the view's slot 4 (`0x007539D0`)
+  hides it, as Setup does, when it was hidden (`window+0x67`, slot 7): else the diplomacy screen opens by
+  itself at the start.
 - Its `action_option` gets a `CButtonObserverGlue<CEU3Dialog>` of ours (owner = the view): the click opens
   the editor for the player (`world+0xB60`) and the view's selected country (`+0x38C`). The text is
   `SE_TREATY_BUTTON` from the plugin's CSV (a mod may override it).

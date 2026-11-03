@@ -180,7 +180,7 @@ va,name,kind,conf,src,note
 0x00E35760,CGoalEntry_vftable,vtable,C,cp,RTTI; slot 4 OnClick; +0x1C vtable 0x00E35794
 0x00E05F8C,CDiplomacyDialog_vftable,vtable,C,cp,RTTI
 0x00E05FDC,CStandardDiplomacyDialogue_vftable,vtable,C,cp,RTTI
-0x00E07450,CDiplomacyView_vftable,vtable,C,cp,"RTTI; slot 0 setup again, 10 tooltip, 11 refresh (I)"
+0x00E07450,CDiplomacyView_vftable,vtable,C,cp,"RTTI; slot 0 setup again, 4 hide (0x007539D0), 6 show (0x007539B0) (I), 7 shown (0x00753B60), 10 tooltip, 11 refresh (I)"
 0x00E392F0,ListBoxItem_vftable,vtable,I,cp,"slot 0 dtor, slot 4 OnClick; +0x1C vtable 0x00E39320"
 0x00E08B24,CEU3CheckBox_vftable,vtable,C,cp,RTTI
 0x00DF8390,CScrollbarObserverGlue_CInvestProject_vftable,vtable,C,cp,slot 1 jumps to [glue+8] with ECX = owner

@@ -1,7 +1,7 @@
 # Script Extender: sprites of the treaty editor (se_treaty.gui). Paths are from the game folder.
 
 spriteTypes = {
-	# The Justify-war background (diplo_makecb_bg) mirrored: the wide panel on the left.
+	# The editor background (500 x 332): the wide panel on the left, the narrow one on the right.
 	spriteType = {
 		name = "GFX_se_treaty_bg"
 		texturefile = "mod\\script_extender\\gfx\\interface\\se_treaty_bg.tga"

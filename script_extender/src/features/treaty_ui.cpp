@@ -36,11 +36,13 @@
 //   (it clears the CB list first, so a second call cannot add to it). Their names and descriptions come
 //   from our CSV into the game's localisation table, as the message texts do.
 // - "Propose Treaty": after CDiplomacyView_Setup (0x00622270, stdcall (view); its calls at 0x0061BE1B and
-//   0x0061C096) an 18th diplomacy_option is made as Setup makes the 17 vanilla ones (0x00623C41..0x0062410D):
-//   instantiated by g_gui from the window type, attached to the view's window, placed in the first free cell
-//   of the action grid (right of "Command Units" with vanilla's wrap count of 2), its action_option bound to
-//   our glue, which opens the editor. The CanPerform call of CDiplomacyView_RefreshActions enables it (once
-//   per refresh, at the CMakeCBAction) when a treaty is possible. The vanilla "Justify war" button is untouched.
+//   0x0061C096) an 18th diplomacy_option is made as Setup makes the 17 (0x00623C41..0x0062410D): from
+//   g_gui by window type (parent: (world+0xB24)->vt[0x3C]), attached to the view's window, placed in the
+//   first free cell of the action grid (right of "Command Units" with a wrap count of 2), its
+//   action_option bound to our glue (opens the editor); then Setup's ending again: show the window
+//   ((view window+0x18)->vt[0x34](), or the 18th is not drawn) and hide the view (slot 4) if it was
+//   hidden. The CanPerform call of CDiplomacyView_RefreshActions enables it (at the CMakeCBAction, once
+//   per refresh) when a treaty is possible. "Justify war" is untouched.
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
 //   0 dtor, 1 per-frame refresh, 6 send, 7 cancel). Its rows are fixed buttons, paged: the terms
 //   (money first, then the CB terms; click = remove) and the picker (Demand / Offer tabs, then money or a
@@ -121,12 +123,17 @@ constexpr uint32_t kGuiInstantiate = 0x2C;           // g_gui vt: (const std::st
 constexpr uint32_t kGuiPositionType = 0x48;          // g_gui vt: (const std::string* name) -> positionType
 constexpr uint32_t kPositionTypeX = 0x64;            // int
 constexpr uint32_t kPositionTypeY = 0x68;
-constexpr uint32_t kOwnerParent = 0x3C;              // gui owner vt: the parent of a new window
+constexpr uint32_t kOwnerParent = 0x3C;              // (world+0xB24)->vt[0x3C]: the parent of a new window (0x00623C78)
+constexpr uint32_t kWorldUiManager = 0xB24;
 constexpr uint32_t kWindowSetPosition = 0x18;        // (packed {i16 x, i16 y})
 constexpr uint32_t kWindowGetSize = 0x60;            // (out) -> {i16 x, i16 y}*
 constexpr uint32_t kWindowAddChild = 0xBC;           // (const std::string* name, window)
 constexpr uint32_t kWindowElement = 0x494;           // Setup calls its vt[0xB0] once the window is placed
 constexpr uint32_t kElementPlaced = 0xB0;
+constexpr uint32_t kWindowChildren = 0x18;           // embedded; vt[0x34] shows the window (Setup, CEU3Dialog_ctor), vt[0x38] hides
+constexpr uint32_t kChildrenShow = 0x34;
+constexpr uint32_t kWindowShown = 0x67;              // u8: CDiplomacyView slot 7 (0x00753B60) returns it
+constexpr uint32_t kViewHide = 0x10;                 // CDiplomacyView slot 4 (0x007539D0): window vt[0x24], (+0x50)+0x18 vt[0x38]
 constexpr int kVanillaActions = 17;
 constexpr const char* kOptionType = "diplomacy_option";
 constexpr const char* kOptionButton = "action_option";
@@ -1385,7 +1392,8 @@ void __fastcall treaty_button_click(uintptr_t view, void*, uintptr_t) {
 }
 
 uintptr_t position_type(uintptr_t gui, const char* name) {
-    GameString game_name{std::string(name)};
+    std::string text = name;  // GameString is a view: the string must outlive the call
+    GameString game_name(text);
     using FindFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*);
     return vt<FindFn>(gui, kGuiPositionType)(gui, nullptr, &game_name);
 }
@@ -1395,18 +1403,22 @@ void add_treaty_button(uintptr_t view) {
     uintptr_t gui = read<uintptr_t>(hooks::exe_va(kGuiVa));
     uintptr_t owner = read<uintptr_t>(view + kViewOwner);
     uintptr_t view_window = read<uintptr_t>(view + kViewWindow);
-    if (!gui || !owner || !view_window || !gui_type_exists(owner, kOptionType)) {
+    uintptr_t ui = read<uintptr_t>(game::world() + kWorldUiManager);
+    if (!gui || !owner || !view_window || !ui || !gui_type_exists(owner, kOptionType)) {
         logf("treaty: no %s window type; no Propose Treaty button", kOptionType);
         return;
     }
-    GameString type{std::string(kOptionType)};
-    uintptr_t parent = vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(owner, kOwnerParent)(owner, nullptr);
+    std::string type_text = kOptionType;  // 16 characters: GameString points at it
+    GameString type(type_text);
+    uintptr_t parent = vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(ui, kOwnerParent)(ui, nullptr);
     using MakeFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*, uintptr_t);
     uintptr_t window = vt<MakeFn>(gui, kGuiInstantiate)(gui, nullptr, &type, parent);
     if (!window) {
+        logf("treaty: the %s window could not be made; no Propose Treaty button", kOptionType);
         return;
     }
-    GameString name{std::string(kOptionName)};
+    std::string name_text = kOptionName;
+    GameString name(name_text);
     using AddFn = void(__fastcall*)(uintptr_t, void*, const GameString*, uintptr_t);
     vt<AddFn>(view_window, kWindowAddChild)(view_window, nullptr, &name, window);
 
@@ -1425,8 +1437,17 @@ void add_treaty_button(uintptr_t view) {
     if (uintptr_t element = read<uintptr_t>(window + kWindowElement)) {
         vt<void(__fastcall*)(uintptr_t, void*)>(element, kElementPlaced)(element, nullptr);
     }
+    // Setup ends with (view window + 0x18)->vt[0x34]() (0x00624266), which shows the window and its children,
+    // then the view's slot 4 (0x007539D0, hide). Without the show again the 18th is never drawn; without
+    // the hide again the diplomacy screen opens by itself when the game starts.
+    bool was_visible = read<uint8_t>(view_window + kWindowShown) != 0;
+    uintptr_t children = view_window + kWindowChildren;
+    vt<void(__fastcall*)(uintptr_t, void*)>(children, kChildrenShow)(children, nullptr);
+    if (!was_visible) {
+        vt<void(__fastcall*)(uintptr_t, void*)>(view, kViewHide)(view, nullptr);
+    }
 
-    TreatyButton& b = g_treaty_buttons()[view];
+    TreatyButton& b = g_treaty_buttons()[view];  // the glue stays in the map: a button never points at freed memory
     b.button = find(window, kFindButton, kOptionButton);
     b.glue.vtable = hooks::exe_va(kGlueVtable);
     b.glue.owner = view;
@@ -1435,6 +1456,7 @@ void add_treaty_button(uintptr_t view) {
     auto texts = game::read_localisation({"SE_TREATY_BUTTON"});
     button_text(b.button, texts.count("SE_TREATY_BUTTON") ? texts["SE_TREATY_BUTTON"] : "SE_TREATY_BUTTON");
     enable(b.button, false);  // until the first refresh
+    logf("treaty: Propose Treaty button at %d,%d (%d columns)%s", x, y, columns, b.button ? "" : ", no action_option in it");
 }
 
 // Replaces both CALLs of CDiplomacyView_Setup: the vanilla setup, then our button.
@@ -1533,6 +1555,8 @@ bool install(const Config& config) {
     for (uint32_t site : {kViewSetupCallCtor, kViewSetupCallReset}) {
         if (!hooks::redirect_call(hooks::exe_va(site), g_view_setup, reinterpret_cast<uintptr_t>(&setup_with_treaty_button))) {
             logf("treaty: the CDiplomacyView_Setup call at %08X is not the expected one; no Propose Treaty button", site);
+        } else {
+            logf("treaty: Propose Treaty button after the CDiplomacyView_Setup call at %08X", site);
         }
     }
     return true;

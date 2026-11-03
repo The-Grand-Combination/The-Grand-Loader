@@ -776,7 +776,7 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Why:** the treaty editor was reached through a chooser on "Justify war" (`CMakeCBAction` slot 14), which
   changed what that button does. The button goes back to vanilla; the editor gets a button of its own.
 - **Read:** `CDiplomacyView_Setup` (`0x00623C41..0x0062410D`, listing): stdcall `(view)` RET 4; each of the 17
-  `diplomacy_option` windows comes from `g_gui->vt[0x2C](type, owner->vt[0x3C]())`, is attached by the view
+  `diplomacy_option` windows comes from `g_gui->vt[0x2C](type, (world+0xB24)->vt[0x3C]())`, is attached by the view
   window's `vt[0xBC](name, child)`, placed by `vt[0x18]` at `diplomacy_actions_pos` + size (`vt[0x60]`) x cell,
   then `(window+0x494)->vt[0xB0]()`. The cells fill column by column (`IDIV` by the wrap count's x: 17 / 2 =
   8 rows, remainder 1 makes the first column 9 long), which matches the screen: "Command Units" is index 8 at
@@ -785,4 +785,12 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   18th `diplomacy_option` (`se_treaty_option`) in cell (17 % columns, 17 / columns) with our glue on its
   `action_option`; `se_treaty_button` keeps the vanilla `CanPerform` result and enables ours once per refresh.
   `se_treaty_chooser` (the vtable slot) is gone; `SE_TREATY_CHOOSER_*` texts replaced by `SE_TREATY_BUTTON`.
-- **Open:** `GuiWindow+0x494` and its `vt[0xB0]` are only known from this use (I).
+- **Fixes after the first test:** the button was made but not shown. (1) "diplomacy_option" and
+  "se_treaty_option" are 16 characters, so the `GameString` view pointed at a freed temporary: now the
+  `std::string` lives through the call. (2) Setup ends with `(view window+0x18)->vt[0x34]()` (`0x00624266`);
+  a window added after it is placed (log: 837,587, visible flags set) but not drawn until that call is
+  repeated. With both, the button shows (user, in game).
+- **Then:** the diplomacy screen opened by itself once at the start: `+0x18 vt[0x34]` is a show, and Setup
+  hides the view right after it (slot 4, `0x007539D0`). Now the view is hidden again when it was hidden.
+- **Open:** `GuiWindow+0x494` and its `vt[0xB0]`, `GuiWindow+0x18` and its `vt[0x34]` are only known from
+  these uses (I).

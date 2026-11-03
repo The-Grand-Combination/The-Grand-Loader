@@ -469,3 +469,5 @@ ProvinceSource,0x2AB8,distanceKnown,u8[],I,cp,same index: the pair has a distanc
 PositionType,0x64,x,i32,C,cp,"positionType of a .gui (g_gui vt[0x48](name)); CDiplomacyView_Setup: diplomacy_actions_pos, diplomacy_actions_wrap_count (x = columns)"
 PositionType,0x68,y,i32,C,cp,
 GuiWindow,0x494,element,ptr,I,cp,"CDiplomacyView_Setup calls its vt[0xB0]() right after vt[0x18](packed {i16 x, i16 y}) places the window; vt[0x60](out) -> {i16 x, i16 y}* size; vt[0xBC](const std::string* name, child) attaches a subwindow"
+GuiWindow,0x18,children,embedded,I,cp,"vt[0x34]() shows the window and its children (end of CDiplomacyView_Setup 0x00624266, CEU3Dialog_ctor), vt[0x38]() hides; a child window added later is drawn only after vt[0x34] runs again"
+GuiWindow,0x67,shown,u8,I,cp,"CDiplomacyView slot 7 (0x00753B60) returns it for its window"
