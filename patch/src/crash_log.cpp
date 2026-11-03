@@ -10,8 +10,10 @@
 
 // A vectored handler, so it runs before the game's own handlers and also sees first-chance exceptions.
 // Memory is probed with hooks::readable (VirtualQuery), never by touching it: an access violation raised
-// while logging would re-enter the handler and use the one fatal report on a fake crash. A per-thread
-// depth guard covers anything else that faults inside it.
+// while logging would re-enter the handler and use up a fatal report on a fake crash. A per-thread
+// depth guard covers anything else that faults inside it. A fault the handler sees may still be handled
+// by a frame handler further down (the game continues), so up to kMaxFatalReports are written, each
+// numbered: the last one is the crash, the earlier ones are the faults that were survived.
 
 namespace cp {
 
@@ -20,6 +22,7 @@ namespace {
 constexpr DWORD kCxxException = 0xE06D7363;  // MSVC C++ throw
 constexpr DWORD kFatalAppExit = 0x40000015;  // abort()
 constexpr int kMaxThrowLogs = 12;
+constexpr LONG kMaxFatalReports = 8;  // fatal-code faults reported per run (first-chance ones included)
 constexpr int kThrowStackEntries = 12;
 constexpr int kCrashStackEntries = 24;
 constexpr int kStackScanDwords = 1024;
@@ -30,7 +33,7 @@ constexpr UINT_PTR kWhatProbe = 256;    // characters of what() checked
 
 CrashContextFn g_contexts[kMaxContexts];
 int g_context_count = 0;
-LONG g_reported = 0;
+LONG g_reports = 0;  // fatal reports written so far (interlocked)
 LONG g_throws_logged = 0;
 DWORD g_main_thread = 0;  // the thread that installed the handler: the game's main thread (plugin init)
 thread_local int t_depth = 0;
@@ -164,7 +167,7 @@ void log_fault_location(DWORD code, uintptr_t eip) {
          static_cast<unsigned>(eip - reinterpret_cast<uintptr_t>(module)));
 }
 
-void log_fatal(const EXCEPTION_POINTERS* info) {
+void log_fatal(const EXCEPTION_POINTERS* info, LONG ordinal) {
     DWORD code = info->ExceptionRecord->ExceptionCode;
     if (code == EXCEPTION_STACK_OVERFLOW) {
         // The guard page is gone: no formatting buffers on this stack.
@@ -172,6 +175,8 @@ void log_fatal(const EXCEPTION_POINTERS* info) {
         return;
     }
     const CONTEXT* c = info->ContextRecord;
+    logf("crash: report %ld of %ld (a report followed by more game output was a fault the game handled)", ordinal,
+         kMaxFatalReports);
     log_fault_location(code, c->Eip);
     logf("crash:   thread %lu (%s)", GetCurrentThreadId(), thread_label());
     if (code == EXCEPTION_ACCESS_VIOLATION && info->ExceptionRecord->NumberParameters >= 2) {
@@ -190,8 +195,11 @@ void handle(const EXCEPTION_POINTERS* info) {
     DWORD code = info->ExceptionRecord->ExceptionCode;
     if (code == kCxxException) {
         log_cxx_throw(info);
-    } else if (is_fatal(code) && InterlockedCompareExchange(&g_reported, 1, 0) == 0) {
-        log_fatal(info);
+    } else if (is_fatal(code)) {
+        LONG ordinal = InterlockedIncrement(&g_reports);
+        if (ordinal <= kMaxFatalReports) {
+            log_fatal(info, ordinal);
+        }
     }
 }
 

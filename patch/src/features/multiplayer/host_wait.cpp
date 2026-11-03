@@ -149,7 +149,9 @@ int __cdecl should_wait(uintptr_t world) {
 }
 
 // ProcessGameTimeAdvance is __fastcall with the world in ECX and the frame delta in XMM0; nothing on
-// the stack, so skipping it is a plain return.
+// the stack, so skipping it is a plain return. It is void (docs/re/decomp: `void __fastcall
+// ProcessGameTimeAdvance(int)`), so the skip path leaving should_wait's non-zero result in EAX is
+// harmless: the caller reads nothing from EAX.
 __declspec(naked) void advance_thunk() {
     CP_SAVE_ALL
     __asm {

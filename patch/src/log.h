@@ -10,7 +10,7 @@ namespace cp {
 const TGL_HostApi& host();
 
 inline void logf(_Printf_format_string_ const char* fmt, ...) {
-    char buf[1024];
+    char buf[2048];  // config.cpp's log_config line is up to 2048 bytes; fine on a game-thread stack
     va_list args;
     va_start(args, fmt);
     int n = vsnprintf(buf, sizeof(buf), fmt, args);

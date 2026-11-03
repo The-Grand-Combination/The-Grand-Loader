@@ -1,0 +1,201 @@
+CODE;ENGLISH;FRENCH;GERMAN;POLISH;SPANISH;ITALIAN;SWEDISH;CZECH;HUNGARIAN;DUTCH;PORTUGUESE;RUSSIAN;FINNISH;x
+SE_MAPMODE_BUILDING_TITLE;$MODE$ - $BUILDING$;;;;;;;;;;;;;x
+SE_PROVINCE_VIEW_BUILD_COUNTRY_TOOLTIP;(Click + CTRL + SHIFT to build in all provinces in country);;;;;;;;;;;;;x
+SE_TREATY_TITLE;Treaty Proposal;;;;;;;;;;;;;x
+SE_TREATY_OFFER;They propose a treaty with these terms:;;;;;;;;;;;;;x
+SE_TREATY_MONEY_ACTOR;They pay us $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_RECIPIENT;We pay them $MONEY$ pounds.;;;;;;;;;;;;;x
+SE_TREATY_NO_TERMS;Add at least one term.;;;;;;;;;;;;;x
+SE_TREATY_AT_WAR;Not possible while at war with each other.;;;;;;;;;;;;;x
+SE_TREATY_GONE;One of the countries no longer exists.;;;;;;;;;;;;;x
+SE_TREATY_TERM_INVALID;A term is not valid between these countries.;;;;;;;;;;;;;x
+SE_TREATY_TERM_ANNEX;That kind of term cannot be part of a treaty.;;;;;;;;;;;;;x
+SE_TREATY_TERM_OWNER;A province of the treaty changed owner.;;;;;;;;;;;;;x
+SE_TREATY_TERM_OCCUPIED;A province of the treaty is occupied.;;;;;;;;;;;;;x
+SE_TREATY_TERM_LAST_STATE;A country cannot give away its last state.;;;;;;;;;;;;;x
+SE_TREATY_MONEY_SHORT;The paying side does not have that much money.;;;;;;;;;;;;;x
+SE_TREATY_TERM_SIDES;A term is not between the two countries of the treaty.;;;;;;;;;;;;;x
+SE_TREATY_TERMS;Terms (click to remove);;;;;;;;;;;;;x
+SE_TREATY_MODE_DEMAND;Demand;;;;;;;;;;;;;x
+SE_TREATY_MODE_GIVE;Offer;;;;;;;;;;;;;x
+SE_TREATY_PICK_PROVINCE;$CB$: choose the province;;;;;;;;;;;;;x
+SE_TREATY_NO_OPTIONS;No term available this way.;;;;;;;;;;;;;x
+SE_TREATY_BACK;Back;;;;;;;;;;;;;x
+SE_TREATY_SCORE;Value: we gain $GAIN$, we give $GIVE$.;;;;;;;;;;;;;x
+SE_TREATY_WILL_ACCEPT;$COUNTRY$ will accept this treaty.;;;;;;;;;;;;;x
+SE_TREATY_WILL_NOT_ACCEPT;$COUNTRY$ will not accept this treaty.;;;;;;;;;;;;;x
+SE_TREATY_SEND;Propose;;;;;;;;;;;;;x
+SE_TREATY_CANCEL;Cancel;;;;;;;;;;;;;x
+SE_TREATY_TERM_GAIN;Demand: $TERM$;;;;;;;;;;;;;x
+SE_TREATY_TERM_GIVE;Offer: $TERM$;;;;;;;;;;;;;x
+SE_TREATY_BUTTON;Propose Treaty;;;;;;;;;;;;;x
+SE_TREATY_PICK_CB_DEMAND;We demand:;;;;;;;;;;;;;x
+SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
+SE_TREATY_MONEY;Money;;;;;;;;;;;;;x
+SE_TREATY_PICK_MONEY;Money: choose the amount;;;;;;;;;;;;;x
+SE_TREATY_TERM_DUPLICATE;That state is already part of the treaty.;;;;;;;;;;;;;x
+
+SE_TREATY_THEY_ACCEPT_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_3;accepted our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_4;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_LOG;$RECIPIENT$ accepted our treaty proposal.;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_THEY_ACCEPT_SETUP;When a nation accepts our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_1;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_2;We have accepted a treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_3;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_4;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_LOG;We accepted the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_WE_ACCEPT_SETUP;When we accept a treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_3;accepted a treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_4;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_5;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_6;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_LOG;$RECIPIENT$ accepted the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_MAP;Treaty!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_ACCEPT_SETUP;When a nation accepts another nation's treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_3;rejected our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_4;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_LOG;$RECIPIENT$ rejected our treaty proposal.;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_THEY_DECLINE_SETUP;When a nation declines our treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_1;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_2;We have declined the treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_3;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_4;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_LOG;We declined the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_WE_DECLINE_SETUP;When we decline a treaty proposal;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_1;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_2;$RECIPIENT$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_3;rejected the treaty proposal from;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_4;$ACTOR$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_5;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_6;*;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_HEADER;$MESSENGER$;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_LOG;$RECIPIENT$ rejected the treaty proposal from $ACTOR$.;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN1;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN2;Fine!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_BTN3;Go To;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_MAP;Declined!;;;;;;;;;;;;;x
+SE_TREATY_OTHER_DECLINE_SETUP;When a nation declines another nation's treaty proposal;;;;;;;;;;;;;x
+treaty_cede_state;Cede state;;;;;;;;;;;;;x
+treaty_cede_state_desc;Hand over a 即state劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_state_setup;Cession of $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_state_short;Cession of $STATE$;;;;;;;;;;;;;x
+treaty_cede_province;Cede province;;;;;;;;;;;;;x
+treaty_cede_province_desc;Hand over one 即province劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_province_setup;Cession of a province of $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_province_short;Cession of a province of $STATE$;;;;;;;;;;;;;x
+treaty_cede_colony;Cede colony;;;;;;;;;;;;;x
+treaty_cede_colony_desc;Hand over a 即colony劬 by treaty;;;;;;;;;;;;;x
+treaty_cede_colony_setup;Cession of the colony $STATE$ by $RECIPIENT$;;;;;;;;;;;;;x
+treaty_cede_colony_short;Cession of the colony $STATE$;;;;;;;;;;;;;x
+treaty_pay_tributes;Pay Tributes;;;;;;;;;;;;;x
+treaty_pay_tributes_desc;Pay 即tribute劬 for some years;;;;;;;;;;;;;x
+treaty_pay_tributes_setup;Tributes from $RECIPIENT$;;;;;;;;;;;;;x
+treaty_pay_tributes_short;Tributes;;;;;;;;;;;;;x
+treaty_install_government;Install Government;;;;;;;;;;;;;x
+treaty_install_government_desc;Adopt our 即government劬;;;;;;;;;;;;;x
+treaty_install_government_setup;$RECIPIENT$ adopts our government;;;;;;;;;;;;;x
+treaty_install_government_short;Install government;;;;;;;;;;;;;x
+treaty_add_to_sphere;Join Sphere;;;;;;;;;;;;;x
+treaty_add_to_sphere_desc;Join our 即sphere of influence劬;;;;;;;;;;;;;x
+treaty_add_to_sphere_setup;$RECIPIENT$ joins our sphere;;;;;;;;;;;;;x
+treaty_add_to_sphere_short;Join sphere;;;;;;;;;;;;;x
+treaty_make_puppet;Become Puppet;;;;;;;;;;;;;x
+treaty_make_puppet_desc;Become our 即puppet劬;;;;;;;;;;;;;x
+treaty_make_puppet_setup;$RECIPIENT$ becomes our puppet;;;;;;;;;;;;;x
+treaty_make_puppet_short;Become puppet;;;;;;;;;;;;;x
+treaty_take_from_sphere;Cede Sphere Member;;;;;;;;;;;;;x
+treaty_take_from_sphere_desc;Hand a member of their 即sphere劬 to ours;;;;;;;;;;;;;x
+treaty_take_from_sphere_setup;$RECIPIENT$ hands over a sphere member;;;;;;;;;;;;;x
+treaty_take_from_sphere_short;Cede sphere member;;;;;;;;;;;;;x
+treaty_release_puppet;Release Puppet;;;;;;;;;;;;;x
+treaty_release_puppet_desc;Free one of their 即puppets劬;;;;;;;;;;;;;x
+treaty_release_puppet_setup;$RECIPIENT$ releases a puppet;;;;;;;;;;;;;x
+treaty_release_puppet_short;Release puppet;;;;;;;;;;;;;x
+treaty_cede_puppet;Cede Puppet;;;;;;;;;;;;;x
+treaty_cede_puppet_desc;Hand one of their 即puppets劬 over to us;;;;;;;;;;;;;x
+treaty_cede_puppet_setup;$RECIPIENT$ hands over a puppet;;;;;;;;;;;;;x
+treaty_cede_puppet_short;Cede puppet;;;;;;;;;;;;;x
+treaty_free_peoples;Free Peoples;;;;;;;;;;;;;x
+treaty_free_peoples_desc;Hand a 即state劬 to the people who hold its cores;;;;;;;;;;;;;x
+treaty_free_peoples_setup;$RECIPIENT$ frees a people;;;;;;;;;;;;;x
+treaty_free_peoples_short;Free peoples;;;;;;;;;;;;;x
+treaty_partition;Partition;;;;;;;;;;;;;x
+treaty_partition_desc;Hand a 即state劬 to a country it could be split into, as its 即cores劬;;;;;;;;;;;;;x
+treaty_partition_setup;$RECIPIENT$ is partitioned;;;;;;;;;;;;;x
+treaty_partition_short;Partition;;;;;;;;;;;;;x
+treaty_liberate_country;Liberate Country;;;;;;;;;;;;;x
+treaty_liberate_country_desc;Hand every 即state劬 with its cores to a nation;;;;;;;;;;;;;x
+treaty_liberate_country_setup;$RECIPIENT$ liberates a nation;;;;;;;;;;;;;x
+treaty_liberate_country_short;Liberate country;;;;;;;;;;;;;x
+SE_TREATY_PICK_COUNTRY;$CB$: choose the country;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_TITLE;Dismantling $COUNTRY$;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_POINTS;Points: $SPENT$ / $BUDGET$;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_INFAMY;Infamy: 刪+$INFAMY$劬;;;;;;;;;;;;;x
+SE_TREATY_DISMANTLE_FORCED;$COUNTRY$ must accept.;;;;;;;;;;;;;x
+SE_TREATY_IMPOSE;Impose;;;;;;;;;;;;;x
+SE_TREATY_NOTICE_TITLE;Peace dictated by $COUNTRY$;;;;;;;;;;;;;x
+SE_TREATY_NOTICE;$COUNTRY$ imposed these terms on us.;;;;;;;;;;;;;x
+SE_TREATY_OK;OK;;;;;;;;;;;;;x
+SE_DISMANTLE_EFFECT;$WINNER$ imposes a treaty worth up to $POINTS$ points on $COUNTRY$ (forced, accepted at once).;;;;;;;;;;;;;x
+treaty_dismantle_forts;Dismantle Forts;;;;;;;;;;;;;x
+treaty_dismantle_forts_desc;Destroy their 即forts劬 and 即naval bases劬;;;;;;;;;;;;;x
+treaty_dismantle_forts_setup;$RECIPIENT$ dismantles its fortifications;;;;;;;;;;;;;x
+treaty_dismantle_forts_short;Dismantle forts;;;;;;;;;;;;;x
+treaty_cede_core_state;Cede Core State;;;;;;;;;;;;;x
+treaty_cede_core_state_desc;Hand over a state with our 即cores劬;;;;;;;;;;;;;x
+treaty_cede_core_state_setup;$RECIPIENT$ returns a state of our cores;;;;;;;;;;;;;x
+treaty_cede_core_state_short;Cede core state;;;;;;;;;;;;;x
+treaty_cede_allied_core;Cede Allied Cores;;;;;;;;;;;;;x
+treaty_cede_allied_core_desc;Hand over the states with 即cores劬 of one of our 即allies劬 to it;;;;;;;;;;;;;x
+treaty_cede_allied_core_setup;$RECIPIENT$ returns its states with cores of an ally of ours;;;;;;;;;;;;;x
+treaty_cede_allied_core_short;Allied cores;;;;;;;;;;;;;x
+treaty_humiliate;Humiliate;;;;;;;;;;;;;x
+treaty_humiliate_desc;They lose 即prestige劬, and we gain it;;;;;;;;;;;;;x
+treaty_humiliate_setup;$RECIPIENT$ is humiliated;;;;;;;;;;;;;x
+treaty_humiliate_short;Humiliate;;;;;;;;;;;;;x
+treaty_cede_province_to_ally;Cede Province to Ally;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_desc;Hand over a 即province劬 to one of our 即allies劬;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_setup;$RECIPIENT$ cedes a province to an ally of ours;;;;;;;;;;;;;x
+treaty_cede_province_to_ally_short;Province to ally;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally;Cede Colony to Ally;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_desc;Hand over a 即colony劬 to one of our 即allies劬;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_setup;$RECIPIENT$ cedes a colony to an ally of ours;;;;;;;;;;;;;x
+treaty_cede_colony_to_ally_short;Colony to ally;;;;;;;;;;;;;x

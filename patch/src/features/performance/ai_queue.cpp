@@ -34,6 +34,7 @@ constexpr int64_t kMaxFrameMs = 250;              // keeps the window responsive
 using AiFrameUpdateFn = void(__stdcall*)(void* queue_ref);
 AiFrameUpdateFn g_ai_frame_update = nullptr;
 int64_t g_max_frame_ticks = 0;  // kMaxFrameMs in QPC ticks
+bool g_installed = false;
 
 using util::qpc;
 
@@ -95,8 +96,11 @@ void install_ai_queue(const Config& config) {
              hooks::listing_va(kCallSiteRva));
         return;
     }
+    g_installed = true;
     logf("fast_ai_queue: active, at max speed the AI job queue finishes in one frame (up to %lld ms)",
          static_cast<long long>(kMaxFrameMs));
 }
+
+bool ai_queue_installed() { return g_installed; }
 
 }  // namespace cp::features

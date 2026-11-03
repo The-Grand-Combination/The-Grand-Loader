@@ -8,6 +8,7 @@
 
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04 (docs/re/systems/performance.md). Each scan iterates the other countries that have provinces
@@ -22,8 +23,9 @@
 //       top level reads rel +0x50 +0xA8 +0x2C +0x30 +0x28 +0x20 only; every other access is inside a
 //       branch taken when one of them is non-zero, so with all six zero the call does nothing
 //
-// The thunks keep every register and the flags (the game is built with whole-program optimisation and
-// its callers may rely on more than the documented convention), do their work, and then jump to the
+// The thunks keep every register, the flags and XMM0-7 (CP_SAVE_ALL: the game is built with
+// whole-program optimisation and its callers may rely on more than the documented convention, and the
+// helpers below run vector and prefetch code that uses SSE), do their work, and then jump to the
 // original function with the stack exactly as the caller left it.
 
 namespace cp::features {
@@ -159,42 +161,43 @@ uint8_t __stdcall before_purge(uintptr_t rel, uintptr_t self) {
            read<uint32_t>(rel + 0x30) == 0 && read<uint32_t>(rel + 0x28) == 0 && read<uint32_t>(rel + 0x20) == 0;
 }
 
-// Stack at entry: [ret][arg1][arg2]. After pushad (32) + pushfd (4), arg1 is at [esp+40].
+// Stack at entry: [ret][arg1][arg2]. After CP_SAVE_ALL (CP_SAVED_ALL_BYTES = 164) arg1 is at
+// [esp + 168] and arg2 at [esp + 172].
 __declspec(naked) void recalc_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 40]
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 4]   ; country
         call before_recalc
-        popfd
-        popad
-        jmp dword ptr [g_recalc]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_recalc]
 }
 
+// Stack at entry: [ret][country][arg2]; country at [esp + 168] after CP_SAVE_ALL.
 __declspec(naked) void market_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 40]
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 4]   ; country
         call before_market
-        popfd
-        popad
-        jmp dword ptr [g_market]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_market]
 }
 
 // In Country_DailyUpdate's pair loop EBX is the country being updated (`MOV EAX,[EBX+0xBE8]`).
+// Stack at entry: [ret][rel]; after CP_SAVE_ALL rel is at [esp + 168], and at [esp + 172] once EBX
+// has been pushed for before_purge's second argument. On the skip path EAX is left as at entry:
+// CountryRelation_DailyPurge is void (docs/re/decomp), so the caller reads nothing from it.
 __declspec(naked) void purge_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push ebx
-        push dword ptr [esp + 44]       ; rel (arg1 moved by the push above)
+        push ebx                                        ; self
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 8]   ; rel (moved by the push above)
         call before_purge
         mov byte ptr [g_skip_purge], al
-        popfd
-        popad
+    }
+    CP_RESTORE_ALL
+    __asm {
         cmp byte ptr [g_skip_purge], 0
         jne skip
         jmp dword ptr [g_purge]
@@ -230,16 +233,15 @@ void __stdcall before_pair(uintptr_t country) {
     }
 }
 
+// Stack at entry: [ret][country][0]; country at [esp + 168] after CP_SAVE_ALL.
 __declspec(naked) void pair_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 40]
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 4]   ; country
         call before_pair
-        popfd
-        popad
-        jmp dword ptr [g_pair]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_pair]
 }
 
 // AI target scan: FUN_0084B0F0 (thiscall, AI object in ECX, its country index at +0x38) is
@@ -271,16 +273,16 @@ void __stdcall before_ai_scan(uintptr_t ai) {
     }
 }
 
+// Stack at entry: [ret] (thiscall, the AI object in ECX, nothing on the stack); ECX is still the
+// entry value after CP_SAVE_ALL.
 __declspec(naked) void ai_scan_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push ecx
+        push ecx                                        ; ai
         call before_ai_scan
-        popfd
-        popad
-        jmp dword ptr [g_ai_scan]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_ai_scan]
 }
 
 }  // namespace
@@ -314,6 +316,10 @@ void install_relations_prefetch(const Config& config) {
             logf("prefetch_relations: call site %08X (%s) not recognised or already hooked, skipped",
                  hooks::listing_va(s.call_rva), s.name);
         }
+    }
+    if (active == 0) {
+        logf("prefetch_relations: off (every site taken)");
+        return;  // g_relations_enabled stays false: country_prepass's dead-tag prefetch is a no-op too
     }
     g_relations_enabled = true;
     logf("prefetch_relations: active on %d of 4 country-pair scans", active);

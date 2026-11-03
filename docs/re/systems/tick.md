@@ -85,7 +85,7 @@ the profile shows it is ~10 % of the day, so it is not worth it.
 | events | ~4 | |
 | provinces | ~2 | |
 
-`Entity_RegisterSpatial` (`0x0068F390`) is called 19 047 times a day.
+`Vector_PushBackPtr` (`0x0068F390`, a `vector<T*>::push_back`) is called 19 047 times a day.
 
 ## Randomness
 

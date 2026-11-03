@@ -1,0 +1,141 @@
+# Script Extender: message types of the treaty answers (treaty = 1). The plugin reads this after
+# interface/messagetypes.txt; each is a copy of the matching PEACE_* type, so it looks the same.
+file_version=5
+
+SE_TREATY_THEY_ACCEPT = {
+  default = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=yes
+		onmap=yes
+		popup=yes
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+}
+
+SE_TREATY_THEY_DECLINE = {
+  default = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=yes
+		onmap=yes
+		popup=yes
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+}
+
+SE_TREATY_WE_ACCEPT = {
+  default = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=yes
+		onmap=yes
+		popup=yes
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+}
+
+SE_TREATY_WE_DECLINE = {
+  default = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+}
+
+SE_TREATY_OTHER_ACCEPT = {
+  default = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=yes
+		onmap=yes
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = yes 
+	}
+}
+
+SE_TREATY_OTHER_DECLINE = {
+  default = {
+		log=no
+		onmap=no
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+  interesting = {
+		log=no
+		onmap=no
+		popup=no
+		idle=no
+		option=yes
+		pausepopup=no
+		categories = "cat_diplomacy"
+		icon = no 
+	}
+}

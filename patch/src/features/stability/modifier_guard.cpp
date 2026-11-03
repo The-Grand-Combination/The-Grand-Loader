@@ -36,6 +36,23 @@
 //   returns `out` in EAX. Each calls modifier->vt[0x18] (its name) and crashes on null. Their own
 //   "nothing to say" path (0x00882320) initialises `out` empty, frees the by-value string's heap
 //   buffer when its capacity is 16 or more, and returns; the guard does the same.
+//
+// Two trigger classes have the same problem, with a load-order cause: pop types (poptypes/*.txt,
+// "PopDatabase Phase Initialized" in setup.log) and issues are parsed before the modifiers, so every
+// has_country_modifier / has_province_modifier there gets 0 although the modifier exists. Evaluate
+// compares the lists with 0 and never matches (no crash); the tooltip crashes.
+//
+//   vtable       class                          +0x18 evaluate  +0x24 parse  +0x28 tooltip  modifier
+//   0x00E30858   CHasCountryModifierTrigger     0x008CD8C0      0x008CD650   0x008CD930     +0x1C
+//   0x00E30890   CHasProvinceModifierTrigger    0x008CDFC0      0x008CDE00   0x008CE000     +0x1C
+//
+//   The country parser looks the name up in g_eventModifiers (0x008CD6F5), then in g_staticModifiers
+//   (0x0125A660, 0x008CD7A7) when that fails; the trigger is in EDI. The province parser looks in
+//   g_eventModifiers only (0x008CDEAA), trigger in ESI. Both log "Unknown modifier" when they fail.
+//   tooltip: __thiscall(trigger, out, scope, bool, int), RET 0x10, returns `out` in EAX; the caller
+//   (0x008B7FFD in the AND/OR list tooltip) passes `out` unconstructed and skips an empty line.
+//   The names are looked up again once, right after "Static Modifiers Initialized" is logged
+//   (0x0063C356 in the setup function FUN_00639120), before any trigger is evaluated.
 
 namespace cp::features {
 
@@ -49,6 +66,27 @@ constexpr uint32_t kTooltipSlot = 0x24;
 constexpr uint32_t kExecuteSlot = 0x2C;
 constexpr uint32_t kLogLimit = 50;
 constexpr size_t kMaxPending = 256;
+
+constexpr uint32_t kStaticModifiersPtrRva = 0xE5A660;  // g_staticModifiers
+constexpr uint32_t kCountryTriggerFindRva = 0x4CD7A7;  // the country parser's last lookup; EDI = trigger
+constexpr uint32_t kProvinceTriggerFindRva = 0x4CDEAA; // the province parser's lookup; ESI = trigger
+constexpr uint32_t kModifiersLoadedCallRva = 0x23C356; // CALL 0x00401280 ending "Static Modifiers Initialized"
+constexpr uint32_t kLogEndRva = 0x001280;              // 0x00401280, cdecl, one argument
+constexpr uint32_t kTriggerModifier = 0x1C;
+constexpr uint32_t kTriggerTooltipSlot = 0x28;
+constexpr size_t kMaxPendingTriggers = 4096;
+
+struct Trigger {
+    const char* name;
+    uint32_t vtable_rva;
+    uint32_t tooltip_rva;
+};
+
+constexpr Trigger kTriggers[] = {
+    {"has_country_modifier", 0xA30858, 0x4CD930},
+    {"has_province_modifier", 0xA30890, 0x4CE000},
+};
+constexpr int kTriggerCount = static_cast<int>(std::size(kTriggers));
 
 struct Effect {
     const char* name;
@@ -80,9 +118,21 @@ struct Pending {
 };
 std::vector<Pending> g_pending;
 
+// A trigger whose modifier was not found when it was parsed; looked up again once all are loaded.
+struct PendingTrigger {
+    uintptr_t trigger;
+    std::string name;
+    int index;  // into kTriggers
+};
+std::vector<PendingTrigger> g_pending_triggers;
+bool g_modifiers_loaded = false;
+uintptr_t g_log_end = 0;
+uintptr_t g_original_trigger_tooltip[kTriggerCount];
+uint32_t g_trigger_tooltips_skipped = 0;
+
 // ModifierRegistry_Find: EAX = registry, [ESP+4] = name (not consumed), RET 4.
-uint32_t find_modifier(const std::string& name) {
-    uint32_t registry = game::read32(hooks::exe_addr(kEventModifiersPtrRva));
+uint32_t find_in(uint32_t registry_ptr_rva, const std::string& name) {
+    uint32_t registry = game::read32(hooks::exe_addr(registry_ptr_rva));
     if (!registry) {
         return 0;
     }
@@ -104,6 +154,8 @@ uint32_t find_modifier(const std::string& name) {
     }
     return result;
 }
+
+uint32_t find_modifier(const std::string& name) { return find_in(kEventModifiersPtrRva, name); }
 
 void __cdecl report_lookup(uintptr_t effect, const game::GameString* name, uint32_t result, int remove) {
     if (result != 0) {
@@ -238,6 +290,152 @@ constexpr void (*kExecutes[])() = {&execute_add_province, &execute_add_country, 
 static_assert(std::size(kTooltips) == kEffectCount && std::size(kExecutes) == kEffectCount);
 static_assert(game::kStringSizeOffset == 0x10 && game::kStringCapacityOffset == 0x14, "offsets in the guards");
 
+void __cdecl report_trigger_lookup(uintptr_t trigger, const game::GameString* name, uint32_t result, int index) {
+    if (result != 0) {
+        return;
+    }
+    if (!g_modifiers_loaded) {  // parsed before the modifiers: looked up again once they are loaded
+        if (g_pending_triggers.size() < kMaxPendingTriggers) {
+            g_pending_triggers.push_back({trigger, name->c_str(), index});
+        }
+        return;
+    }
+    if (++g_logged <= kLogLimit) {
+        logf("fix_missing_modifier: %s names '%s', which does not exist; it never matches and has no tooltip",
+             kTriggers[index].name, name->c_str());
+    }
+}
+
+// Once, after "Static Modifiers Initialized": every trigger parsed too early gets its modifier.
+void __cdecl resolve_pending_triggers() {
+    if (g_modifiers_loaded) {
+        return;
+    }
+    g_modifiers_loaded = true;
+    size_t found = 0;
+    std::vector<std::string> missing;
+    for (const PendingTrigger& p : g_pending_triggers) {
+        uint32_t modifier = find_in(kEventModifiersPtrRva, p.name);
+        if (!modifier && p.index == 0) {  // has_country_modifier also accepts static modifiers
+            modifier = find_in(kStaticModifiersPtrRva, p.name);
+        }
+        if (modifier) {
+            *reinterpret_cast<uint32_t*>(p.trigger + kTriggerModifier) = modifier;
+            found++;
+        } else {
+            missing.push_back(std::string(kTriggers[p.index].name) + " = " + p.name);
+        }
+    }
+    if (!g_pending_triggers.empty()) {
+        logf("fix_missing_modifier: %zu has_country_modifier / has_province_modifier triggers parsed before the "
+             "modifiers were loaded; %zu found now, %zu do not exist",
+             g_pending_triggers.size(), found, missing.size());
+    }
+    for (size_t i = 0; i < missing.size() && i < kLogLimit; i++) {
+        logf("fix_missing_modifier: %s does not exist; the trigger never matches and has no tooltip",
+             missing[i].c_str());
+    }
+    g_pending_triggers.clear();
+    g_pending_triggers.shrink_to_fit();
+}
+
+void __cdecl note_trigger_tooltip(int index) {
+    if (++g_trigger_tooltips_skipped <= kLogLimit) {
+        logf("fix_missing_modifier: %s tooltip with an unknown modifier skipped", kTriggers[index].name);
+    }
+}
+
+// In place of CALL ModifierRegistry_Find in the trigger parsers; `reg` holds the trigger.
+#define CP_TRIGGER_FIND_THUNK(name, reg, index)                                           \
+    __declspec(naked) void name() {                                                       \
+        __asm push ecx                                                                    \
+        __asm push edx                                                                    \
+        __asm push dword ptr [esp + 12]                                                   \
+        __asm call dword ptr [g_find]                                                     \
+        CP_SAVE_ALL                                                                       \
+        __asm push index                                                                  \
+        __asm push eax                                                                    \
+        __asm push dword ptr [esp + CP_SAVED_ALL_BYTES + 12 + 8]                          \
+        __asm push reg                                                                    \
+        __asm call report_trigger_lookup                                                  \
+        __asm add esp, 16                                                                 \
+        CP_RESTORE_ALL                                                                    \
+        __asm pop edx                                                                     \
+        __asm pop ecx                                                                     \
+        __asm ret 4                                                                       \
+    }
+
+CP_TRIGGER_FIND_THUNK(find_country_trigger_thunk, edi, 0)
+CP_TRIGGER_FIND_THUNK(find_province_trigger_thunk, esi, 1)
+#undef CP_TRIGGER_FIND_THUNK
+
+// In place of the CALL that ends the "Static Modifiers Initialized" log line (cdecl, its argument stays
+// on the stack for the original).
+__declspec(naked) void modifiers_loaded_thunk() {
+    __asm {
+        CP_SAVE_ALL
+        call resolve_pending_triggers
+        CP_RESTORE_ALL
+        jmp dword ptr [g_log_end]
+    }
+}
+
+// Tooltip with a null modifier: `out` ([esp+4]) becomes an empty string and is returned, RET 0x10.
+#define CP_TRIGGER_TOOLTIP_GUARD(name, index)                                             \
+    __declspec(naked) void name() {                                                       \
+        __asm cmp dword ptr [ecx + 0x1C], 0                                               \
+        __asm jne pass                                                                    \
+        CP_SAVE_ALL                                                                       \
+        __asm push index                                                                  \
+        __asm call note_trigger_tooltip                                                   \
+        __asm add esp, 4                                                                  \
+        CP_RESTORE_ALL                                                                    \
+        __asm mov eax, [esp + 4]                                                          \
+        __asm mov dword ptr [eax + 0x14], 15                                              \
+        __asm mov dword ptr [eax + 0x10], 0                                               \
+        __asm mov byte ptr [eax], 0                                                       \
+        __asm ret 0x10                                                                    \
+        __asm pass:                                                                       \
+        __asm jmp dword ptr [g_original_trigger_tooltip + index * 4]                      \
+    }
+
+static_assert(kTriggerModifier == 0x1C, "offset in the trigger tooltip guards");
+CP_TRIGGER_TOOLTIP_GUARD(tooltip_country_trigger, 0)
+CP_TRIGGER_TOOLTIP_GUARD(tooltip_province_trigger, 1)
+#undef CP_TRIGGER_TOOLTIP_GUARD
+
+constexpr void (*kTriggerTooltips[])() = {&tooltip_country_trigger, &tooltip_province_trigger};
+static_assert(std::size(kTriggerTooltips) == kTriggerCount);
+
+bool install_parse_site(uint32_t rva, void (*thunk)(), const char* which);
+
+// Tooltip guards, the two parser lookups and the resolve point; returns the number of the 5 sites hooked.
+int install_triggers() {
+    int sites = 0;
+    for (int i = 0; i < kTriggerCount; i++) {
+        const Trigger& t = kTriggers[i];
+        g_original_trigger_tooltip[i] = hooks::exe_addr(t.tooltip_rva);
+        uintptr_t slot = hooks::exe_addr(t.vtable_rva) + kTriggerTooltipSlot;
+        if (hooks::replace_pointer(slot, g_original_trigger_tooltip[i], reinterpret_cast<uintptr_t>(kTriggerTooltips[i]))) {
+            sites++;
+        } else {
+            logf("fix_missing_modifier: %s tooltip slot not recognised, left alone", t.name);
+        }
+    }
+    // The lookups are only useful with the resolve point; without it, the tooltip guards still hold.
+    g_log_end = hooks::exe_addr(kLogEndRva);
+    if (!hooks::redirect_call(hooks::exe_addr(kModifiersLoadedCallRva), g_log_end,
+                              reinterpret_cast<uintptr_t>(&modifiers_loaded_thunk))) {
+        logf("fix_missing_modifier: the modifiers-loaded call %08X not recognised, early triggers stay unresolved",
+             hooks::listing_va(kModifiersLoadedCallRva));
+        return sites;
+    }
+    sites++;
+    sites += install_parse_site(kCountryTriggerFindRva, &find_country_trigger_thunk, "has_country_modifier") ? 1 : 0;
+    sites += install_parse_site(kProvinceTriggerFindRva, &find_province_trigger_thunk, "has_province_modifier") ? 1 : 0;
+    return sites;
+}
+
 int install_effect_slots() {
     int slots = 0;
     for (int i = 0; i < kEffectCount; i++) {
@@ -282,6 +480,10 @@ void install_modifier_guard(const Config& config) {
     logf("fix_missing_modifier: active on %d of %d effect slots and %d of 2 parser sites (unknown modifiers: "
          "looked up again on first use, else empty tooltip, no effect, logged)",
          slots, kEffectCount * 2, sites);
+    int trigger_sites = install_triggers();
+    logf("fix_missing_modifier: has_country_modifier / has_province_modifier triggers: %d of 5 sites (2 tooltips, "
+         "the parsers' lookups and the after-loading lookup)",
+         trigger_sites);
 }
 
 }  // namespace cp::features

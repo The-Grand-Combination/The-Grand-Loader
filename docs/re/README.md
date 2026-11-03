@@ -1,3 +1,4 @@
+| [colonisation.md](systems/colonisation.md) | colonial range: Country_HasColonialRangeTo (naval bases, 100 + level x colonial_range), Province_Distance and the province source's distance table, Country_CanColonizeProvince; used by the Script Extender's AI dismantler |
 # Reverse engineering of `v2game.exe` 3.04
 
 Everything known about the game binary that the patches rely on, in one place.
@@ -49,16 +50,22 @@ docs/re/
 | [economy.md](systems/economy.md) | world market, prices (fixed-point clamp), stockpiles, loans |
 | [threads.md](systems/threads.md) | TBB, the worker-thread class, why the economy is serial |
 | [triggers.md](systems/triggers.md) | trigger containers, scopes, values, effects, keywords |
-| [casus-belli.md](systems/casus-belli.md) | `cb_types.txt`, `can_use`, the AI's daily CB scans |
+| [casus-belli.md](systems/casus-belli.md) | `cb_types.txt`, `can_use`, the AI's daily CB scans; peace options, war-goal execution and cost, lexer tokens, `po_demand_province` |
 | [decisions.md](systems/decisions.md) | where decisions are evaluated and how often |
-| [events.md](systems/events.md) | loading, daily MTTH scan, firing, delayed events |
+| [events.md](systems/events.md) | loading, body keywords, daily MTTH scan, firing, the event window (picture, background, GUI sprite swap), delayed events |
 | [ai-diplomacy.md](systems/ai-diplomacy.md) | opinion score, acceptance chance |
+| [diplomacy.md](systems/diplomacy.md) | diplomatic actions (classes, slots, ids), the command flow and the pending list, peace offers and `AI_EvaluatePeaceOffer`, peace options outside a war, defines, commands and their factory, province transfer helpers, the diplomacy dialogs and widgets, `.gui` / `.gfx` loading |
+| [treaties.md](systems/treaties.md) | the Script Extender's treaties (built, in testing): `is_treaty_cb`, `CTreatyAction`, hooks, the "Propose Treaty" button and the editor, validation, execution, AI formula and ini keys, answer messages, loading the treaty CBs, modder guide, CB scopes, the `dismantle` effect (forced treaties) |
+| [effects.md](systems/effects.md) | script effects: the child factory `0x00876B30`, the effect object and its 14 slots (parse, tooltip, Execute), `CEventScope`, the recipe for new effects (template + vtable swap) |
+| [wars.md](systems/wars.md) | declaring and joining wars (`War_CanDeclare`, `War_AddAttacker` / `War_AddDefender`, the `war` effect, call ally), country modifier lists, crises (manager, `CCrisis` layout, creation, `Crisis_CanJoinInterest` / `Crisis_CanBackSide`, offers) |
 | [ai-national-focus.md](systems/ai-national-focus.md) | national focus scoring |
 | [technology.md](systems/technology.md) | research availability and the civilization gates |
 | [factories.md](systems/factories.md) | factory construction gates |
+| [buildings.md](systems/buildings.md) | building database, province buildings, the expand check, `CConstructBuildingCommand`, AI builders, bulk upgrade |
+| [map-modes.md](systems/map-modes.md) | the 22 map modes, buttons and their observer glue, per-province colours, political colours and Country_GetMapColor, overlord / substate / puppet / sphere fields, GPU upload, redraw, infrastructure mode, stripes texture, menubar tooltip, the Script Extender's building map mode and vassal colours |
 | [loading.md](systems/loading.md) | what runs once after a game is loaded |
 | [checksum.md](systems/checksum.md) | file and runtime checksums, the resign/menu bug |
-| [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label, chat, text input, join dialog and settings |
+| [ui-console.md](systems/ui-console.md) | console, fog of war, buttons, version label, localisation storage and `Localize`, chat, text input, join dialog and settings |
 | [performance.md](systems/performance.md) | measured budget, lessons, ranked performance candidates |
 | [parallel-triggers.md](systems/parallel-triggers.md) | feasibility of evaluating triggers on worker threads |
 | [network.md](systems/network.md) | ENet session, the per-frame network wait, ports 1638/1633, connection requests, tunnels |

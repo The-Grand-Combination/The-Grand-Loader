@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 namespace cp::hooks {
@@ -26,16 +27,15 @@ void dispatch() {
 }
 
 // Replacement for the vtable slot: callbacks first, then the original with every register intact
-// (the game's conventions pass arguments in registers).
+// (the game's conventions pass arguments in registers; the callbacks run C++ that uses XMM registers,
+// so CP_SAVE_ALL covers those too). Stack at entry: [ret][...] (Execute's own arguments, untouched);
+// after CP_SAVE_ALL the return address is at [esp + CP_SAVED_ALL_BYTES]. The restore leaves the
+// stack exactly as at entry before the jump to the original.
 __declspec(naked) void thunk() {
-    __asm {
-        pushad
-        pushfd
-        call dispatch
-        popfd
-        popad
-        jmp dword ptr [g_original_execute]
-    }
+    CP_SAVE_ALL
+    __asm call dispatch
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_original_execute]
 }
 
 }  // namespace
@@ -48,7 +48,8 @@ bool on_hourly_tick(void (*fn)()) {
         uintptr_t slot = exe_addr(kSlotRva);
         uintptr_t current = *reinterpret_cast<const uintptr_t*>(slot);
         if (current != exe_addr(kExecuteRva) || !replace_pointer(slot, current, reinterpret_cast<uintptr_t>(&thunk))) {
-            logf("hourly_tick: CHourlyTickCommand::Execute slot not recognised");
+            logf("hourly_tick: CHourlyTickCommand::Execute slot %08X not recognised (expected %08X, holds %08X)",
+                 listing_va(kSlotRva), listing_va(kExecuteRva), listing_va_of(current));
             return false;
         }
         g_original_execute = current;

@@ -58,4 +58,11 @@ void linef(std::string_view prefix, const char* fmt, ...) {
     line(prefix, std::string_view(buf, static_cast<size_t>(n) < sizeof(buf) ? n : sizeof(buf) - 1));
 }
 
+std::string narrow(const std::wstring& s) {
+    int n = WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<size_t>(n > 0 ? n - 1 : 0), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, out.data(), n, nullptr, nullptr);
+    return out;
+}
+
 }  // namespace tgl::log

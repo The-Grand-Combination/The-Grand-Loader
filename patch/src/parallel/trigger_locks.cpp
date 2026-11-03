@@ -51,14 +51,36 @@ using EvaluateFn = char(__fastcall*)(void* self, void* edx, void* scope);
 CRITICAL_SECTION g_lock;
 uintptr_t g_vtables[kLockedCount];
 EvaluateFn g_originals[kLockedCount];
+LONG g_unknown_logged = 0;
+
+char __fastcall locked_evaluate(void* self, void*, void* scope);
+
+// The original Evaluate for `self`. The wrapper is installed in the two vtables above only, so an
+// object of any other vtable reaching it means a copied vtable (another feature cloning one of these
+// tables after install, as parallel_events does for CAndTrigger). Then the object's own slot is used
+// when it is not this wrapper (the function that object really dispatches to; calling it under the
+// lock is harmless); when the copy carries the wrapper itself, calling it would recurse, so the last
+// entry's original stands in, as before, and the case is logged once.
+EvaluateFn original_for(void* self) {
+    uintptr_t vtable = game::read32(reinterpret_cast<uintptr_t>(self));
+    for (int i = 0; i < kLockedCount; i++) {
+        if (g_vtables[i] == vtable) {
+            return g_originals[i];
+        }
+    }
+    uintptr_t slot = game::read32(vtable + kEvaluateSlot);
+    EvaluateFn fallback = slot != reinterpret_cast<uintptr_t>(&locked_evaluate) ? reinterpret_cast<EvaluateFn>(slot)
+                                                                                : g_originals[kLockedCount - 1];
+    if (InterlockedCompareExchange(&g_unknown_logged, 1, 0) == 0) {
+        logf("trigger_locks: Evaluate reached from an unknown vtable %08X (slot holds %08X); using %s",
+             hooks::listing_va_of(vtable), hooks::listing_va_of(slot),
+             slot != reinterpret_cast<uintptr_t>(&locked_evaluate) ? "that slot" : kLocked[kLockedCount - 1].keyword);
+    }
+    return fallback;
+}
 
 char __fastcall locked_evaluate(void* self, void*, void* scope) {
-    uintptr_t vtable = game::read32(reinterpret_cast<uintptr_t>(self));
-    int index = 0;
-    while (index + 1 < kLockedCount && g_vtables[index] != vtable) {
-        index++;
-    }
-    EvaluateFn original = g_originals[index];  // the slot is only installed in these vtables
+    EvaluateFn original = original_for(self);
     EnterCriticalSection(&g_lock);
     char result = original(self, nullptr, scope);
     LeaveCriticalSection(&g_lock);
@@ -69,6 +91,7 @@ char __fastcall locked_evaluate(void* self, void*, void* scope) {
 
 void install_trigger_locks(const Config& config) {
     if (config.parallel_decisions == 0 && config.parallel_events == 0) {
+        logf("trigger_locks: off (no parallel feature on)");
         return;
     }
     InitializeCriticalSection(&g_lock);
@@ -81,8 +104,11 @@ void install_trigger_locks(const Config& config) {
         if (hooks::replace_pointer(g_vtables[i] + kEvaluateSlot, original, wrapper)) {
             locked++;
         } else {
-            logf("trigger_locks: %s Evaluate slot not recognised; parallel evaluation of it is not safe",
-                 kLocked[i].keyword);
+            logf("trigger_locks: %s Evaluate slot %08X not recognised (expected %08X, holds %08X); parallel "
+                 "evaluation of it is not safe",
+                 kLocked[i].keyword, hooks::listing_va(kLocked[i].vtable_rva + kEvaluateSlot),
+                 hooks::listing_va(kLocked[i].evaluate_rva),
+                 hooks::listing_va_of(game::read32(g_vtables[i] + kEvaluateSlot)));
         }
     }
     char names[96] = "";

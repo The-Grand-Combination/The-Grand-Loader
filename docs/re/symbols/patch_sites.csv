@@ -4,35 +4,35 @@ cp_cb_scan_diplo,0x0085E5FB,E8 E0 07 0D 00,call redirect,shipped,cp,cull_cb_chec
 cp_decisions_get_a,0x0085D34F,E8 EC 7C 01 00,call redirect,shipped,cp,cull_decision_checks: CALL DecisionManager_Get in AI_DiplomacyUpdate
 cp_decisions_get_b,0x0085D459,E8 E2 7B 01 00,call redirect,shipped,cp,cull_decision_checks: CALL DecisionManager_Get in AI_DiplomacyUpdate
 cp_ai_decisions,0x0081EA9B,E8 F0 26 00 00,call redirect,shipped,cp,cull_decision_checks: CALL AI_DecisionUpdate in AI_CountryFrameJob
-cp_hourly_tick_slot,0x00E1242C,F0 EC 72 00,vtable slot,shipped,cp,hooks/hourly_tick: CHourlyTickCommand vtable slot 6 = 0x0072ECF0
+cp_hourly_tick_slot,0x00E1242C,F0 EC 72 00,vtable slot,shipped,cp,"hooks/hourly_tick: CHourlyTickCommand vtable slot 6 = 0x0072ECF0; (chained with cp_mp_hourly_tick_fpu)"
 cp_frame_update_slot,0x00E0A350,80 4D 65 00,vtable slot,shipped,cp,tick_profiler: CInGameIdler vtable slot = CInGameIdler_Update
 cp_clr_country_flag_slot,0x00E2ACEC,40 2A 88 00,vtable slot,shipped,cp,cull_decision_checks: CClrCountryFlagEffect slot 11
 cp_clr_global_flag_slot,0x00E2ADCC,A0 2B 88 00,vtable slot,shipped,cp,cull_decision_checks: CClrGlobalFlagEffect slot 11
 cp_tick_world_update,0x0072ECFA,E8 C1 41 F5 FF,call redirect,shipped,cp,tick_profiler level 1
-cp_tick_day,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_day,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,"tick_profiler level 1; (chained with cp_mp_day_tick)"
 cp_tick_province,0x00685B49,E8 C2 BE E2 FF,call redirect,shipped,cp,tick_profiler level 1
-cp_tick_country,0x00685ED1,E8 CA 32 E8 FF,call redirect,shipped,cp,tick_profiler level 1
+cp_tick_country,0x00685ED1,E8 CA 32 E8 FF,call redirect,shipped,cp,"tick_profiler level 1; (chained with cp_prefetch_pops_daily)"
 cp_tick_ai,0x0050B0EB,E8 C0 1B 35 00,call redirect,shipped,cp,tick_profiler level 1
 cp_tick_ai2,0x0050B0F0,E8 1B 1E 35 00,call redirect,shipped,cp,tick_profiler level 1
 cp_tick_519f80,0x0050B0F6,E8 85 EE 00 00,call redirect,shipped,cp,tick_profiler level 1
-cp_tick_events,0x006861E8,E8 E3 1A 22 00,call redirect,shipped,cp,tick_profiler level 1
-cp_version_label,0x00633826,6A 08 BF 0F 00 00 00 68 4C 76 E0 00,push length + pointer,shipped,cp,launcher: corner version label
-event_dead_pop_loop,0x008A9428,0F 84 3A 01 00 00,E9 3B 01 00 00 90,experimental,re,removes the dead pop loop in EventWindow_ctor (player window only)
-event_skip_fired_once_countries,0x008A7DDF,8B 53 30 8B 52 18,E9 3C 13 3E 00 90,experimental,re,"jump to cave 0x00C89120 (66 bytes, see re/systems/events.md); no measurable gain reported"
-event_skip_fired_once_provinces,0x008A7FC0,8B 53 30 8B 52 18,E9 AB 11 3E 00 90,experimental,re,jump to cave 0x00C89170
+cp_tick_events,0x006861E8,E8 E3 1A 22 00,call redirect,shipped,cp,"tick_profiler level 1; (chained with cp_parallel_events_scan)"
+cp_version_label,0x00633826,6A 08 BF 0F 00 00 00 68 4C 76 E0 00,push length + pointer,shipped,cp,"launcher/src/version_label.cpp: corner version label (the launcher patches it, not the Performance Patch)"
+event_dead_pop_loop,0x008A9428,0F 84 3A 01 00 00,E9 3B 01 00 00 90,proposal,re,removes the dead pop loop in EventWindow_ctor (player window only)
+event_skip_fired_once_countries,0x008A7DDF,8B 53 30 8B 52 18,E9 3C 13 3E 00 90,proposal,re,"jump to cave 0x00C89120 (66 bytes, see re/systems/events.md); no measurable gain reported"
+event_skip_fired_once_provinces,0x008A7FC0,8B 53 30 8B 52 18,E9 AB 11 3E 00 90,proposal,re,jump to cave 0x00C89170
 event_scan_every_4_days,0x008A7D33,25 01 00 00 80 79 05 48 83 C8 FE 40 83 F8 01 0F 85 FA 01 00 00,83 E0 03 83 F8 02 0F 84 03 02 00 00 83 F8 01 0F 85 C0 03 00 00,proposal,re,with event_scan_mode_countries and event_scan_mode_provinces
 event_scan_mode_countries,0x008A7DF7,6A 01,6A 02,proposal,re,doubles the country probability
 event_scan_mode_provinces,0x008A7FD8,6A 02,6A 04,proposal,re,doubles the province probability
 country_update_every_other_day,0x00685EB2,EB 0C,E9 09 33 60 00,proposal,re,"jump to cave 0x00C891C0; halves pop updates, delays and on_actions: see re/systems/tick.md"
 diag_skip_relation_loop,0x0050ABFA,0F 8E 4E 00 00 00,E9 4F 00 00 00 90,diagnostic,re,skips the O(n^2) relation loop in Country_DailyUpdate
 diag_skip_pop_traversal,0x00509351,8B 83 D8 09 00 00,E9 3F 01 00 00 90,diagnostic,re,pops stop updating
-checksum_backend_counter,0x005F8268,40,90,proposal,re,"INC EAX -> NOP in the CBackEndIdler/CReloadDispatcher ctor; file offset 0x1F7668 (the source said 0x1F8268, wrong)"
+checksum_backend_counter,0x005F8268,40,90,proposal,re,"INC EAX -> NOP in the CBackEndIdler/CReloadDispatcher ctor; file offset 0x1F7668 (the source said 0x1F8268, wrong); the ctor also contains 0x005F8262 (checksum.md open question 3)"
 checksum_file_zero,0x00993A64,0B C3,33 C0,unsafe,re,file checksum forced to 0; did not explain the observed change
 checksum_mismatch_branch,0x006831A0,74 05,EB 05,unsafe,re,not the root cause
-tech_player_civ_gate,0x007AA757,75 5A,EB 5A,confirmed,re,uncivilized player can research (date/state/prerequisites kept)
-tech_player_civ_gate_inverted,0x007AA757,75 5A,74 5A,unsafe,re,"inverts: uncivilized can, civilized cannot"
+tech_player_civ_gate,0x007AA757,75 5A,EB 5A,confirmed,re,"uncivilized player can research (date/state/prerequisites kept); (same site as tech_player_civ_gate_inverted: alternative bytes, never both)"
+tech_player_civ_gate_inverted,0x007AA757,75 5A,74 5A,unsafe,re,"inverts: uncivilized can, civilized cannot; (same site as tech_player_civ_gate: alternative bytes, never both)"
 tech_ai_civ_gate,0x00859755,0F 84 B5 05 00 00,90 90 90 90 90 90,confirmed,re,AI research ignores civilization
-time_barrier,0x00682D0C,0F 84 4B 01 00 00,90 90 90 90 90 90,experimental,re,removes a temporal-processing barrier (world+0xBB8)
+time_barrier,0x00682D0C,0F 84 4B 01 00 00,90 90 90 90 90 90,proposal,re,removes a temporal-processing barrier (world+0xBB8)
 v2dll_always_add_wargoals,0x00538AFF,00,02,confirmed,re,V2DLL (file offset 0x137EFF)
 v2dll_land_reinforce,0x005C8C9B,89 4C 24 20,90 90 90 90,confirmed,re,V2DLL / Master EXE (file offset 0x1C809B)
 v2dll_naval_reinforce,0x005C8B1C,89,8B,confirmed,re,V2DLL / Master EXE (file offset 0x1C7F1C)
@@ -57,26 +57,26 @@ master_aristocrat_income_share,0x004EEA2B,1F,11,documented,re,"Master EXE Mod; p
 master_version_label,0x00E07653,34,35,documented,re,"Master EXE Mod: ""V2 v3.04"" -> ""V2 v3.05"" (same exe)"
 world_market_throttle,0x00484309,E8 12 13 20 00,90 90 90 90 90,confirmed,re,removes a call in WorldMarketUpdate (target 0x00685620 UpdateTimeThrottle)
 cp_network_wait,0x00A618CC,E8 2F 84 02 00,call redirect,shipped,cp,skip_network_wait: CALL enet_host_service in NetSession_Service
-cp_prefetch_recalc,0x005089DB,E8 B0 CA 00 00,call redirect,experimental,cp,prefetch_relations: CALL Country_Recalculate in Country_PrePass
-cp_prefetch_market,0x00487483,E8 68 B8 09 00,call redirect,experimental,cp,prefetch_relations: CALL FUN_00522CF0 in Market_AddRealDemand
-cp_prefetch_purge,0x0050AC44,E8 47 36 42 00,call redirect,experimental,cp,prefetch_relations: CALL CountryRelation_DailyPurge in Country_DailyUpdate (skips empty relations)
-cp_flag_cache_copy,0x007E629C,FF 15 1C A4 C8 00,call wrapper,experimental,cp,"compress_flag_cache: D3DXCreateTexture of the atlas copy (A8R8G8B8 -> DXT5); file bytes, relocated at runtime"
-cp_flag_cache_save,0x007E6367,FF 15 18 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXSaveTextureToFileInMemory (TGA -> DDS)
-cp_flag_cache_load,0x007E6492,FF 15 24 A4 C8 00,call wrapper,experimental,cp,compress_flag_cache: D3DXCreateTextureFromFileInMemoryEx of the cache file (Format UNKNOWN -> DXT5)
-cp_fast_ai_queue,0x006557C4,E8 F7 1C 03 00,call redirect,experimental,cp,fast_ai_queue: CALL AI_FrameUpdate in CInGameIdler_Update
-cp_prefetch_pops,0x0048468F,E8 AC 17 00 00,call redirect,experimental,cp,prefetch_pops: CALL Market_UpdateCountryPops in WorldMarketUpdate
-cp_prefetch_ai_scan,0x00E2773C,F0 B0 84 00,vtable slot,experimental,cp,prefetch_ai_relations: AI target scan FUN_0084B0F0 (pointer is relocated at runtime)
-cp_prefetch_pops_daytick,0x00685B09,E8 52 41 E3 FF,call redirect,experimental,cp,prefetch_pops: CALL FUN_004B9C60 (province pop pass) in DayTick; shared with tick_profiler level 2+
-cp_parallel_events_scan,0x006861E8,E8 E3 1A 22 00,call redirect,experimental,cp,parallel_events: CALL EventManager_DailyScan in DayTick; shared with tick_profiler
-cp_parallel_events_fire_a,0x008A7EF4,E8 27 02 00 00,call redirect,experimental,cp,parallel_events: CALL Event_Fire in the scan (country pass)
-cp_parallel_events_fire_b,0x008A80D5,E8 46 00 00 00,call redirect,experimental,cp,parallel_events: CALL Event_Fire in the scan (province pass)
-cp_prefetch_pair_array,0x0050B6B9,E8 12 46 02 00,call redirect,experimental,cp,prefetch_relations: CALL FUN_0052FCD0 in Country_DailyUpdate (other+0x1580[self]); shared with tick_profiler
-cp_prefetch_pops_distribution,0x00481860,E8 9B D2 4D 00,call redirect,experimental,cp,prefetch_pops: CALL FUN_0095EB00 in ProcessMarketAndGoodsDistribution (next pop in EAX); shared with tick_profiler
-cp_prepass_reset,0x0050861B,E8 F0 76 01 00,call redirect,experimental,cp,"country_prepass: CALL FUN_0051FD10 in Country_PrePass (skip_clean_resets; dead-tag relation prefetch; pop prefetch)"
-cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,experimental,cp,prefetch_pops: CALL Country_DailyUpdate in DayTick (country pop walk); shared with tick_profiler
-cp_mp_day_tick,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,state_checksum: CALL DayTick in Update_World_and_Advance_Time; thunk swaps the return address and appends the state hashes to world+0xB74 after DayTick
+cp_prefetch_recalc,0x005089DB,E8 B0 CA 00 00,call redirect,shipped,cp,prefetch_relations: CALL Country_Recalculate in Country_PrePass
+cp_prefetch_market,0x00487483,E8 68 B8 09 00,call redirect,shipped,cp,prefetch_relations: CALL FUN_00522CF0 in Market_AddRealDemand
+cp_prefetch_purge,0x0050AC44,E8 47 36 42 00,call redirect,shipped,cp,prefetch_relations: CALL CountryRelation_DailyPurge in Country_DailyUpdate (skips empty relations)
+cp_flag_cache_copy,0x007E629C,FF 15 1C A4 C8 00,call wrapper,shipped,cp,"compress_flag_cache: D3DXCreateTexture of the atlas copy (A8R8G8B8 -> DXT5); file bytes, relocated at runtime"
+cp_flag_cache_save,0x007E6367,FF 15 18 A4 C8 00,call wrapper,shipped,cp,compress_flag_cache: D3DXSaveTextureToFileInMemory (TGA -> DDS)
+cp_flag_cache_load,0x007E6492,FF 15 24 A4 C8 00,call wrapper,shipped,cp,compress_flag_cache: D3DXCreateTextureFromFileInMemoryEx of the cache file (Format UNKNOWN -> DXT5)
+cp_fast_ai_queue,0x006557C4,E8 F7 1C 03 00,call redirect,shipped,cp,fast_ai_queue: CALL AI_FrameUpdate in CInGameIdler_Update
+cp_prefetch_pops,0x0048468F,E8 AC 17 00 00,call redirect,shipped,cp,prefetch_pops: CALL Market_UpdateCountryPops in WorldMarketUpdate
+cp_prefetch_ai_scan,0x00E2773C,F0 B0 84 00,vtable slot,shipped,cp,prefetch_ai_relations: AI target scan FUN_0084B0F0 (pointer is relocated at runtime)
+cp_prefetch_pops_daytick,0x00685B09,E8 52 41 E3 FF,call redirect,shipped,cp,prefetch_pops: CALL FUN_004B9C60 (province pop pass) in DayTick; shared with tick_profiler level 2+
+cp_parallel_events_scan,0x006861E8,E8 E3 1A 22 00,call redirect,shipped,cp,"parallel_events: CALL EventManager_DailyScan in DayTick; shared with tick_profiler; (chained with cp_tick_events)"
+cp_parallel_events_fire_a,0x008A7EF4,E8 27 02 00 00,call redirect,shipped,cp,parallel_events: CALL Event_Fire in the scan (country pass)
+cp_parallel_events_fire_b,0x008A80D5,E8 46 00 00 00,call redirect,shipped,cp,parallel_events: CALL Event_Fire in the scan (province pass)
+cp_prefetch_pair_array,0x0050B6B9,E8 12 46 02 00,call redirect,shipped,cp,prefetch_relations: CALL FUN_0052FCD0 in Country_DailyUpdate (other+0x1580[self]); shared with tick_profiler
+cp_prefetch_pops_distribution,0x00481860,E8 9B D2 4D 00,call redirect,shipped,cp,prefetch_pops: CALL FUN_0095EB00 in ProcessMarketAndGoodsDistribution (next pop in EAX); shared with tick_profiler
+cp_prepass_reset,0x0050861B,E8 F0 76 01 00,call redirect,shipped,cp,"country_prepass: CALL FUN_0051FD10 in Country_PrePass (skip_clean_resets; dead-tag relation prefetch; pop prefetch)"
+cp_prefetch_pops_daily,0x00685ED1,E8 CA 32 E8 FF,call redirect,shipped,cp,"prefetch_pops: CALL Country_DailyUpdate in DayTick (country pop walk); shared with tick_profiler; (chained with cp_tick_country)"
+cp_mp_day_tick,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,"state_checksum: CALL DayTick in Update_World_and_Advance_Time; thunk swaps the return address and appends the state hashes to world+0xB74 after DayTick; (chained with cp_tick_day)"
 cp_mp_vector_equals,0x00683036,E8 05 C3 00 00,call redirect,shipped,cp,oos_log: CALL Vector_Equals in Update_World_and_Advance_Time (EAX = world+0xB74 ECX = command vector); logs differing elements then runs the original
-cp_mp_hourly_tick_fpu,0x00E1242C,F0 EC 72 00,slot replace,shipped,cp,pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick
+cp_mp_hourly_tick_fpu,0x00E1242C,F0 EC 72 00,slot replace,shipped,cp,"pin_fpu: through the shared CHourlyTickCommand::Execute slot hook (hourly_tick.cpp); sets CW and MXCSR before every tick; (chained with cp_hourly_tick_slot)"
 cp_supply_guard,0x004D15EB,8B 83 28 01 00 00,jump hook,shipped,cp,"fix_supply_crash: MOV EAX,[EBX+0x128] in FUN_004D1560; guard skips to 0x004D1665 when the local-supply source (EBX) is null"
 cp_tech_sort_guard,0x007A918A,8B 82 10 03 00 00 8B 91 10 03 00 00,jump hook,shipped,cp,fix_tech_window_crash: status+0x310 loads in FUN_007A9070 mode 0; null -> returns false through the epilogue at 0x007A91A2
 cp_tech_folder_guard,0x007ADE98,8B 89 30 04 00 00 8B 89 10 03 00 00 8B 49 40,jump hook,shipped,cp,fix_tech_window_crash: invention+0x430->+0x310->+0x40 chain in FUN_007ADB70; null -> empty name; resume 0x007ADEA7
@@ -92,6 +92,11 @@ cp_remove_province_modifier_tooltip,0x00E2AC3C,C0 22 88 00,slot replace,shipped,
 cp_remove_province_modifier_execute,0x00E2AC44,90 22 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveProvinceModifierEffect vt+0x2C
 cp_remove_country_modifier_tooltip,0x00E2AC74,B0 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x24
 cp_remove_country_modifier_execute,0x00E2AC7C,80 26 88 00,slot replace,shipped,cp,fix_missing_modifier: CRemoveCountryModifierEffect vt+0x2C
+cp_modifier_find_country_trigger,0x008CD7A7,E8 04 8A C9 FF,call redirect,shipped,cp,"fix_missing_modifier: CALL ModifierRegistry_Find (g_staticModifiers, the last lookup) in HasCountryModifierTrigger_Parse; EDI = trigger; a miss before the modifiers are loaded is kept for the after-loading lookup"
+cp_modifier_find_province_trigger,0x008CDEAA,E8 01 83 C9 FF,call redirect,shipped,cp,"fix_missing_modifier: CALL ModifierRegistry_Find in HasProvinceModifierTrigger_Parse; ESI = trigger; same"
+cp_modifiers_loaded,0x0063C356,E8 25 4F DC FF,call redirect,shipped,cp,"fix_missing_modifier: CALL 0x00401280 ending the 'Static Modifiers Initialized' log line in FUN_00639120 -> looks up again every has_*_modifier trigger parsed before the modifiers (pop types, issues)"
+cp_has_country_modifier_tooltip,0x00E30880,30 D9 8C 00,slot replace,shipped,cp,fix_missing_modifier: CHasCountryModifierTrigger vt+0x28 (tooltip); null modifier -> empty line instead of a crash at 0x008CDC09
+cp_has_province_modifier_tooltip,0x00E308B8,00 E0 8C 00,slot replace,shipped,cp,fix_missing_modifier: CHasProvinceModifierTrigger vt+0x28 (tooltip); null modifier -> empty line
 cp_state_presence_guard,0x0048F070,55 8B EC 83 EC 24 53 56,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_HasHostilePresence; null state -> returns 0 (RET 8)
 cp_state_tag_guard,0x0048E120,55 8B EC 83 EC 08,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_GetControllerTag; null state (ECX) -> tag "---" index 0
 cp_state_walk_scan,0x00851F51,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: AI_UnitTargetScan walks state+0x14 of another unit's province; null state -> not-found branch 0x00852043
@@ -106,3 +111,49 @@ cp_chat_line_seconds,0x006784FD,83 7D FC 3C,imm8,shipped,cp,"chat_line_seconds: 
 cp_chat_expire_call,0x00655477,E8 34 30 02 00,call,shipped,cp,"chat_line_seconds: CALL Chat_ExpireLines in CInGameIdler_Update (EDI = chat window), redirected to stamp each line"
 cp_borderless_create_window,0x009DEEBF,E8 6C 0B 00 00,call,shipped,cp,"borderless_fullscreen: CALL App_CreateWindow (ECX = app); settings forced to borderless at the monitor size first"
 cp_edge_scroll_camera,0x00656275,E8 F6 95 FE FF,call,shipped,cp,"fix_edge_scroll: CALL Camera_Update with edge-scroll flag 1; the flag is cleared when the cursor is outside the foreground window"
+cp_edge_scroll_mouse_pos,0x00E4397C,70 A9 A7 00,pointer,shipped,cp,"fix_edge_scroll: mouse vt[0x4C] Mouse_GetClientPos -> client-area position (the game assumes a thinner window frame)"
+se_infra_button_handler,0x0064B152,F0 C9 66 00,imm32,shipped,cp,"Script Extender building_map_mode: imm32 of MOV EAX,MapModeButton_Infrastructure (B8 F0 C9 66 00 at 0x0064B151, relocated) in CInGameIdler_ctor -> on_button (cycles the building, then calls the original)"
+se_infra_color_call,0x0066CABE,E8 0D 4A 19 00,call redirect,shipped,cp,Script Extender building_map_mode: CALL MapColor_Infrastructure in MapModeButton_Infrastructure -> the plugin's colour function (same stdcall signature)
+se_mapmode_tooltip_localize,0x0070C5C8,E8 13 C9 29 00,call redirect,shipped,cp,"Script Extender building_map_mode: CALL Localize in CInGameIdler_BuildTooltip; for MAPMODE_6 the key becomes ""<MAPMODE_6> - <building>"" (texts from the CSVs), shown verbatim"
+se_set_mapmode_buttons,0x0066C180,55 8B EC 64 A1 00 00 00 00,jump hook,shipped,cp,"Script Extender building_map_mode: entry of MenuBar_SetMapModeButtons, 9-byte detour + trampoline; swaps the stripes texture-manager entry to thick stripes while button 6 is shown"
+se_event_ontoken,0x00E2C844,80 62 8A 00,vtable slot,shipped,cp,"Script Extender event_background: CEvent vt slot 4 (Event_OnToken, relocated) -> keeps background (token 0x99) values, the rest goes to the original"
+se_event_window_fire,0x008A8476,E8 B5 0A 00 00,call redirect,shipped,cp,Script Extender event_background: CALL EventWindow_ctor in Event_Fire -> wrapper that sets the Background sprite after the original
+se_event_window_console,0x0041F54E,E8 DD 99 48 00,call redirect,shipped,cp,Script Extender event_background: CALL EventWindow_ctor in Console_Event
+se_vassal_color_political_owner,0x007FCAD7,E8 E4 EA CF FF,call redirect,shipped,cp,"Script Extender vassal_map_color: CALL Country_GetMapColor (owner) in MapColor_Political -> original, then a substate/puppet gets a blend with its overlord colour; XMM1 kept"
+se_vassal_color_political_controller,0x007FCB22,E8 99 EA CF FF,call redirect,shipped,cp,Script Extender vassal_map_color: controller in MapColor_Political
+se_vassal_color_plain_owner,0x007FCC36,E8 85 E9 CF FF,call redirect,shipped,cp,Script Extender vassal_map_color: owner in MapColor_PoliticalPlain
+se_vassal_color_plain_controller,0x007FCC76,E8 45 E9 CF FF,call redirect,shipped,cp,Script Extender vassal_map_color: controller in MapColor_PoliticalPlain
+se_demand_province_load,0x0063DCD2,E8 E9 F0 2C 00,call redirect,shipped,cp,"Script Extender demand_province: CALL CBManager_Load -> registers po_demand_province (Token_AddDynamic) first; (chained with se_treaty_load)"
+se_demand_province_keyword,0x00E33734,E0 A1 90 00,vtable slot,shipped,cp,"Script Extender demand_province: CCasusBelliType vt slot 4 (OnKeyword, relocated) -> po_demand_province = yes adds po_demand_state once and marks the CB; (chained with se_treaty_keyword)"
+se_demand_province_transfer,0x0094E844,E8 47 72 B6 FF,call redirect,shipped,cp,"Script Extender demand_province: CALL TransferProvinces in WarGoal_Execute -> marked CB: only the war goal province"
+se_demand_province_annex,0x0094E77B,83 BA 4C 0E 00 00 01,CALL thunk + 90 90,shipped,cp,"Script Extender demand_province: CMP [owner+0xE4C],1 in WarGoal_Execute -> marked CB: annex only a one-province country"
+se_demand_province_cost,0x009519AD,8B 70 48 89 44 24 14,JMP thunk + 90 90,shipped,cp,"Script Extender demand_province: start of the po_demand_state cost loop in WarGoal_PeaceCost -> marked CB: that province only"
+se_demand_province_states,0x00945429,8B 80 44 0E 00 00,CALL thunk + 90,shipped,cp,"Script Extender demand_province: MOV EAX,[EAX+0xE44] in CWarGoalDialog_FillStateList -> marked CB: one stand-in state per province of the target (province list)"
+se_treaty_create,0x0090E850,55 8B EC 83 E4 F8,JMP hook + trampoline,shipped,cp,"Script Extender treaty: entry of DiplomaticAction_CreateByType -> the treaty_action token builds a CTreatyAction (MP commands, saves, UI)"
+se_treaty_ai_switch,0x00820EBB,8B 06 8B 50 20 8B CE,JMP thunk,shipped,cp,"Script Extender treaty: type switch of AI_ProcessPendingProposals -> our vtable: chance 0 / 100, then JMP 0x0082102B (CMP EAX,0x32)"
+se_treaty_keyword,0x00E33734,E0 A1 90 00,vtable slot,shipped,cp,"Script Extender treaty: CCasusBelliType vt slot 4 (OnKeyword), chained after demand_province -> is_treaty_cb = yes marks the CB; (chained with se_demand_province_keyword)"
+se_treaty_load,0x0063DCD2,E8 E9 F0 2C 00,call redirect,shipped,cp,"Script Extender treaty: CALL CBManager_Load, chained -> registers is_treaty_cb, treaty_action, se_treaty_money (Token_AddDynamic) and passes the block of common/se_cb_types.generated.txt (cb_types.txt + the plugin's treaty CBs); (chained with se_demand_province_load)"
+se_treaty_gfx,0x00635D89,8B 55 C0 8B 8A 28 01 00 00,JMP thunk,shipped,cp,"Script Extender treaty: end of the .gfx loop of EU3App_LoadResources -> parses the plugin's interface/*.gfx there (later, sprites get no texture)"
+se_treaty_gui,0x0063690D,E8 7E D8 36 00,call redirect,shipped,cp,Script Extender treaty: CALL Gui_Finalize -> parses the plugin's interface/*.gui first
+se_treaty_messagetypes,0x0063C4AA,E8 F1 8A 06 00,call redirect,shipped,cp,Script Extender treaty: CALL MessageTypes_Read (interface/messagetypes.txt) -> then the plugin's interface/se_messagetypes.txt
+se_treaty_button_ctor,0x0061BE1B,E8 50 64 00 00,call redirect,built,cp,"Script Extender treaty: CALL CDiplomacyView_Setup in CDiplomacyView_ctor -> the vanilla setup, then an 18th diplomacy_option (Propose Treaty) in the first free cell of the action grid, its action_option bound to a glue that opens the treaty editor"
+se_treaty_button_reset,0x0061C096,E8 D5 61 00 00,call redirect,built,cp,"Script Extender treaty: CALL CDiplomacyView_Setup in FUN_0061BF70 (the view rebuilt) -> the same as se_treaty_button_ctor"
+se_treaty_button,0x0062B9FC,E8 5F 5D 2E 00,call redirect,shipped,cp,"Script Extender treaty: CALL DiplomaticAction_CanPerform in CDiplomacyView_RefreshActions (ESI = action, [EBP+8] = view) -> vanilla result; at the CMakeCBAction the Propose Treaty button is enabled when a treaty is possible between the actor and the recipient"
+cp_mp_host_wait,0x0065571C,E8 AF D4 02 00,call redirect,shipped,cp,"mp_host_wait_days: CALL ProcessGameTimeAdvance in CInGameIdler_Update (fastcall world, frame delta in XMM0); the host skips it while a player is more than N days behind (ships at 0; suspended while a human-controlled country is at war); shared with tick_profiler"
+se_country_upgrade_click,0x0073D6D0,55 8B EC 83 E4 F8,JMP hook + trampoline,shipped,cp,"Script Extender country_upgrade: entry of CProvinceView_OnExpandClick; Ctrl+Shift+click expands the building in every province of the country, else the original"
+se_country_upgrade_tooltip,0x00747956,E8 85 15 26 00,call redirect,shipped,cp,"Script Extender country_upgrade: CALL Localize (PROVINCE_VIEW_BUILD_ALL_TOOLTIP) in the Expand tooltip -> appends the SE_PROVINCE_VIEW_BUILD_COUNTRY_TOOLTIP line"
+se_buildings_ai_slot,0x00E28504,A0 69 85 00,vtable slot,shipped,cp,"Script Extender buildings_ai: AiConstructionJob vtable 0x00E284EC slot 6 (AI_ConstructionUpdate, relocated) -> wrapper: names the cached fort / naval base / railroad before the original, then runs the entries of common/buildings_ai.txt when the body ran"
+se_treaty_effect_factory,0x00876B30,55 8B EC 83 E4 F8,JMP hook + trampoline,shipped,cp,"Script Extender treaty (dismantle): entry of EffectBlock_AddChild -> the dismantle / dismantle_gw / dismantled_by / dismantled_by_gw tokens build a release_vassal effect (token 0x700) and get a copied vtable with the plugin's tooltip (slot 9) and Execute (slot 11); every other token goes to the trampoline"
+se_treaty_peace_execute,0x00E344F4,00 6F 91 00,vtable slot,shipped,cp,"Script Extender treaty (dismantle): CPeaceAction vtable 0x00E34474 slot 32 (CPeaceAction_Execute, relocated) -> original, then the dismantle turns waiting for that peace become forced treaties"
+se_console_commands,0x00613845,E8 46 01 E1 FF,call redirect,built,cp,"Script Extender: CALL Console_CollectCommands in CConsole_ctor -> original, then the plugin's own CConsoleCommand entries are appended to the vector (game heap); treaty registers dismantle"
+se_income_artisan,0x00489812,E8 D9 0D 4D 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney (artisan sales after tax, Market_PostProcess) -> amount x (1000 + province + country income modifier of the strata) / 1000"
+se_income_pay_1,0x004CFFB7,E8 34 A6 48 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in PopType_PayInCountry -> scaled as se_income_artisan"
+se_income_pay_2,0x004D002B,E8 C0 A5 48 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in PopType_PayInCountry (last pop) -> scaled"
+se_income_pay_3,0x004EF365,E8 86 B2 46 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in PopType_PayInCountry2 -> scaled"
+se_income_pay_4,0x004EF3DA,E8 11 B2 46 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in PopType_PayInCountry2 (last pop) -> scaled"
+se_income_social_1,0x0050C110,E8 DB E4 44 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in Country_PaySocialSpending (category 2) -> scaled"
+se_income_social_2,0x0050C1C0,E8 2B E4 44 00,call redirect,built,cp,"Script Extender income_modifiers: CALL Pop_AddMoney in Country_PaySocialSpending (category 1) -> scaled"
+se_income_working_cash,0x0095A6B1,74 28,JZ -> JMP 0x0095A6EF,built,cp,"Script Extender income_modifiers: strata switch of Pop_AddWorkingCash skipped with EAX = 1000: the artisan budget is no longer scaled by the province's income modifier"
+se_province_flags_factory,0x008B33E0,55 8B EC 83 E4 F8,JMP hook + trampoline,built,cp,"Script Extender province_flags: entry of TriggerBlock_AddChild -> has_province_flag (0x43B) builds a has_country_flag trigger (0x40A) and gets a copied vtable with the plugin's Evaluate (slot 6, the scope's province CFlags +0x328) and tooltip (slot 10); every other token goes to the trampoline"
+se_province_flags_key_not,0x008CCC8A,E8 C1 C6 B3 FF,call redirect,built,cp,"Script Extender province_flags: CALL std_string_assign of HAVE_NOT_COUNTRY_FLAG in CHasCountryFlagTrigger_Tooltip; HAVE_NOT_PROVINCE_FLAG while the plugin's has_province_flag tooltip runs on this thread"
+se_province_flags_key,0x008CCF37,E8 14 C4 B3 FF,call redirect,built,cp,"Script Extender province_flags: the same for HAVE_COUNTRY_FLAG -> HAVE_PROVINCE_FLAG"

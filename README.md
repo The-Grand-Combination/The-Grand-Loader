@@ -12,11 +12,12 @@ Don't forget to join our [discord server](https://discord.gg/xuDjNrmpFR).
 1. Download the release zip.
 2. Extract them into the game folder, next to `v2game.exe`. The zip already have the right layout
    (`dinput8.dll` and `mod/`).
-3. Play as usual, with any mods.
+3. Tick "Performance Patch" in the launcher, with any mods (a mod may also declare the patch in its own
+   `.mod` with `load = "performance_patch/performance_patch.dll"`; it is loaded once either way).
 
 To uninstall, delete `dinput8.dll` and `mod/performance_patch*`.
 
-Settings are in `mod/performance_patch.ini`, with one line explaining each option. Each launch writes
+Settings are in `mod/performance_patch/performance_patch.ini`, with one line explaining each option. Each launch writes
 `the_grand_loader.log` next to `v2game.exe` (a second instance running from the same folder writes `the_grand_loader.<pid>.log`).
 
 ## Development
@@ -30,5 +31,6 @@ package.cmd   release zips in out/release/
 Requires Visual Studio Build Tools (x86 C++), CMake ≥ 3.25 and Ninja.
 
 - Writing another plugin: [launcher/PLUGINS.md](launcher/PLUGINS.md)
+- Coding rules and why: [docs/CODING.md](docs/CODING.md)
 - How each optimisation works, with timings: [docs/README.md](docs/README.md)
 - Reverse engineering of `v2game.exe`: [docs/re/README.md](docs/re/README.md)

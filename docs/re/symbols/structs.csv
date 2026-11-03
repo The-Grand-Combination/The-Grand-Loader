@@ -1,7 +1,7 @@
 struct,offset,name,type,conf,src,note
 World,0xACC,provinces,CMapProvince**,C,cp,province pointer array
 World,0xADC,dayTickCountries,vector,C,cp,"+0xADC/+0xAE0 country vector of the day tick"
-World,0xAEC,humanPlayers,vector<u32>,C,cp,"+0xAEC begin, +0xAF0 end; entry 0 = AI-controlled"
+World,0xAEC,humanPlayers,vector<u32>,C,cp,"+0xAEC begin, +0xAF0 end; entry 0 = AI-controlled; CIsAiTrigger_Evaluate"
 World,0xB0C,dateHours,u32,C,cp,"date in hours, base 0x029C55C0 = year -5000; +0x18 per day; 365-day years, no leap years"
 World,0xB14,timeAccumulator,f32,C,re,accumulated frame time in ProcessGameTimeAdvance
 World,0xB20,timeStopped,u32,C,re,non-zero -> ProcessGameTimeAdvance returns
@@ -31,23 +31,23 @@ CCountry,0xBCC,technology,ptr,C,re,"+0x2B8 tech state array indexed by tech+0x2E
 CCountry,0xBD4,leaders,list,I,re,daily roll for leader deaths
 CCountry,0xBE4,capitalProvinceId,u32,C,re,
 CCountry,0xBE8,relations,Relation**,C,cp,indexed by the other country
-CCountry,0xCF4,hasOverlord,u8,I,cp,
-CCountry,0xCF5,isOverlord,u8,I,cp,
-CCountry,0xCFC,overlordIndex,u32,I,re,
-CCountry,0xD08,neighbours,u8[],C,cp,byte per country
-CCountry,0xDA8,vassals,vector,I,re,"+0xDA8/+0xDAC"
-CCountry,0xE44,states,list,I,cp,world market iterates states then +0x18 factories
-CCountry,0xE4C,aiScore,u32,?,cp,AI war-target gate (self <= other * 5)
+CCountry,0xCF4,isSubstate,u8,C,cp,is_substate; substate_of and vassal_of also accept it
+CCountry,0xCF5,isVassal,u8,C,cp,a vassal (puppet) that is not a substate; is_vassal = +0xCF5 or +0xCF4
+CCountry,0xCFC,overlordIndex,u32,C,cp,with +0xCF8; compared by substate_of / vassal_of
+CCountry,0xD08,neighbours,u8[],C,cp,byte per country; indexed by the other country's index; CNeighbourTrigger_Evaluate
+CCountry,0xDA8,atWarWith,vector,I,cp,"countries at war with: AI_ManagePeace walks it and reads relation+0x34 (was vassals, re)"
+CCountry,0xE44,states,list,C,cp,"head; tail +0xE48, count +0xE4C; world market iterates states then +0x18 factories"
+CCountry,0xE4C,stateCount,u32,C,cp,"count of the states list; WarGoal_Execute annexes when it is 1; AI war-target gate (self <= other * 5)"
 CCountry,0xE64,primaryCulture,u32,I,re,
 CCountry,0x12D0,civilized,u8,C,cp,
-CCountry,0x142C,overlord,ptr,I,re,
+CCountry,0x142C,sphereLeaderIndex,u32,C,cp,has_sphere_leader (!= 0) and in_sphere; was mislabelled overlord
 CCountry,0x1404,rank,u32,I,cp,
 CCountry,0x1430,infamyX1000,u32,C,cp,
 CCountry,0x156C,sphere,ptr,I,re,
-Relation,0x20,list20,list,I,re,purged daily
-Relation,0x28,list28,list,I,re,purged daily
-Relation,0x2C,list2C,list,I,re,purged daily
-Relation,0x30,list30,list,I,re,purged daily
+Relation,0x20,guarantee,ptr,I,cp,agreement object; purged daily
+Relation,0x28,alliance,ptr,I,cp,"agreement object owned by A; purged daily; War_CanDeclare refuses a war while it is set (the alliance); the Script Extender's AI dismantler reads it both ways (allied)"
+Relation,0x2C,reparations,CPayingReparations*,C,cp,PayingReparations_Attach writes both ways; paid daily in Country_PrePass
+Relation,0x30,paidObject,ptr,?,cp,PrePass pays i64 +0x28 with SpendMoney + Country_RepayLoans; meaning unknown
 Relation,0x50,heldCBs,list,C,cp,"node +0 CCasusBelli*, +8 next"
 CCasusBelli,0x24,typeIndex,u32,C,cp,
 CMapProvince,0x14,eventCandidates,vector<CEvent*>,C,re,"+0x14/+0x18"
@@ -58,10 +58,10 @@ CMapProvince,0x194,popLists,ptr,C,re,per-pop-type lists
 CMapProvince,0x1A8,totalPops,u32,C,re,
 CMapProvince,0x1BC,clergy,u32,I,re,
 CMapProvince,0x384,delayedEvents,vector,C,re,"+0x384/+0x388"
-CState,0x48,provinceIds,vector,I,re,
+CState,0x48,provinceIds,vector<int>,C,re,"province ids; passed to TransferProvinces by po_demand_state"
 CState,0x60,buildings,ptr,I,re,
 CState,0x68,factoryCount,u32,C,re,< 8 to build
-CState,0x84,colonyStatus,u32,C,re,> 0 = colonial
+CState,0x84,colonyStatus,u32,C,cp,"> 0 = colonial (is_colonial: CIsColonialTrigger_Evaluate 0x008FACB0 reads it through province+0x188; was src=re)"
 CStateBuilding,0x20,level,u32,I,re,
 CStateBuilding,0x188,closed,u8,I,re,
 CStateBuilding,0x224,nextInState,ptr,I,re,
@@ -77,9 +77,9 @@ CNationalFocus,0x54,railroad,u32,I,re,
 CNationalFocus,0x7C,promotions,vector,I,re,"+0x7C/+0x80"
 CEventScope,0x08,countryTag,u32,C,cp,
 CEventScope,0x0C,countryIndex,u32,C,cp,
-CEventScope,0x10,provinceIndex,u32,C,cp,"province scope of the daily province event pass (parallel_events writes it per entry)"
+CEventScope,0x10,provinceIndex,u32,C,cp,province scope of the daily province event pass (parallel_events writes it per entry); war-goal scopes put the province at +0x18 instead
 CEventScope,0x24,thisScope,CEventScope*,C,cp,initialised to self
-CEventScope,0x30,fromRef,u64,C,cp,"+0x30/+0x34"
+CEventScope,0x30,fromIndex,u32,C,cp,FROM country index; the tag is at +0x2C (corrected 2026-10-24: was fromRef u64 +0x30/+0x34)
 TriggerBlock,0x00,vftable,ptr,C,cp,"CAndTrigger / COrTrigger / CNotTrigger; size 0x1C"
 TriggerBlock,0x04,typeTag,u32,C,cp,0x18D
 TriggerBlock,0x08,children,vector<CTrigger*>,C,cp,"+0x08 begin, +0x0C end, +0x10 capacity"
@@ -88,7 +88,7 @@ CTrigger,0x19,valueIsFrom,u8,C,cp,
 CTrigger,0x1C,value,?,C,cp,"CTagTrigger: tag chars; CIsAiTrigger: bool"
 CTrigger,0x20,valueIndex,u32,C,cp,CTagTrigger: country index of the literal tag
 CCasusBelliType,0x08,index,u32,C,cp,index in the manager vector
-CCasusBelliType,0x0C,months,u32,C,cp,keyword 0x3BF
+CCasusBelliType,0x0C,sprite_index,u32,C,cp,"keyword 0x8EC (OnKeyword jump-table case 0x0090A2EA); frame of GFX_diplo_wargoal_icons (CGoalEntry 0x0093EFEC); corrected 2026-10-24, was months"
 CCasusBelliType,0x14,name,std::string,C,cp,"SSO buffer +0x14, size +0x24, capacity +0x28"
 CCasusBelliType,0x30,is_valid,TriggerBlock,C,cp,keyword 0x8D0
 CCasusBelliType,0x4C,can_use,TriggerBlock,C,cp,keyword 0x92A; evaluated by the daily scan
@@ -97,13 +97,13 @@ CCasusBelliType,0x84,allowed_states_in_crisis,TriggerBlock,C,cp,keyword 0x8C0
 CCasusBelliType,0xA0,allowed_states,TriggerBlock,C,cp,keyword 0x8BF
 CCasusBelliType,0xBC,allowed_substate_regions,TriggerBlock,C,cp,keyword 0x941
 CCasusBelliType,0xD8,allowed_countries,TriggerBlock,C,cp,keyword 0x8D1
-CCasusBelliType,0xF4,badboy_factor,u32,C,cp,"x1000; +0xF8..+0x10C six more x1000 factors, order unconfirmed"
+CCasusBelliType,0xF4,badboy_factor,u32,C,cp,"x1000; +0xF8 prestige_factor, +0xFC peace_cost_factor (C)"
 CCasusBelliType,0x110,truce_months,u32,C,cp,default 60
 CCasusBelliType,0x130,is_triggered_only,u8,C,cp,
 CCasusBelliType,0x131,mutual,u8,C,cp,
 CCasusBelliType,0x132,always,u8,C,cp,gate for the daily scan
 CCasusBelliType,0x133,crisis,u8,C,cp,default 1
-CCasusBelliType,0x134,sprite_index,u32,C,cp,default 12
+CCasusBelliType,0x134,months,u32,C,cp,"keyword 0x3BF (OnKeyword 0x0090A24C), default 12; corrected 2026-10-24, was sprite_index"
 CCasusBelliType,0x18C,on_add,CEffect,C,cp,
 CCasusBelliType,0x1AC,on_po_accepted,CEffect,C,cp,
 CCasusBelliType,0x1CC,is_civil_war,u8,C,cp,
@@ -127,10 +127,10 @@ CEvent,0x30,trigger,TriggerBlock,C,re,
 CEvent,0x74,immediate,CEffect,C,re,slot 0x2C executed on every fire
 CEvent,0xB0,options,vector,C,re,option +0x08 = AI-chance block
 CEvent,0xC0,mtth,MtthBlock,C,re,"+0x08 base, +0x0C/+0x10 modifiers, scale 1000"
-CEvent,0x1A1,flag1A1,u8,C,re,0 -> window may be suppressed by the UI manager
-CEvent,0x1A2,flag1A2,u8,C,re,window variant
-CEvent,0x1A3,fireOnlyOnce,u8,I,re,behaviour confirmed; name inferred
-CEvent,0x1A4,flag1A4,u8,C,re,full-window variant
+CEvent,0x1A1,allowMultipleInstances,u8,C,cp,allow_multiple_instances (0x9A2); 0 -> the window may be suppressed
+CEvent,0x1A2,major,u8,C,cp,major (0x793): Event_Major_Window
+CEvent,0x1A3,fireOnlyOnce,u8,C,cp,fire_only_once (0x651)
+CEvent,0x1A4,election,u8,C,cp,election (0x7BD): Event_Election_Window
 World,0xA4,aiObjects,vector<AiObject*>,C,cp,"+0xA4/+0xA8/+0xAC; filled on the host only; walked by the AI bucket fill at the end of DayTick"
 World,0xB4,worldRng,u32[624],C,cp,"embedded MT19937; index +0xA74; seeded from the clock in World_ctor or from save token 0x7A4; read by AI_DailyRoll and AI frame code"
 World,0xA74,worldRngIndex,u32,C,cp,
@@ -170,8 +170,302 @@ CState,0x04,provinces,list,I,cp,"nodes {province, ?, next}"
 CState,0x0C,owner,u32,I,cp,"0 = no owner (State_GetControllerTag answers '---')"
 CState,0x14,units,list,I,cp,"nodes {unit, ?, next}; walked by State_HasHostilePresence"
 CCountry,0xE2C,possibleVassals,vector,C,cp,"8-byte entries {?, country index}; rebuilt on every query by Country_RebuildPossibleVassals (not thread-safe)"
-CProvince,0x148,cores,vector,C,cp,"8-byte entries, country index at +4"
+CProvince,0x148,cores,vector,C,cp,"8-byte entries, country index at +4; entries {tag, index}, end +0x14C; CIsCoreTrigger_Evaluate"
 std::string,0x00,buffer,char[16]/char*,C,cp,"MSVC 2010 layout: inline text while capacity < 16, else a heap pointer"
 std::string,0x10,size,u32,C,cp,
 std::string,0x14,capacity,u32,C,cp,15 while inline
 std::string,0x18,allocator,u32,C,cp,"empty allocator padded to 4 bytes: the object is 0x1C bytes (by-value arguments span 0x1C, e.g. the modifier tooltip's [ESP+0xC..0x27])"
+CInGameIdler,0x1C,input,ptr,C,cp,"vt[0x30] Ctrl held, vt[0x28] Shift held"
+CInGameIdler,0x24,mapDirtyFlags,int*,C,cp,"int[22], one per map mode"
+CInGameIdler,0x74,mapFlags,u32,C,cp,"0x100 / low nibble recolour, 0x200 upload only"
+CInGameIdler,0xBC8,mapModeHistory,CStack<MAPMODE>,C,cp,"head +0xBCC, count +0xBD4"
+CInGameIdler,0xDB4,mapMode,u32,C,cp,MAPMODE 0..21; infrastructure = 4
+CInGameIdler,0xF48,mapmode6Glue,CButtonObserverGlue,C,cp,0x50-byte glues from +0xDB8
+CInGameIdler,0x1630,menuBar,ptr,C,cp,
+CBuilding,0x10,type,u32,C,cp,"factory 0, rgo 1, infrastructure 2, naval_base 3, other 4"
+CBuilding,0x20,name,std::string,C,cp,
+CBuilding,0x58,index,u32,C,cp,"file index; index of country tech arrays (+0xBCC +0x08 max level, +0x2FC activated)"
+CBuilding,0x5C,cost,i32,C,cp,
+CBuilding,0x60,goodsCost,CGoodsPool,C,cp,
+CBuilding,0xB8,time,u32,C,cp,days
+CBuilding,0xBC,capital,u8,C,cp,"+0xBD port, +0xBE one_per_state"
+CBuilding,0xC4,maxLevel,u32,C,cp,
+CBuilding,0x130,defaultEnabled,u8,C,cp,
+CBuilding,0x131,isProvinceBuilding,u8,C,cp,
+CBuilding,0x134,provinceIndex,i32,C,cp,index into CProvince+0x118 and g_buildingDb+0x1C; -1 otherwise
+CBuilding,0x138,popBuildFactory,u8,C,cp,+0x139 spawn_railway_track
+CBuilding,0x13C,infrastructure,i32,C,cp,x1000
+CProvinceBuilding,0x18,building,CBuilding*,C,cp,
+CProvinceBuilding,0x20,levelX1000,i32,C,cp,built level
+CProvinceBuilding,0x24,effectiveLevelX1000,i32,C,cp,moves toward +0x20 daily (fort repair); used for cost and modifiers
+CBuildingConstruction,0x38,startHours,u32,C,cp,+0x3C end
+CBuildingConstruction,0x44,progressX1000,i32,C,cp,percent
+CBuildingConstruction,0x48,province,CProvince*,C,cp,
+CBuildingConstruction,0x4C,builderTag,char[4],C,cp,index at +0x50
+CBuildingConstruction,0x54,goodsProject,CGoodsProject*,C,cp,non-null while goods are pending (dates slide)
+CBuildingConstruction,0x58,building,CBuilding*,C,cp,
+CConstructBuildingCommand,0x3C,building,CBuilding*,C,cp,wire: bld+0x58
+CConstructBuildingCommand,0x40,provinceId,u32,C,cp,
+CConstructBuildingCommand,0x44,constructionId,u32[2],C,cp,
+CConstructBuildingCommand,0x4C,countryTag,char[4],C,cp,index at +0x50
+CConstructBuildingCommand,0x54,popProject,u8,C,cp,
+CProvince,0x5C,geography,ptr,I,cp,"terrain and adjacency (was terrainData): +0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C); neighbours vector at +0xC8/+0xCC of 0x24-byte entries {kind (1 land border, 2 coastal provinces across water: I, seen in game 2026-11-02), province id, ...}, land flag u8 +0x2A (AI_PickFortProvince)"
+CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0; nodes {entry, ?, next}; entry vt[0x30] (slot 12, thiscall -> bool) = is a building construction (CBuildingConstruction: 1), entry+0x58 = CBuilding*; vt[0x34] (slot 13) is also read by MapColor_Infrastructure (CBuildingConstruction: 0; meaning ?)"
+CProvince,0x110,foreignInvestBlock,u32,?,cp,must be 0 for a foreign railroad investment
+CProvince,0x118,buildings,vector<CProvinceBuilding*>,C,cp,indexed by CBuilding+0x134
+CProvince,0x128,ownerTag,char[4],C,cp,index at +0x12C
+CProvince,0x158,coastal,u32,I,cp,read as a 32-bit int != 0 by the port check of Building_CanBuildInProvince
+CProvince,0x2B8,infrastructure,i32,C,cp,shown by the infrastructure tooltip
+CCountry,0x1184,stockpile,ptr,I,cp,passed to Building_ComputeExpandCost
+CCountry,0xE70,constructionCostModifier,i32,I,cp,
+CCountry,0x1580,foreignInvestment,ptr,C,cp,ledger
+CCountry,0xAC8,partyRules,u8 per 8 bytes,C,cp,"rule i at +0xAC8+8*i in CRuleDefinition order: build_factory 0, expand 1, open 2, destroy 3, build_railway 4 (+0xAE8), pop_build_factory 7 (+0xB00), build_factory_invest 11 (+0xB20), build_railway_invest 14 (+0xB38), can_invest_in_pop_projects 15 (+0xB40), allow_foreign_investment 19 (+0xB60); table in buildings.md; RULE_* keys created at 0x00473235.."
+CProvinceManager,0x3C,render,ptr,C,cp,= g_renderDevice
+CProvinceManager,0xC0,stripesTexture,int,C,cp,"texture manager index of map/terrain/stripes.dds, bound as tex7 every frame"
+CProvinceManager,0x1A0,terrainEffect,ID3DXEffect*,C,cp,
+CCountryTechState,0x08,maxBuildingLevels,int*,C,cp,pointer to int[] indexed by CBuilding+0x58 (max_<building>): *(*(country+0xBCC)+8) + idx*4
+CBuildingConstruction,0x00,vtable,ptr,C,cp,"CBuildingConstruction_vftable: slot 12 (+0x30) 0x00A31490 returns 1 (is a building construction), slot 13 (+0x34) 0x0058CFD0 returns 0"
+CButtonObserverGlue,0x00,vtable,ptr,C,cp,CButtonObserverGlue_CInGameIdler_vftable; 0x50 bytes
+CButtonObserverGlue,0x04,object,ptr,C,cp,the handler object (idler); ECX of the handler = this + adjust
+CButtonObserverGlue,0x08,handlers,"{code*, i32}[9]",C,cp,"pairs {handler, this-adjust}; the first (+0x08/+0x0C) is the click (I), called as a plain thiscall with no stack arguments; the map-mode glues fill only this pair"
+CLocalisation,0x48,table,hash table,C,cp,"+4 bucket count, +8 buckets; nodes {pair*, next}; see StringHashMap_Find"
+LocalisationPair,0x00,key,std::string,C,cp,0x30-byte pair
+LocalisationPair,0x1C,owner,ptr,C,cp,start of the value Localize returns
+LocalisationPair,0x20,variants,vector<LocalisationVariant*>,C,cp,+0x20/+0x24/+0x28 (value +4/+8/+0xC)
+LocalisationVariant,0x00,selector,i32[4],C,cp,0x34 bytes; matched by Localisation_SelectVariant
+LocalisationVariant,0x10,text,RichText,C,cp,"parsed segments (RichText_Parse), not a std::string: reading it as one crashed the game (2026-10-23)"
+CEvent,0xDC,title,std::string,C,cp,title (0x3E2)
+CEvent,0xF8,newsTitle,std::string,C,cp,news_title (0xA25)
+CEvent,0x114,desc,std::string,C,cp,desc (0x3E3)
+CEvent,0x130,newsDescLong,std::string,C,cp,news_desc_long (0x9EE)
+CEvent,0x14C,newsDescMedium,std::string,C,cp,news_desc_medium (0x9EF)
+CEvent,0x168,newsDescShort,std::string,C,cp,news_desc_short (0x9F0)
+CEvent,0x184,picture,std::string,C,cp,"picture (0x7DF): file name under gfx/pictures/events, .tga added"
+CEvent,0x1A0,isTriggeredOnly,u8,C,cp,is_triggered_only (0x713)
+CEvent,0x1A5,news,u8,C,cp,news (0xA21)
+CEvent,0x1A8,issueGroup,std::string,C,cp,"issue_group (0x935); last field, ends at 0x1C4"
+ScriptParser,0x0C,errorCount,i32,C,cp,Persistent_ReadBlock calls vt slot 5 only when 0
+ScriptParser,0x14,errorFlag,u8,C,cp,set by Parser_UnexpectedToken
+ScriptParser,0x20,keyToken,u32,C,cp,token id of the key just read (raw/script-tokens.tsv)
+ScriptParser,0x24,keyText,char[],C,cp,key as written
+ScriptParser,0x228,valueType,u32,C,cp,"0x29F = yes, 3 = {"
+ScriptParser,0x22C,valueText,char[],C,cp,"value as written, NUL-terminated"
+CEventWindow,0x04,window,ptr,C,cp,GUI window instance (Event_<Kind>_Window)
+CEventWindow,0x08,guiOwner,ptr,I,cp,"*(country + 0xCDC); vt[0x34] factory, vt[0x3C] parent"
+CEventWindow,0x0C,event,CEvent*,C,cp,
+CEventWindow,0x10,scope,CEventScope,C,cp,0x48-byte copy; object size 0xD0
+GuiButton,0xA0,sprite,ptr,C,cp,replaced by Button_SetSprite (vt 0xE0)
+GuiIcon,0x94,sprite,ptr,C,cp,replaced by Icon_SetSprite (vt 0xE0)
+CCountry,0xCF8,overlordTag,char[4],C,cp,"with +0xCFC: the overlord {tag, index}"
+CCountry,0xDE0,substateCount,i32,C,cp,num_of_substates
+CCountry,0x1418,sphereMembers,vector,C,cp,"+0x1418/+0x141C, 8-byte entries {?, country index}; MapColor_Sphere"
+CCountry,0x1428,sphereLeaderTag,char[4],C,cp,"with +0x142C: the sphere leader {tag, index}"
+CCountry,0x924,color,CColor,I,cp,base map colour (color = { } of common/countries); floats r/g/b/a at +0x92C.. (CColor +8)
+CCountry,0x15CC,governmentColors,vector,C,cp,"+0x15CC/+0x15D0, 0x20-byte entries {key, CColor}; key matched with [country+0xBD0]+0x40; per-government colours (I)"
+CState,0x5C,ownerIndex,u32,I,cp,"with the tag at +0x58; WarGoal_Execute"
+CCasusBelliType,0x120,peaceOptions,list,C,cp,"nodes {po token, prev, next, u8} (0x10 bytes); tail +0x124, count +0x128"
+CWarGoal,0x0C,cb,CCasusBelliType*,C,cp,vtable 0x00E35DDC
+CWarGoal,0x18,actor,CountryRef,C,cp,"key actor 0x381: the holder and beneficiary (receives provinces, annexes)"
+CWarGoal,0x28,province,u32,C,cp,province id: the target of a state war goal
+CCountry,0xEA0,prestigeX1000,i32,C,cp,Country_AddPrestige; total adds tech(+0xBCC)+0x28C (I)
+CCountry,0x9E8,controlledProvinces,list,C,cp,"nodes {provId, ?, next}; Province_SetController; returned at peace"
+CCountry,0x9F8,coreProvinces,list,I,cp,Province_RemoveCore
+CCountry,0x7BC,armyCount,u32,C,cp,count of +0x7B4
+CCountry,0x1490,navies,list,I,cp,count +0x1494; deleted by Country_Annex
+CCountry,0xE8C,loans,vector,I,cp,"entries +0xC lender index, +0x18 i64 amount"
+CCountry,0xE88,bank,ptr,I,cp,+0x18 i64 lent amount
+CCountry,0x4C0,lastWarLossDate,u32,I,cp,set to today for peace losers
+CCountry,0x65C,diploPointsX1000,i32,C,cp,cap 9000
+CCountry,0x680,warExhaustion,i32,C,cp,AI_EvaluatePeaceOffer; GOOD_PEACE_REFUSAL_WAREXH
+CCountry,0xCDC,controller,ptr,C,cp,"vt[0x44]() -> session manager, +0x38 session (vt[0x18] queue command)"
+CCountry,0xCE4,pendingActions,list,C,cp,"nodes {action*, prev, next, u8}; tail +0xCE8, count +0xCEC; saved as diplomatic_action (0x8AF)"
+CCountry,0xD38,vassalList,vector,I,cp,8-byte refs
+CCountry,0xDE4,totalProvinceValue,i32,I,cp,divisor of Province_GetPeaceValue and war score
+CProvince,0x12C,ownerIndex,u32,C,cp,with tag +0x128
+CProvince,0x134,controllerIndex,u32,C,cp,with tag +0x130
+CProvince,0x358,controllerChangeDate,i32,C,cp,Province_SetController setDate
+CProvince,0x38,nationalismTimer,i32,I,cp,set from defines+0x40 on transfer
+CProvince,0xEC,units,list,I,cp,Units_UpdateHostileFlags
+CProvince,0x170,blockaded,u8,I,cp,Province_UpdatePortBlockade
+Pop,0x250,money,i64,I,cp,zeroed by TransferProvinces
+CState,0x258,bank,i64,I,cp,reduced by pop +0x250 on transfer
+Relation,0x24,vassal,CVassal*,C,cp,po_make_puppet / Vassal_Release
+Relation,0x34,war,CWar*,C,cp,null = not at war; CPeaceAction and AI_EvaluatePeaceOffer stop without it
+Relation,0x38,warSubsidies,CWarSubsides*,C,cp,CWarSubsidiesAction_Execute
+Relation,0x3C,value,i32,C,cp,Country_ChangeRelation; clamp g_relationMin..g_relationMax
+Relation,0x40,influenceLevel,u32,C,cp,"5 sphere, 4 after removal; +0x44 date"
+Relation,0x48,influence,i32,C,cp,checked against INFLUENCE_COST
+Relation,0x64,diplomatArrival,u32,C,cp,now + DIPLOMAT_TRAVEL_TIME
+Relation,0x6C,truceUntil,u32,C,cp,hours; written both ways at peace; truce_with
+Relation,0x71,dirty,u8,C,cp,
+CCommand,0x30,typeKey,u32,C,cp,prototype hash key (= +0x2C)
+CCommand,0x38,identity,u32,C,cp,field 0xF3
+CDiplomaticAction,0x08,actor,CountryRef,C,cp,key actor 0x381
+CDiplomaticAction,0x10,recipient,CountryRef,C,cp,key recipient 0x382
+CDiplomaticAction,0x18,date,u32,C,cp,creation date
+CDiplomaticAction,0x1C,lastCommandDate,u32,C,cp,set by CreateCommand / AddPending
+CDiplomaticAction,0x20,shownToPlayer,u8,C,cp,set once GuiOwner_UpdateDialogs showed the incoming box (vt[0x34]); reset on copy
+CDiplomaticAction,0x24,status,u32,C,cp,"0 new, 1 pending, 2 declined, 3 accepted"
+CDiplomaticActionCommand,0x3C,action,CDiplomaticAction*,C,cp,owned; command type 900
+CPeaceAction,0x28,offer,CPeaceOffer,C,cp,embedded 0x70; object 0x98
+CPeaceOffer,0x08,demand,u8,C,cp,1 = actor demands (winner); dialog writes it as action+0x30
+CPeaceOffer,0x09,better,u8,C,cp,PO_ISBETTER; forces the refusal penalty
+CPeaceOffer,0x0C,flags2,vector<int>,C,cp,selection for +0x2C (2 = locked)
+CPeaceOffer,0x1C,flags,vector<int>,C,cp,selection for +0x3C
+CPeaceOffer,0x2C,warGoals2,vector<CWarGoal>,C,cp,goals of side +0x4C (I)
+CPeaceOffer,0x3C,warGoals,vector<CWarGoal>,C,cp,goals of side +0x5C (I)
+CPeaceOffer,0x4C,sideB,vector<CountryRef>,I,cp,
+CPeaceOffer,0x5C,sideA,vector<CountryRef>,I,cp,
+CPeaceOffer,0x6C,valid,u8,C,cp,set by FillFromWar
+CWarSubsidiesAction,0x28,amount,i64,C,cp,2^15 fixed
+CPayingReparations,0x08,receiver,CountryRef,C,cp,"0x24 bytes; +0x10 payer, +0x18 start date"
+CWarGoal,0x08,selectedScratch,u32,I,cp,peace sort scratch; not saved
+CWarGoal,0x10,country,CountryRef,C,cp,"third party (transfer, release, sphere); key country 0x2F0"
+CWarGoal,0x20,receiver,CountryRef,C,cp,"key receiver 0xC2: the target, the side that loses"
+CWarGoal,0x2C,score,i32,C,cp,
+CWarGoal,0x30,change,i32,C,cp,
+CWarGoal,0x34,date,u32,C,cp,
+CWarGoal,0x38,isFulfilled,u8,C,cp,
+CWarGoal,0x3C,region,i32,C,cp,po_colony
+CWar,0x2C,attackers,vector<CountryRef>,C,cp,leader first
+CWar,0x3C,defenders,vector<CountryRef>,C,cp,
+CWar,0xE0,goalMap,map,C,cp,per-country goal records (+0x10 vector<CWarGoal>)
+CWar,0xFC,isGreatWar,u8,C,cp,GW multipliers
+CWar,0x100,direction,i32,I,cp,PEACE_WAR_DIRECTION_FACTOR term
+CCasusBelliType,0x100,penalty_factor,u32,C,cp,x1000 (OnKeyword jump table)
+CCasusBelliType,0x104,break_truce_prestige_factor,u32,C,cp,
+CCasusBelliType,0x108,break_truce_infamy_factor,u32,C,cp,
+CCasusBelliType,0x10C,break_truce_militancy_factor,u32,C,cp,
+CCasusBelliType,0x114,good_relation_infamy_factor,u32,C,cp,
+CCasusBelliType,0x118,good_relation_prestige_factor,u32,C,cp,
+CCasusBelliType,0x11C,good_relation_militancy_factor,u32,C,cp,
+CCasusBelliType,0x1D4,great_war_obligatory,u8,C,cp,
+CCasusBelliType,0x1DC,all_allowed_states,u8,C,cp,set: WarGoal_GetTargetStates takes every receiver state that passes allowed_states and the dialog asks for none
+CEU3Dialog,0x04,window,CEU3DialogGui*,C,cp,instance of the eu3dialogtype
+CEU3Dialog,0x08,guiOwner,ptr,C,cp,"vt[0x34] gui, vt[0x3C] parent, vt[0x44] session (+0x38 queue vt[0x18])"
+CEU3Dialog,0x0C,agreeGlue,CButtonObserverGlue2C,C,cp,AgreeButton -> vt[0x18]
+CEU3Dialog,0x38,declineGlue,CButtonObserverGlue2C,C,cp,DeclineButton -> vt[0x1C]
+CEU3Dialog,0x64,closed,u8,C,cp,the manager deletes the dialog next frame
+CPeaceDialog,0x68,guiOwner,ptr,C,cp,
+CPeaceDialog,0x6C,action,CPeaceAction*,C,cp,action->vt[0x30]() clone; offer at +0x28
+CPeaceDialog,0x70,offerGlue,CButtonObserverGlue2C,C,cp,CPeaceDialog_OnOffer
+CPeaceDialog,0x9C,demandGlue,CButtonObserverGlue2C,C,cp,CPeaceDialog_OnDemand
+CWarGoalDialog,0x6C,action,ptr,C,cp,action clone (vt[0x20] type token)
+CWarGoalDialog,0x70,cancelGlue,CButtonObserverGlue2C,C,cp,both cancel_select buttons
+CWarGoalDialog,0x9C,actor,CountryRef,C,cp,
+CWarGoalDialog,0xA4,target,CountryRef,C,cp,
+CDiplomacyView,0x4C,window,ptr,C,cp,country_diplomacy instance
+CDiplomacyView,0x54,guiOwner,ptr,C,cp,passed to CreateDialog and GuiOwner_AddDialog
+CDiplomacyView,0x178,actionGlue,CButtonObserverGlue2C,C,cp,all action_option buttons -> CDiplomacyView_OnActionClick
+CDiplomacyView,0x2AC,addWargoalGlue,CButtonObserverGlue2C,C,cp,add_wargoal button
+CDiplomacyView,0x388,selectedTag,u32,C,cp,the selected country (starts as the player)
+CDiplomacyView,0x38C,selectedIndex,u32,C,cp,
+ListBoxItem,0x1C,windowVtable,ptr,I,cp,window wrapper interface
+ListBoxItem,0x20,window,ptr,C,cp,the row's window (destroyed with vt[0x50])
+CPeaceGoalEntry,0x2C,warGoal,CWarGoal*,C,cp,
+CPeaceGoalEntry,0x30,index,u32,C,cp,
+CPeaceGoalEntry,0x38,checkGlue,CCheckBoxObserverGlue,C,cp,pairs +0x10 / +0x18 = thunk 0x0077A0A0 (vt[4])
+CGoalEntry,0x28,target,CountryRef,C,cp,
+CGoalEntry,0x30,cb,CCasusBelliType*,C,cp,
+CGoalEntry,0x34,dialog,CWarGoalDialog*,C,cp,
+CGoalEntry,0x38,buttonGlue,CButtonObserverGlue,C,cp,0x4C pairs glue
+CButtonObserverGlue2C,0x04,owner,ptr,C,cp,ECX of the handler
+CButtonObserverGlue2C,0x08,onClick,code*,C,cp,"slot 2, no args; +0x20 slot 1 (button); +0x24 slot 9 right click"
+GuiButton,0x54,observers,ObserverList,C,cp,"vt[4] add, vt[8] remove"
+GuiButton,0x70,state,u32,C,cp,"0 normal, 1 pressed, 2 released, 3 disabled"
+GuiButton,0x4F,visible,u8,C,cp,
+GuiButton,0x154,userIndex,u32,C,cp,vt 0xD4 / 0x80
+GuiTextBox,0xA0,textSprite,ptr,C,cp,ESI of TextSprite_SetText
+GuiTextBox,0xDC,text,std::string,C,cp,assigned before TextSprite_SetText
+FixedWindow,0x248,backgroundButton,ptr,I,cp,the backGround button (not in the button lists)
+FixedWindow,0x424,subWindows,vector,C,cp,"{std::string name, window*} 0x20 bytes"
+GuiOwner,0x60,dialogs,list,C,cp,"nodes {dlg, prev, next}; tail +0x64, count +0x68"
+CEU3Application,0x11C,gfxDatabase,ptr,C,cp,.gfx blocks go to (+4)->vt[0xC]
+CEU3Application,0x120,gui,CEU3Gui*,C,cp,= g_gui
+CInGameIdler,0x70,mapClicksEnabled,u8,C,cp,CProvince_OnClick returns when 0
+CScrollbar,0x54,model,ptr,I,cp,"vt[0] set range, vt[0x1C](value, 1, 1) set, vt[0x10]() float value, vt[4] add observer"
+World,0xA84,agreements,list,C,cp,"diplomatic agreement objects; tail +0xA88, count +0xA8C, lock +0xA90"
+World,0xAB4,militaryMgr,struct,I,cp,arg of Military_RepositionArmies
+World,0xD1C,gameRunning,u8,I,cp,gates the transfer cleanup and the post-peace refresh
+CWarGoalBaseAction,0x28,warGoal,CWarGoal,I,cp,"embedded; cb at +0x34, province at +0x50"
+CWarGoalBaseAction,0x68,callAllies,u8,C,cp,declare war only
+CDiplomacyDialog,0x68,actionClone,ptr,C,cp,the clone Accept / Decline send
+CDiplomacyDialog,0x6C,pendingAction,ptr,C,cp,the pending action; removed and deleted by the dtor
+CInGameIdler,0x1D74,diplomaticDialogManager,ptr,I,cp,receives incoming offer dialogs (CInGameIdler_ShowDiplomaticDialog)
+CStateSelectionItem,0x28,dialog,CWarGoalDialog*,C,cp,
+CStateSelectionItem,0x2C,state,CState*,C,cp,"click and tooltip read only +0x48/+0x4C of it; the name comes from vt[0x20]"
+CEventScope,0x18,province,u32,I,cp,"province scope of war-goal evaluation (WarGoal_GetTargetStates, WarGoal_IsValid allowed_states); CAnyOwnedProvinceTrigger walks the state's provinces when set"
+CEventScope,0x2C,fromTag,u32,C,cp,"FROM {tag +0x2C, index +0x30}; read from the current scope by triggers with the FROM flag (+0x19); WarGoal_IsValid writes the goal's third country here in the THIS scope only"
+CEventScope,0x40,isCopy,u8,I,cp,set to 1 by EventScope_Copy
+CCasusBelliType,0xA8,allowed_states.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_states (+0xA0), end +0xAC; non-empty and not all_allowed_states: the war-goal dialog asks for a state (the treaty editor also for po_demand_state)"
+CCasusBelliType,0xE0,allowed_countries.children,vector<CTrigger*>,C,cp,"TriggerBlock +0x08 of allowed_countries (+0xD8), end +0xE4; non-empty: the dialog asks for a third country"
+CTreatyAction,0x00,vftable,ptr,C,cp,"Script Extender: copy of CPeaceAction's 38 slots with the RTTI locator of CDiplomaticAction; object 0xA8 bytes, CPeaceAction layout up to 0x98 (treaties.md)"
+CTreatyAction,0x98,money,i64,C,cp,Script Extender: the actor pays the recipient when > 0 (2^15 fixed point); save / command field se_treaty_money
+CTreatyAction,0xA0,budget,int,C,cp,Script Extender: points of a forced (dismantle) treaty in war score; 0 for an ordinary treaty; save / command field se_treaty_budget
+CMessageType,0x00,vftable,ptr,C,cp,0x00E0BF74; object 0x3C bytes (MessageTypes_Read)
+Sprite,0xD0,texture,ptr,I,cp,null when the .gfx was parsed after the game's .gfx loop; Sprite_Draw crashes at 0x00A28A6B
+CCountry,0x67C,atWar,u8,C,cp,"recomputed by FUN_00517AF0; AI_ConstructionUpdate builds nothing while set; diplomacy slot 36 tests it (wars.md)"
+CCountry,0x7D8,colonialStates,int,C,cp,"states with CState+0x84 > 0, recounted by Country_Recalculate; < 1 (and not GP) divides CHANCE_BUILD_NAVAL_BASE by 3"
+AiConstructionJob,0x30,countdown,int,I,cp,"Rng_Next() % 17 + 10 on each run of AI_ConstructionUpdate"
+AiConstructionJob,0x68,lastDay,int,C,cp,day of month of the last run (once a day at most)
+AiConstructionJob,0x6C,ruleFlags,u8[9],C,cp,"build/expand/open factory, build_railway, destroy_factory, GP&build_factory_invest, GP&expand_factory_invest, can_invest_in_pop_projects, build_railway_invest"
+AiConstructionJob,0x78,railroadBuilding,CBuilding*,C,cp,first province building of type 2 (cached once)
+AiConstructionJob,0x7C,fortBuilding,CBuilding*,C,cp,first province building of type 4 (cached once): what the fort builder builds
+AiConstructionJob,0x80,navalBaseBuilding,CBuilding*,C,cp,first province building of type 3 (cached once)
+World,0xCF8,crisisManager,CCrisisManager*,C,cp,vtable 0x00DF31A4; +0x08 current CCrisis*; +0x0C date the last crisis ended (cooldown)
+CCrisis,0x08,targetProvince,int,C,cp,first province of the target state
+CCrisis,0x0C,colonialRegion,ptr,C,cp,colonial crisis only
+CCrisis,0x10,temperature,int,C,cp,0..100000
+CCrisis,0x14,attackerLeader,"{tag, index}",C,cp,"the claimant or liberated country (state+0x284/+0x288); colonial: the second competitor"
+CCrisis,0x1C,defenderLeader,"{tag, index}",C,cp,"the state owner (state+0x58/+0x5C); colonial: the first competitor"
+CCrisis,0x2C,attackers,"vector<{tag, index}>",C,cp,attacker side
+CCrisis,0x3C,defenders,"vector<{tag, index}>",C,cp,defender side
+CCrisis,0x4C,interested,"vector<{tag, index}>",C,cp,interested parties
+CCrisis,0x5C,pendingBacker,"{tag, index}",C,cp,pending backer ask; +0x64 whether it is for the attacker
+CCrisis,0x68,attackerBackerQueue,queue,C,cp,Great Powers to ask to back the attacker (Crisis_BuildBackerQueue)
+CCrisis,0x78,defenderBackerQueue,queue,C,cp,Great Powers to ask to back the defender
+CCrisis,0x88,attackerGoal,CWarGoal (0x40),C,cp,war goal of the attacker side
+CCrisis,0x98,defenderGoal,CWarGoal (0x40),C,cp,war goal of the defender side
+CCrisis,0xB0,interestFired,u8,C,cp,the interest on_action already fired
+CConsoleCommand,0x00,enabled,u8,C,cp,0: Console_Dispatch refuses it (developers only)
+CConsoleCommand,0x01,hidden,u8,I,cp,1: left out of the command list (only cthulhu)
+CConsoleCommand,0x04,name,const char*,C,cp,
+CConsoleCommand,0x08,aliasCount,int,C,cp,
+CConsoleCommand,0x0C,aliases,const char*[3],C,cp,
+CConsoleCommand,0x18,description,const char*,C,cp,
+CConsoleCommand,0x1C,handler,fn*,C,cp,"cdecl (result*, const vector<std::string>* args) -> result*; args = words after the name; result = {u8 ok; std::string text at +4}, caller copies and frees the text"
+CConsoleCommand,0x20,argCount,int,C,cp,
+CConsoleCommand,0x24,argNames,const char*[10],C,cp,"for Console_CommandUsage; entry size 0x4C"
+Pop,0x64,province,CProvince*,C,cp,
+Pop,0x68,type,CPopType*,C,cp,"type+0x3C strata: 0 poor, 1 middle, 2 rich"
+Pop,0x180,money,i64,C,cp,"the save's money (0x4F0); Pop_AddMoney"
+Pop,0x188,workingCash,i64,I,cp,"artisan input budget; Pop_AddWorkingCash"
+Pop,0x1D8,incomeByCategory,i64[8],C,cp,"category 0 needs, 1 unemployment (I), 2 pay, 3 artisan budget transfer, 4 money effect, 5 ?, 6 bank withdrawal"
+Pop,0x218,dayIncome,i64,C,cp,
+CProvince,0x9C,modifierSum,i64*,C,cp,"one entry per g_modifierDefinitions, value x1000 in the low half; Province_RecalcModifiers"
+CCountry,0xA60,modifierSum,i64*,C,cp,"the country's modifier sum, same layout (rich_vote at +0x108); a second sum at +0xA90 (?)"
+CModifier,0x18,values,i64*,C,cp,"one entry per modifier definition, value x1000"
+CModifierDefinition,0x20,token,int,C,cp,"script token id of the key (0x681 rich_income_modifier)"
+CProvince,0x328,flags,CFlags,C,cp,"set_province_flag / clr_province_flag; saved under `flags` when the count (+0x334) is not 0; parser interface at +0x34C"
+CCountry,0x1B0,flags,CFlags,C,cp,"set / clr / has_country_flag; parser interface at +0x1D4 (CCountry_WriteFields, CCountry_OnKeyword)"
+CFlags,0x00,vtable,ptr,C,cp,"CTernary<CFlag*,0> base: slot 2 find(const char* name) -> entry or 0 (thiscall, RET 4), slot 6 insert, slot 7 free nodes"
+CFlags,0x04,root,ptr,C,cp,"tree of nodes {entry, ?, left +0x08, next +0x0C, right +0x10} (CFlags_WriteSet walk)"
+CFlags,0x0C,count,u32,I,cp,entries ever added (clearing keeps the entry)
+CFlags,0x24,parserVtable,ptr,C,cp,"CFlags::vftable of the persistent interface: slot 1 writes (CFlags_WriteSet), slot 3 reads a block"
+CFlagEntry,0x00,name,std::string,C,cp,0x20-byte entry
+CFlagEntry,0x1C,set,u8,C,cp,"1 = set; clr_*_flag writes 0"
+CHasCountryFlagTrigger,0x1C,flagName,std::string,C,cp,0x38-byte object; has_global_flag has the same layout
+CCountry,0xA38,controlledProvinces,list,I,cp,"nodes {province, ?, next}; Country_HasColonialRangeTo walks it and skips controller != owner, so owned provinces (I)"
+CCountry,0x10C,distanceCache,ptr,I,cp,"map keyed by province id, entry +0x10 distance, +0x14 id; Province_Distance; meaning open"
+CProvince,0x58,id,u32,C,cp,"province id (Province_Distance, Country_HasColonialRangeTo)"
+CProvince,0xDC,distanceProxy,u32,I,cp,"province whose distance node stands in when +0xE0 is -1 (ProvinceSource_PairDistance)"
+CProvince,0xE0,distanceNode,i32,I,cp,"index into the province source's distance table; -1 = none"
+CProvince,0x15C,colonisation,ptr,I,cp,"-> CColonizationData* (colonists at +0x98, 4 x 0x1C; MapColor_Colonial)"
+CProvince,0x164,colonisable,u32,I,cp,"non-zero with +0x15C: the province is being colonised / colonisable (MapColor_Colonial, Country_CanColonizeProvince)"
+ProvinceSource,0x2AA4,provinces,CProvince*[],I,cp,by id (ProvinceSource_PairDistance)
+ProvinceSource,0x2AB0,distanceNodes,u32,I,cp,count n of the triangular distance table
+ProvinceSource,0x2AB4,distances,u16[],I,cp,"pair (lo, hi) at (n-1) x lo - lo(lo-1)/2 + hi; map units (x1000 when read)"
+ProvinceSource,0x2AB8,distanceKnown,u8[],I,cp,same index: the pair has a distance
+PositionType,0x64,x,i32,C,cp,"positionType of a .gui (g_gui vt[0x48](name)); CDiplomacyView_Setup: diplomacy_actions_pos, diplomacy_actions_wrap_count (x = columns)"
+PositionType,0x68,y,i32,C,cp,
+GuiWindow,0x494,element,ptr,I,cp,"CDiplomacyView_Setup calls its vt[0xB0]() right after vt[0x18](packed {i16 x, i16 y}) places the window; vt[0x60](out) -> {i16 x, i16 y}* size; vt[0xBC](const std::string* name, child) attaches a subwindow"

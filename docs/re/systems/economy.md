@@ -87,6 +87,30 @@ the negated amount.
 `Loan_CalculateInterest` (`0x00523400`) applies `LOAN_BASE_INTEREST` and a minimum interest; the
 external "no minimum interest" patch NOPs two blocks at `0x005237D2` / `0x005237DA`.
 
+## Pop income and the income modifiers (2026-10-31)
+
+Names and addresses in `symbols/` (`Pop_AddMoney`, `Pop_AddWorkingCash`, `PopIncome_Tax`, struct rows
+`Pop`, `CProvince+0x9C`, `CCountry+0xA60`).
+
+- **Modifier sums.** A modifier is a full array of one i64 per definition (`CModifier+0x18`, value x1000);
+  the index is the definition's position in `g_modifierDefinitions`. The country keeps its sum at
+  `+0xA60`, the province its own at `+0x9C`. `Province_RecalcModifiers` adds only province-side
+  sources to the province sum; no country modifier reaches it. **[C]**
+- **Paying a pop.** `Pop_AddMoney` adds to money (`+0x180`), to an income category and to the day's
+  income, with no modifier. The income calls are the seven that first take income tax (`PopIncome_Tax`)
+  and pass the rest: artisan sales, the pay of a pop type from its factories and RGOs, and the
+  per-type social payments (pensions, unemployment benefit **[I]**). Its other callers move money
+  (bank withdrawals, pop merges, needs purchases, the money effect). **[C]** list, **[I]** meanings.
+- **The vanilla bug.** `rich_income_modifier` (87), `middle_income_modifier` (88) and
+  `poor_income_modifier` (89) are read only by `Pop_AddWorkingCash`, which only the artisan code calls:
+  it scales by `1 + modifier` every change of the artisan's input budget (`+0x188`): money and bank
+  transfers into it, input purchases, the share of sales kept for inputs. It reads the province sum, so
+  country modifiers (technologies, inventions, reforms, national value, `add_country_modifier`) have no
+  effect at all, and a province modifier affects artisans only, and not their income. **[C]**
+- **Fix** (Script Extender `income_modifiers`, sites `se_income_*`): the seven income calls scale the
+  taxed amount by `(1000 + province + country modifier of the strata) / 1000` (at least 0), and the
+  strata switch of `Pop_AddWorkingCash` is skipped (factor 1). Tax stays on the unscaled amount. **[C]**
+
 ## Periodic report
 
 `DayTick` keeps a two-slot history of 0x70-byte economic records (`g_econReportHistory` `0x012624E8`,

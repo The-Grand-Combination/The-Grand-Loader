@@ -530,3 +530,259 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Found (decompilation, call bytes checked in the exe):** exclusive fullscreen loses the device on every alt-tab (1 s sleep, full Reset, retries on failure); the game already has a borderless mode with a windowed device, selected by `fullScreen=no, borderless=yes`; the mouse is Win32 `GetCursorPos` with no capture or clipping; edge scroll never checks that the cursor is inside the window. Details in `systems/ui-console.md`, "Window, focus and mouse".
 - **Built:** `borderless_fullscreen` forces the game's borderless mode at the primary monitor's size before the window is created; `fix_edge_scroll` clears the edge-scroll flag of the active-window camera call when the game is not in the foreground or the cursor is outside its client area.
 - **Open:** the WM_ACTIVATE wParam check (focus flag after a restore), stuck mouse buttons without capture, the activation click reaching the map, the bordered-window cursor offset; not patched yet.
+
+## 2026-10-23 — `parallel_events` shadow run clean; on by default again
+
+- **Run (user):** `parallel_events = 2`, every other patch on, 1836-1840 (five game years), single player: 10 677 946 trigger results compared, **0 mismatches**, 0 passed through; 5 000-6 200 triggers listed per day, 12-386 events fired per 30 days (same-day chains included). The 2026-10-17 report stays unreproduced.
+- **Default** `parallel_events = 1` in the shipped ini.
+
+## 2026-10-23 — Windowed edge scroll: mouse position and `edge_scroll_lock`
+
+- **Report (user):** in windowed mode with `fix_edge_scroll`, the map scrolls only with the cursor placed exactly on the edge, and never upwards.
+- **Found:** mouse vt[0x4C] (`0x00A7A970`, slot `0x00E4397C`) is GetCursorPos minus GetWindowRect plus a hard-coded frame (4 px left, SM_CYDLGFRAME + SM_CYCAPTION top), thinner than the Windows 10/11 frame: the top and left 6 px bands of `Camera_Update` lie on the title bar and border, which `fix_edge_scroll` excludes.
+- **Built:** `fix_edge_scroll` replaces the slot with a client-area position (ScreenToClient). `edge_scroll_lock` (mouse counts, 0 = off): the cursor is clipped to the client area while the camera update runs with focus; raw mouse input (WM_INPUT, window procedure subclassed) accumulates motion pushed against an edge, and past the value the cursor is released just outside it. Untested.
+
+## 2026-10-23 — Map modes and province buildings (Script Extender research)
+
+- **Question:** for the new Script Extender for TGC: how does the infrastructure map mode work, and how can it show any province building? How are province buildings expanded, and can a bulk upgrade post the same commands as the expand button?
+- **Answer:** → [systems/map-modes.md](systems/map-modes.md), [systems/buildings.md](systems/buildings.md). Infrastructure is `MAPMODE` 4 (`mapmode_6`); its handler is loaded by a relocated `MOV EAX,imm32` at `0x0064B151` and its colour function (`0x008014D0`) has one caller; `CInGameIdler_RefreshMapMode` redraws. `Province_CanExpandBuilding` gates the button, Ctrl-click, the AI and the command's Validate; a bulk upgrade is `ConstructBuildingCommand_ctor` + `NetSession_QueueCommand` per province, as vanilla's Ctrl-click (one state) and the AI do.
+- **Found on the way:** vanilla never checks that the builder owns the province (only owner == controller); `type =` other than factory / rgo / infrastructure / naval_base becomes 4 (fort), so in TGC `g_buildingDb+0x38` (`build_fort_in_capital`, the AI's fort) is the **bank**, and the AI never builds universities or banks. Script keyword ids: `raw/script-tokens.tsv`.
+- **Method:** two research passes over the decompilation and a private copy of the Ghidra project; the hook-site and entry bytes were re-read from the exe.
+- **Open:** listed at the end of both pages; the TGC bank-as-fort effect and the one-modifier-per-building limit need an in-game check.
+
+## 2026-10-23 — Script Extender: `building_map_mode`
+
+- **Built:** the infrastructure map mode (`MAPMODE` 4, button `mapmode_6`) shows one province building at a time. A click on the button while the mode is shown selects the next province building of `g_buildingDb+0x1C` (custom types included); the first click selects the railroad. Only the player's provinces are coloured, port buildings only on coastal ones: solid blue = at the highest level the current technology allows (`min(max_level, techMax − terrain reduction)`, as in `Building_CanBuildInProvince`), blue with khaki stripes = can be expanded, red with khaki stripes = anything else. A level under construction counts as built (construction list `CProvince+0xD8`, entry vt slot 12). The stripes are made thicker by swapping the stripes entry of the texture manager while button 6 is shown (pre-hook of `MenuBar_SetMapModeButtons`). The menubar tooltip title becomes "<MAPMODE_6> - <building>", with the texts read from the localisation CSVs. Hook sites: rows `se_*` in `symbols/patch_sites.csv`; → [systems/map-modes.md](systems/map-modes.md).
+- **Crash and fix:** the first version read the building's localised name from the game's table, taking `LocalisationVariant+0x10` as a `std::string`. It is a parsed rich-text object (vectors of polymorphic segments), so the game crashed with an access violation in a `memcpy` with a garbage size. **Correction:** the game keeps no plain text of a localisation entry → [systems/ui-console.md](systems/ui-console.md#localisation-2026-10-23). The plugin now reads the CSVs itself (`-mod=` .mod file → `path` and `replace_path`, mod folders first, same-named files replace vanilla ones, first key wins, column 2) and passes the composed title to `Localize` as a "key", which a missing key shows verbatim.
+- **Found on the way:** the layout of `CButtonObserverGlue<CInGameIdler>` (nine handler pairs, slot 2 = the click); `MapModeButton_Infrastructure` skips the click sound when the mode is already 4; the 0.3 dim of `MapColor_Infrastructure` depends on `g_mapDimFlagA/B` and `[prov+0x5C]+0x360 < 1`; `CCountryTechState+0x08` is a pointer to the max-level array; `CProvince+0x158` is read as a 32-bit int.
+- **Untested in game after the fix:** the tooltip title from the CSVs (including the TGC `replace_path` case and a building without a localisation key), the thick-stripes swap across a map reload and a device reset, and the colours of every TGC province building (port buildings, `one_per_state`, constructions in progress). The CSV reader is the plugin's model of the game's loader, not checked against the loader code.
+
+## 2026-10-24 — Events: body keywords, the event window, and what a `background` command needs
+
+- **Question:** for the Script Extender: how is an event body parsed and its window built, and what would a new body command need to change the window background, not only the picture?
+- **Answer:** → [systems/events.md](systems/events.md). `CEvent` vt slot 3 is the generic `Persistent_ReadBlock`; slot 4, `Event_OnToken` (`0x008A6280`), is a `switch` over 19 keywords (title `+0xDC`, desc `+0x114`, picture `+0x184`, the news strings, `is_triggered_only` / `allow_multiple_instances` / `major` / `fire_only_once` / `election` at `+0x1A0..+0x1A4`, news `+0x1A5`, issue_group `+0x1A8`). Any other key is logged as "Unexpected <key>" and its value skipped; the event is kept. The window type (election, major, country or province) comes from two flags and the scope; its `Background` child and sprite are fixed in the `.gui`/`.gfx`, so no event can choose its background today. The picture is a file: `<gfx>/pictures/events/<picture>.tga` loaded into a `TexturedSprite` with the `GFX_event_no_image` template and set with the icon's `vt[0xE0]` (SetSprite).
+- **Design found:** `background` is already a keyword (token `0x99`), so a game without the plugin only logs one error per event. Plugin: replace `CEvent` vt slot 4 (`0x00E2C844`) to keep the value, wrap the two `EventWindow_ctor` calls (`0x008A8476` in `Event_Fire`, `0x0041F54E` in the console `event` command), find `Background` with `window->vt[0x44]` and give it a sprite made from a `GFX_` name (`SpriteTypes_Find` → `type->vt[0x48]()`) with `Button_SetSprite` (`0x009EF5B0`, `CEU3Button` slot `0xE0`). Display only: no multiplayer or save impact.
+- **Found on the way:** the GUI type factory (`0x009A41C0`, EU3 layer `0x00646220`), the runtime SetSprite of buttons and icons (old sprite deleted, element size kept), `SpriteTypes_Find`'s hash, the parser fields (`+0x20` key token, `+0x24` key text, `+0x228` value type, `+0x22C` value text). The old notes called slot 3 the event body parser and left `+0x1A0`, `+0x1A2` and `+0x1A4` unnamed; corrected.
+- **Method:** decompilation plus capstone disassembly of the exe for string arguments and call conventions; the original bytes of the three proposed hook sites were read from the exe.
+- **Open:** whether `vt[0x44]("Background")` returns the background element, whether it is a `CEU3Button`, and whether `vt[0x48]` works for a `spriteType` used as `quadTextureSprite`: all to check in game. Rows in `symbols/*.csv`; the hook sites are `se_event_*` (proposal).
+
+## 2026-10-24 — Script Extender: `event_background`
+
+- **Built:** `background = "GFX_..."` in an event's body. `CEvent` vt slot 4 (`0x00E2C844`) is replaced: token `0x99` stores the value per event, other keys go to `Event_OnToken`. The two `EventWindow_ctor` calls (`0x008A8476`, `0x0041F54E`) go through a naked thunk (the by-value scope points to itself and must not be copied); after the constructor, `window->vt[0x44]("Background")`, `SpriteTypes_Find(g_renderDevice+0xA0, name)`, `type->vt[0x48]()`, `child->vt[0xE0](sprite)`. Rows `se_event_*` (experimental); symbols imported into the local Ghidra project (388 functions, 0 not at a function start). Not yet on the Ghidra Server (password needed).
+- **Untested in game:** the three checks at the end of the command section of [systems/events.md](systems/events.md); the log line `event_background: <sprite> (Background element vtable ...)` should show `00E08BEC` (CEU3Button) or `00E3CE50`.
+
+- **Changed the same day (user):** the value is a file, as for `picture`, not a sprite name: `background = "war"` → `gfx/pictures/events/backgrounds/war.dds` or `.tga`, mod first, nothing to declare. Found for it: `g_searchPaths` folder arrays (`+0x84` game, `+0x244` mod, `+0x4C` mode), `PHYSFS_exists` `0x00B21820`, `TextureManager_LoadFile` `0x009BC490` (PhysFS, `.dds` tried before `.tga`). The log line now names the file: `event_background: <path> (Background element vtable ...)`.
+
+## 2026-10-24 — Vassal colours on the political map
+
+- **Question:** where does the political map get a country's colour, and how can a substate or puppet be drawn as a shade of its overlord?
+- **Answer:** `Country_GetMapColor` (`0x004FB5C0`, ESI = country, EAX = out `CColor`) returns the per-government colour or the base colour. `MapColor_Political` and `MapColor_PoliticalPlain` call it for each province's owner and controller. The same function also feeds a file rewrite (`0x0051B870`) and UI charts, so only the four map call sites are redirected. The overlord fields were read from the `is_substate` / `is_vassal` / `substate_of` / `vassal_of` triggers. → [systems/map-modes.md](systems/map-modes.md#political-colours-2026-10-24)
+- **Correction:** `structs.csv` had `+0xCF4`/`+0xCF5` as `hasOverlord`/`isOverlord` and `+0x142C` as `overlord`. They are `isSubstate`, `isVassal` (not a substate) and the sphere leader's index; the overlord is `+0xCF8/+0xCFC`. `ai-diplomacy.md` row 3 was fixed accordingly.
+- **Built:** Script Extender `vassal_map_color` (ini `vassal_map_color`, `vassal_map_color_own` = percent of the vassal's own colour, default 30). The four `CALL` sites (`se_vassal_color_*`) go to a thunk that runs the original, then blends the vassal's colour with its overlord's. XMM1 (the dim factor of `MapColor_Political`) and every other register are kept. Builds clean; not yet tested in game.
+- **Open:** whether the political mode recolours when a country becomes or stops being a vassal, or only on the next recolour; which screens `MapColor_PoliticalPlain`'s other callers (`0x00756170`, `0x0076B930`, `0x0076D340`, `0x00777470`) are.
+
+## 2026-10-24 — Peace options and `po_demand_province`
+
+- **Question:** how does `po_demand_state` work end to end, and can a CB demand a single province (a new keyword `po_demand_province = yes`, for mods)?
+- **Answer:** peace options are a list of `{token, prev, next, u8}` nodes at `CCasusBelliType+0x120`, which every user walks by token id.
+  - `WarGoal_Execute` (`0x0094E660`) hands the state's province ids to `TransferProvinces` (`0x004B5A90`), or annexes the target when the state is its last one with the capital.
+  - `WarGoal_PeaceCost` (`0x00951920`) sums a per-province value over the state. Infamy (`0x009500E0`) is a define times `badboy_factor`.
+  - New keywords are possible because the lexer looks each word up lazily, and `Token_AddDynamic` (`0x009902D0`) adds names to its table. → [systems/casus-belli.md](systems/casus-belli.md) ("Peace options", "Lexer tokens")
+- **Built:** Script Extender `demand_province`. It adds the keyword as a variant of `po_demand_state` that transfers, prices and annexes by the war goal's province (5 patch sites `se_demand_province_*`). Not tested in game.
+- **Also found:** `country+0xE4C` is the state count (the list at `+0xE44`); it was labelled `aiScore`. `po_create_country` and `po_concede_defeat` are not parsed by `OnKeyword`.
+- **Open:** which province the war-goal dialog and the AI put in `CWarGoal+0x28`; the ticking war score and the AI value still use the whole state.
+
+## 2026-10-24 — Diplomatic actions, peace offers and the diplomacy UI (treaty research)
+
+- **Question:** what would a peacetime "treaty" need? Two countries trade CB terms (provinces) and money; the AI evaluates the deal like a peace offer.
+- **Answer:** the diplomatic-action framework, the peace offer and its AI rule, the peace options outside a war, the command factory, the province-transfer helpers and the diplomacy dialogs, with ~240 new function rows, ~50 globals and ~125 struct fields. → [systems/diplomacy.md](systems/diplomacy.md); the plan → [systems/treaties.md](systems/treaties.md)
+- **Corrections:**
+  - `0x006480E0` is `GuiOwner_AddDialog`, not `Window_Show`.
+  - `0x00947210` / `0x00942540` are the per-frame updates of `CPeaceDialog` / `CWarGoalDialog`, not `Command_CanExecute_*`.
+  - `CCountry+0xDA8` reads as "at war with", not "vassals".
+  - Relation `+0x20..+0x30` are agreement pointers (`+0x2C` reparations), not lists.
+  - `CWarGoal+0x18` is the `actor` (beneficiary); the save key `receiver` is `+0x20`, the target.
+  - `g_economyDefines` is the defines root.
+- **Answered:** casus-belli.md question 4 for the dialog. The war goal state list stores the state's first province.
+- **Side note for `event_background`:** window `vt[0x44]` finds icons only, and the event window's `Background` is a `guiButtonType` (and the `backGround` button sits apart at `window+0x248`). The element lookup may return 0, so check its log line in game.
+- **Open:** listed in diplomacy.md and treaties.md (RTTI on actions, `WarGoal_IsPossible` in peacetime, late `.gui` parsing, `CConquerProvinceCommand` round trip).
+
+## 2026-10-24 — A province list for `po_demand_province`
+
+- **Question:** the war-goal dialog lists states and stores the state's first province, so the player cannot choose which province a `po_demand_province` CB takes. Can it list provinces instead?
+- **Answer:** the state rows (`CStateSelectionItem`, ctor `0x0093F2B0`) read only the state's name (vt `0x20`, `CState_GetName` `0x004CECE0`) and its `+0x48/+0x4C` province ids (tooltip `0x0093F5E0`; click `CWarGoalDialog_SelectState` `0x00944B10` stores the first id in the action clone's `+0x50` = war goal `+0x28`). `FillStateList` takes the list head with `MOV EAX,[EAX+0xE44]` at `0x00945429` (ESI = dialog; the CB is action clone `+0x34`). → [systems/casus-belli.md](systems/casus-belli.md) ("`po_demand_province`")
+- **Built:** `se_demand_province_states`: for a marked CB that load returns a list of stand-in states, one per province, each named after its province. `allowed_states` and `WarGoal_IsPossible` now run per province for these CBs. Not tested in game.
+- **Open:** the AI still picks a state's first province for these CBs.
+
+## 2026-10-24 — Treaties built
+
+- **Question:** build the peacetime treaty planned in treaties.md: CBs with `is_treaty_cb = yes` as terms, plus money, proposed from the "Justify war" button, answered like a peace offer, with an AI rule.
+- **Built:** Script Extender `treaty` (9 patch sites `se_treaty_*`). `CTreatyAction` is a `CPeaceAction` object (0xA0 bytes, money at `+0x98`) with a copied vtable; the entry hook on `DiplomaticAction_CreateByType` covers commands, saves and the UI; the AI answers through a hook on the type switch of `AI_ProcessPendingProposals`; a "Diplomatic Play" chooser on DefaultDialog and an editor on the plugin's `se_treaty_dialog`; 11 treaty CBs in the plugin's `common/se_treaty_cbs.txt`; answer message types and texts added at run time. Testing in progress. → [systems/treaties.md](systems/treaties.md)
+- **Answered:**
+  - action slot conventions (all thiscall; 7 / 9 / 16 `(out)` RET 4, 36 `(bool)` RET 4, 32 / 34 `(ctx)` RET 4, 37 `(out, int)` RET 8) and base slots that need no war → [systems/diplomacy.md](systems/diplomacy.md);
+  - answer message keys (slot 10 or 9 + `_THEY_ACCEPT` ...), message types are data (`MessageTypes_Read` `0x006A4FA0` can read a second file), and texts can be injected like `Localize`'s missing-key path → diplomacy.md ("Messages");
+  - `PeaceOffer_GetTermsText` and `CPeaceAction_CopyCtor` read no war (treaties.md risk 5);
+  - `WarGoal_Execute` semantics of `po_add_to_sphere`, `po_release_puppet`, `po_make_puppet`, `po_install_communist_gov_type` with and without a third country (`CWarGoal+0x10`, casus-belli.md question 5) → diplomacy.md;
+  - the user asked whether `common/se_cb_types.generated.txt` is necessary: no in principle (an in-memory token reader exists, `0x00990DF0`, and `FileBuffer_ctor` `0x009D5450`), not done yet.
+- **Corrections:**
+  - **CB scopes:** `can_use` and `allowed_countries` run on the CB's *target* scope with THIS = the actor (`CWarGoalDialog_FillCbList` `0x00940205`..); the attacker / defender names of casus-belli.md's `IsCBUsable` pseudo-code may be swapped (note extended, new "Scopes" section).
+  - **`CEventScope` FROM** is `+0x2C` tag / `+0x30` index (structs.csv said `fromRef` u64 at `+0x30/+0x34`). War-goal province scopes use `+0x18`.
+  - **The FROM quirk:** `WarGoal_IsValid` keeps FROM only in the THIS scope, and nested scopes (`EventScope_Copy`, `any_owned_province`) read FROM from their own copy, so `free_peoples` / `liberate_country` never pass it; `WarGoal_GetTargetStates` puts FROM in the evaluated scope. The treaty validates that way.
+  - `cb+0x0C` is `sprite_index` (the icon frame), `months` is `+0x134` (already fixed in structs.csv; diplomacy.md question 6 closed).
+  - `CBManager_Load` clears the CB vector and restarts the index at 1, and deletes its block: it cannot be called twice, so the plugin merges its CBs into one file.
+  - `g_searchPaths` points at the game folder when `cb_types.txt` is loaded, even with `-mod=`.
+- **Crashes found and fixed:**
+  1. Drawing the editor crashed in `Sprite_Draw` (`0x00A28A6B`): the plugin's `.gfx` was parsed at `Gui_Finalize`, after the game's `.gfx` loop, so the sprite's texture (`+0xD0`) was null. Now parsed at the end of the loop (`0x00635D89`).
+  2. TGC saves crashed at the first peace in `War_Archive` (`0x00467F4E`, reading `goal->cb`): the merge used `g_searchPaths` and so vanilla `cb_types.txt`, so TGC's CB list was replaced. Now the source is found from the `-mod=` folders (`game::game_file`).
+- **Open:** listed in treaties.md (in-memory CB block, terms in the answer messages, untested `install_government` and the release of dead countries, saves with a pending treaty without the plugin).
+
+## 2026-10-25 — Wars and crises: how a war starts, who joins it, how a crisis is made
+
+- **Question:** where are the gates that let a country into a war, and how is a crisis created and filled? Asked for a feature that would keep neutral countries out of wars.
+- **Answer:** one test decides a declaration, `War_CanDeclare` `0x0093AA90` (vassal/substate target, sphere, alliance, crisis, military access, truce, existing war, usable CB); the `war` effect and the console skip it and call `CDeclareWarAction_Execute` `0x00913510` directly. Every way into a war ends in `War_AddAttacker` `0x00934280` / `War_AddDefender` `0x00935390` (18 direct calls, listed). A crisis is created in `CrisisManager_DayTick` `0x0042A130` (flashpoint, else colonial) and countries enter it through `Crisis_CanJoinInterest` `0x00425B40` and `Crisis_CanBackSide` `0x00425E20`; `CCrisis` layout (0xB4 bytes) in structs.csv. Puppets are protected by the vassal rules, not by a flag: a mod can keep a country neutral by making it the puppet of a dummy tag. → [systems/wars.md](systems/wars.md)
+- **Open:** `world+0xD11`; `country+0xBB8` in `Crisis_CanBackSide`; the callers `FUN_004E7290` / `FUN_00933560`; a crisis loaded from a save; who writes the tension `state+0x280`.
+
+## 2026-10-25 — Neutrality feature: built to compile, then left out
+
+- **Question:** keep countries with `has_country_modifier = neutrality` out of wars by hooking the engine.
+- **Tried:** the hook set in wars.md ("Hook points for a neutrality feature"): both calls of `War_CanDeclare` and of the reason, `CDeclareWarAction_Execute` and its two direct callers, all 18 `War_AddAttacker` / `War_AddDefender` calls, the CanPerform / reason slots of alliance, justify war, call ally and the crisis actions, the crisis creation sites `0x0042A245` / `0x0042ABEE`, and entry detours on the two crisis tests. Built and compiled on 2026-10-25, not shipped.
+- **Result:** left out. The vassal rule gives a mod the same without code (a puppet of a dummy tag cannot be declared on), and the hook set is wide (about 30 sites) for a result the script already has. No row in patch_sites.csv.
+- **Open:** none; the hook points stay documented in wars.md in case a mod needs more than the vassal rule.
+
+## 2026-10-25 — Script effects: the factory, the effect object, and the `dismantle` effect
+
+- **Question:** how does the engine build and run an effect block, so that a plugin can add a keyword of its own (a forced treaty after a peace)?
+- **Answer:** one factory, `EffectBlock_AddChild` `0x00876B30` (slot 4 of every compound effect, plus four direct calls), allocates one object per keyword, appends it to the block's list (`+0x08/+0x0C/+0x10`) and passes the parser value to the child's slot 7. The vtable has 14 slots: 7 parse, 9 tooltip, 11 Execute `(scope, ?)`. `CReleaseVassalEffect` (`0x00E2B4AC`, 0x2C bytes) is the template that takes `TAG` / `THIS` / `FROM`; `CEventScope` fields for THIS and FROM. Effects run on every machine and are never saved. → [systems/effects.md](systems/effects.md)
+- **Built:** Script Extender effects `dismantle = TAG`, `dismantled_by = TAG`, `dismantle_gw`, `dismantled_by_gw` (treaty.cpp "Dismantling"): an entry hook on the factory (`se_treaty_effect_factory`) builds a `release_vassal` template for the new tokens and swaps in a copied vtable with the plugin's tooltip and Execute; a turn whose countries are at war waits until `CPeaceAction` slot 32 (`se_treaty_peace_execute`) returns, then becomes a forced `CTreatyAction` with a budget by the loser's rank (`treaty_dismantle_*` keys), imposed by the human dismantler in a forced editor or picked by the AI dismantler. → [systems/treaties.md](systems/treaties.md) ("The `dismantle` / `dismantle_gw` effects"); the AI dismantler and partitions continue in the 2026-10-30/31 entry below.
+- **Open:** the role of effect slot 8 (`0x0087A6C0`); the second argument of Execute; turns waiting for a peace are not saved.
+
+## 2026-10-26 — Crash at `0x008CDC09`: `has_country_modifier` triggers in pop types
+
+- **Question:** TGC crashed on the game thread ~10 s into a game: access violation reading 0 at `0x008CDC09`, ECX = 0.
+- **Answer:** `0x008CDC09` is in the tooltip (vt `0x28`) of `CHasCountryModifierTrigger` (`0x008CD930`), which calls `modifier->vt[0x18]` on the null modifier at `+0x1C`. The parser leaves it null when the lookup fails, and here the failure is load order: setup.log shows "PopDatabase Phase Initialized" (line 406) before the modifiers (line 408 on), so every `has_country_modifier` in `poptypes/*.txt` (TGC: `totalitarian_system`, `central_bank_established`, ...) and `issues.txt` is null. All the names exist in `event_modifiers.txt`. Evaluate never matches them (no crash), so those pop weights have never worked. The game's "Unknown modifier" line for them is not in this run's logs. → [systems/crashes.md](systems/crashes.md)
+- **Built:** `fix_missing_modifier` now covers the two triggers. The parsers' misses are recorded (`0x008CD7A7`, `0x008CDEAA`) and looked up again at `0x0063C356`, right after "Static Modifiers Initialized". The tooltips (`0x00E30880`, `0x00E308B8`) give an empty line for a name that really does not exist. Not tested in game.
+- **Open:** which window showed the tooltip (the stack scan points into a military window, not reliable).
+
+## 2026-10-30/31 — Partitions and the AI dismantler
+
+- **Question:** can a dismantle break a loser into countries that have no cores on its land (Brazil's states), and can the AI dismantle?
+- **Built (partitions):** treaty CB `treaty_partition` (`po_partition = yes`) and a mod's `common/se_partitions.txt`, generated by `script_extender/tools/partitions.pl` from the mod's cores, its `add_core` and its limited `secede_province`. At execution the listed provinces become cores of the third country (`Province_AddCore` `0x004B61A0`). → [systems/treaties.md](systems/treaties.md) ("Partitions")
+- **Built (AI):** the engine already reaches a dismantle by itself (`AI_ManagePeace` → `AI_PickWarGoal` `0x00845AD0`, value from `AI_WarGoalValue` `0x00846C40`, threshold 20000, cost ≤ `ONE_SIDE_MAX_WARSCORE`); with a mod's dismantle CB that is mostly Great Wars. The plugin's AI dismantler now weighs terms by a CB keyword `ai_dismantle_weight` and caps homeland states (`treaty_dismantle_ai_max_states`, 35 %) and new countries (`treaty_dismantle_ai_max_new`, 3). A human loser gets a read-only notice (budget −1). Built, not deployed, not tested in game.
+- **Open:** in-game test of the AI dismantler and the notice; whether a long-pending notice expires; the notice in multiplayer (local only).
+
+## 2026-10-31 — How the AI chooses province buildings
+
+- **Question:** how does the AI decide what to build, and why does a new type-4 building listed before the fort replace the fort for the AI?
+- **Answer:** one job per AI country, `AI_ConstructionUpdate` (slot 6 of `0x00E284EC`), runs every builder. It caches the first province building of type 2, 4 and 3 once, so the fort builder builds whatever type-4 building comes first, with the fort's border scoring. Type-4 buildings after it are never built by the AI. One world-MT roll against the five `CHANCE_*` AI defines picks the builders; nothing is built at war. → [systems/buildings.md](systems/buildings.md) ("The AI builder")
+- **Correction:** party rules are `country+0xAC8 + 8·i` (not `+0xAC0`), *i* in `CRuleDefinition` order. Read from the definition list; every earlier [I] mapping fits it.
+- **Open:** the job's scheduling (`+0x30` countdown, 10–26), the fort scoring's inputs (`0x0050E450`, AI tables `+0x3B8/+0x3F0`); a native builder for other buildings (hook point and constraints in buildings.md).
+
+## 2026-10-31 — `buildings_ai`: the AI builds any province building a mod lists
+
+- **Question:** can the AI build province buildings beyond the three vanilla ones, driven by script?
+- **Answer:** yes. A decision's `ai_will_do` is a `CMeanTimeToHappen` (`0x00E2CEB0`). Its slot 4 (`0x008AE8A0`) reads `factor`/`base`/`days`/`months`/`years` and `modifier`; the modifiers are `CAndTrigger`s with a factor at `+0x20`. `Persistent_ReadBlock` calls only slots 4 and 5 of the object it reads into, so an object with a vtable of our own can walk any file with the game's parser. The Lua the game embeds (5.1 + luabind) serves only `defines.lua` and the tutorial. → [systems/buildings.md](systems/buildings.md) ("Built: buildings_ai")
+- **Built:** Script Extender `buildings_ai`: wrapper on the construction job's slot (`0x00E28504`); `common/buildings_ai.txt` per building (`chance`, `money`, `weight`); vanilla fort / naval base / railroad found by name. Shared helpers `game/script.h` (parser block, script blocks) and `game/buildings.h` (expand check, cost, construction command), now also used by `country_upgrade` and `treaty_ui`.
+- **Open:** in-game test (the file is read on the first AI run: its log lines, then the constructions); whether the parser block is safe to build mid-game (it is during loading).
+
+## 2026-10-31 — Console commands of our own
+
+- **Question:** how does the console find a command, and can a plugin add one (a `dismantle` test command)?
+- **Answer:** a static table of 60 `CConsoleCommand` entries (0x4C bytes) collected into a vector at console
+  creation; the dispatcher only searches that vector. Appending an entry pointer is enough. → [systems/ui-console.md](systems/ui-console.md)
+- **Correction:** `Console_Execute` (`0x00420EB0`) was named as the central dispatcher; it is the handler of
+  `debug`. The dispatcher is `Console_Dispatch` (`0x00423B50`).
+- **Built:** `script_extender/src/game/console.cpp` (site `se_console_commands`), first user the treaty
+  feature's `dismantle <TAG> [<TAG>] [gw]`.
+- **Open:** whether the console is reachable in multiplayer at all; the `hidden` byte (`+1`) is inferred
+  from the single entry that sets it.
+
+## 2026-10-31 — rich/middle/poor_income_modifier do nothing
+
+- **Question:** why the three income modifiers barely work, and where to fix them.
+- **Answer:** their only reader, `Pop_AddWorkingCash`, is on the artisan path and scales the artisan's
+  input budget, not income, from the province modifier sum, which no country modifier reaches. Pop pay
+  goes through `Pop_AddMoney` with no modifier. → [systems/economy.md](systems/economy.md)
+- **Method:** modifier index from the order of `ModifierDefinitions_Init` (87-89); byte scan for reads of
+  `+0x2B8/+0x2C0/+0x2C8` after a load of the country (`+0xA60`) and province (`+0x9C`) sums: one reader;
+  income calls told apart by the income tax call before them.
+- **Built:** Script Extender `income_modifiers`.
+- **Open:** the categories 5 and 7 of the pop income array; whether `+0xA90` is a second country sum.
+
+## 2026-10-31 — set/clr/has_province_flag "do not work"
+
+- **Question:** whether the three province flag keywords work.
+- **Answer:** the two effects work and the flags are saved; `has_province_flag` has no trigger class and
+  no case in `TriggerBlock_AddChild`, so it is logged as unknown and dropped: always true, inside `NOT`
+  too. The vanilla localisation has `HAVE_PROVINCE_FLAG`, the exe never uses it. → [systems/triggers.md](systems/triggers.md)
+- **Method:** RTTI list (`CSetProvinceFlagEffect`, `CClrProvinceFlagEffect`, no `CHasProvinceFlagTrigger`);
+  the token switch of both factories; province save and load (`flags` = token 0x40D at `+0x34C`).
+- **Correction:** `0x0068F390` is `vector<T*>::push_back` (`Vector_PushBackPtr`), not entity registration.
+- **Built:** Script Extender `province_flags`.
+- **Open:** the two unnamed arguments of the trigger tooltip slot 10; who reads `g_mapView+0x3A28` after
+  a province flag changes (the map draws sprites for some province flags, `0x00643xxx`).
+
+## 2026-11-01 — A great war ends and nobody is dismantled
+
+- **Question:** a great war ended in a TGC game and the loser was not dismantled; the log has no `treaty:` line after loading.
+- **Answer:** the dismantle effects run only from `on_po_accepted` of the CB that carries them. In the save the war was still active, and its only dismantle goal (a mod `dismantle_cb`) was not in any accepted peace, so the effect never ran; the mod's own "Treaty of" events also need a flag that only that CB sets. The engine adds `great_war_obligatory` CBs to every great-war peace (`PeaceOffer_FillFromWar`, see treaties.md "Great wars"), so that CB is where a mod makes every great-war defeat a forced treaty.
+- **Correction:** the Script Extender queued one forced treaty per effect; with the obligatory CB and a dismantle CB in the same peace the loser would be dismantled twice. `queue_dismantle` now merges turns on the same loser (first winner, highest budget).
+- **Open:** in-game test of a great-war peace with the effect in the obligatory CB (every losing country runs it; a mod gates it by rank). Not seen yet: `on_po_accepted` running from a peace at all (only the test decisions have fired the effects).
+
+## 2026-11-01 — AI dismantler: contiguous land, fewer colonies, more for allies
+
+- **Question:** the AI dismantler took states by value per point only, which gives exclaves and scattered new countries (border gore), favoured colonies (weight 1.5) and gave little to allies.
+- **Built:** the pick is now one term per round with the value recomputed against what the treaty already moves (`situated_value`, treaties.md "AI dismantler"): land next to the gainer's provinces or to land it gets here x `treaty_dismantle_ai_border`, next to land someone else gets x `_adjacent`, next to neither x `_exclave` (colonies and a new country's first state exempt); `goes_to_third` terms x `treaty_dismantle_ai_ally`; the colony CB weighs 1. Adjacency from the province geography (`CProvince+0x5C`, neighbours `+0xC8`, 0x24-byte entries, kinds 1 land / 2 strait), as `AI_PickFortProvince` reads it; `structs.csv` row corrected (was `terrainData`).
+- **Also (same day):** the ally factor applies to any term whose third country holds an alliance with the AI (`Relation+0x28`, read both ways, I), so allied cores get it too; the allied-core CB weighs 3, as the AI's own cores; colonial land goes to an ally only when that ally is a great or secondary power.
+- **Also (same day, later):** freeing cores comes first (liberate 2.5, free peoples 2), partitions (0.3) only next to land the treaty already frees; a land term that would split the loser's remaining states into more connected groups is dropped (`splits_loser`), and `treaty_dismantle_ai_exclave` defaults to 0, so land that touches neither its gainer nor land it gets here is not taken.
+- **Correction (same day):** colonies were exempt from the exclave rule, and a great power took colonial states from the middle of another continent. Colonies stay exempt (they are taken across the sea), but on the continents of `treaty_dismantle_ai_coastal_only` (`europe` by default; ids read from the mod's `map/continent.txt`) a colonial state is taken only when coastal (`CProvince+0x158`) or next to a state the treaty already gives the same gainer.
+- **Also:** the colony CB weighs 1.3, and a colony on the continent of the dismantler's capital is x `treaty_dismantle_ai_home_continent` (130); the continent table now covers every province of `map/continent.txt`.
+- **Also:** `treaty_dismantle_ai_near_continents` (`asia`): there a land term is worth up to `treaty_dismantle_ai_near`% more the closer it is to the gainer's provinces, by the `unit` positions of `map/positions.txt`, down to nothing at `treaty_dismantle_ai_near_range` pixels. The config gained a table of text keys.
+- **Also:** on those continents far land falls to `treaty_dismantle_ai_far` (50%) instead of 100, and each colony already taken on a near or coastal-only continent scales the next by `treaty_dismantle_ai_colony_repeat` (70%), so the AI spends the rest of the points on other terms rather than on ever farther colonies.
+- **Also:** an AI dismantler may now take land without a claim (`dismantle_infamy` CBs) at `treaty_dismantle_ai_infamy`% (40) of its value, while its infamy plus the terms' stays under `BADBOY_LIMIT` (`common/defines.lua`).
+- **Also:** interest lists, `common/ai_interests.txt` (partitions format, shared loader `load_tag_lists`): land a country lists is x `treaty_dismantle_ai_interest` (200) to an AI dismantler that gets it or gives it to the ally that lists it; taken across the sea like a colony, infamy paid within `BADBOY_LIMIT`.
+- **Also:** a single-province term (for the AI or an ally) only when the province itself borders the gainer's land or land it gets in the treaty, interest land excepted (`province_borders`).
+- **Correction (2026-11-01, evening):** in the first AI dismantle seen in game a great power took single provinces (`treaty_cede_province`, `po_demand_province`) from across the map: `states_moved` knew only `po_demand_state` and `po_transfer_provinces`, so those terms had no land and skipped every border rule. They now stand by their province's state in the rules, count for no whole state in the limits, and their interest is checked on the province.
+- **Also (evening):** the first AI dismantle seen (Japan leading a great war) still took Italian states, most likely chained from a state the peace itself gave it: now the loser's homeland off the gainer's own continent comes only next to land the gainer owned before, at `treaty_dismantle_ai_abroad` (50%), never through land taken in the treaty; `treaty_dismantle_log = 1` logs each term with its rule, for the next test. `CState+0x84` as colonial status confirmed in `CIsColonialTrigger_Evaluate` (0x008FACB0).
+- **Open:** in-game check of an AI dismantle with the new weights; whether kind 2 is a strait (I; 2026-11-02: it is not, it links coasts across water).
+
+## 2026-11-01 — Colonial range
+
+- **Question:** the AI dismantler took colonies anywhere; the user wants the game's own colonial range to bound it.
+- **Answer:** → [systems/colonisation.md](systems/colonisation.md). No stored range: `Country_HasColonialRangeTo` (`0x004BC020`) walks the country's provinces and is true when one with a naval base lies within `100 + effective level x colonial_range` (the building's `+0xDC`) of the target, distances from the province source's precomputed u16 table (`ProvinceSource_PairDistance`, x1000) through `Province_Distance`. `Country_CanColonizeProvince` uses it for coastal targets after adjacency; `MapColor_Colonial` colours by it.
+- **Method:** `MapColor_Colonial` (named earlier) led to both callees; dumpbin for the conventions (EAX = CountryRef*, stack province, RET 4).
+- **Built:** `in_colonial_range` / `colonial_range_reaches` in treaty.cpp: an AI dismantler takes a colonial state only when a coastal province of it is in its colonial range (interest apart; a bordering colony passes the border rule first). Reason `colony out of colonial range` in `treaty_dismantle_log`.
+- **Correction (same evening):** the first test still gave an ally a colony far from it (Magadan to Germany): the "adjacent to land given to another" bonus returned before the range check. The colonial-range test now runs right after the "borders the gainer" test, before any adjacency bonus.
+- **Open:** the country's distance cache at `+0x10C`; the distance table's coverage.
+
+## 2026-11-02 — New countries in two pieces
+
+- **Question:** an AI dismantle of Russia freed Ukraine as two separate blocks.
+- **Answer:** the `treaty_dismantle_ai_adjacent` bonus let a state join a new country because it bordered land given to another (Belarus, Poland), not that country's own. Now the bonus applies only to the first state of a country yet to exist; every later state must border the land it already gets (else the exclave rule drops it).
+
+## 2026-11-02 — AI dismantler reorganised
+
+- **Why:** after a month of rules added one by one, the picker was 900 lines inside treaty.cpp, mixed with map-file readers, with the rules split between three places and dependent on their order (the Magadan case).
+- **Done:** `game/map.{h,cpp}` holds the generic readers (adjacency, coasts, colonial status, connected components, continents and positions from the mod's map files, `BADBOY_LIMIT`, the game's colonial range), loaded once each; `script_words` / `read_file` moved to `game/script`. `features/treaty_ai_dismantle.cpp` holds the dismantler: a `Candidate` carries every fact the rules read, computed once (colonial, coastal, continents, interest, infamy, distance, colonial range); `Picker::worth` is the single rule chain for a term's value as the treaty stands, `Picker::rejected` the single list of hard limits, `Picker::take` the bookkeeping. Land moved by a single-province term is tracked as that province, not its state. treaty.cpp exposes the few facts it keeps through `treaty::` wrappers (treaty.h). No rule changed; `treaty_dismantle_log` also logs dropped terms with the reason.
+- **Also:** `treaty_dismantle_ai_frontier` (150%): land freed to a third country is worth more when it already borders another country or the sea.
+- **Also:** `treaty_free_peoples` weighs 2.5 (was 2): at 2 the colonies (1.3 x border 150% x home continent 130%) still came first.
+
+## 2026-11-02 — Enclaves: neighbour kind 2 is not a strait
+
+- **Question:** AI dismantles left enclaves and coastal blobs (provinces along the Channel given to the Netherlands as "bordering" it; a loser's state kept inside freed land in the Caucasus).
+- **Answer:** the land rules took both kinds of the province neighbour entries; kind 2 joins coastal provinces across water (Normandy to the Netherlands), it is no strait as assumed from `AI_PickFortProvince`. **[I]** Only kind 1 counts now, in adjacency and in the loser's connectivity. The split test is by province (`game::components` over the loser's provinces), so a single-province term is tested too; before, it was by state and skipped single provinces.
+
+## 2026-11-02 — "Propose Treaty" as its own button
+
+- **Why:** the treaty editor was reached through a chooser on "Justify war" (`CMakeCBAction` slot 14), which
+  changed what that button does. The button goes back to vanilla; the editor gets a button of its own.
+- **Read:** `CDiplomacyView_Setup` (`0x00623C41..0x0062410D`, listing): stdcall `(view)` RET 4; each of the 17
+  `diplomacy_option` windows comes from `g_gui->vt[0x2C](type, owner->vt[0x3C]())`, is attached by the view
+  window's `vt[0xBC](name, child)`, placed by `vt[0x18]` at `diplomacy_actions_pos` + size (`vt[0x60]`) x cell,
+  then `(window+0x494)->vt[0xB0]()`. The cells fill column by column (`IDIV` by the wrap count's x: 17 / 2 =
+  8 rows, remainder 1 makes the first column 9 long), which matches the screen: "Command Units" is index 8 at
+  the foot of the left column and the free cell is right of it. The positionTypes come from `g_gui->vt[0x48]`.
+- **Done:** `se_treaty_button_ctor` / `se_treaty_button_reset` redirect both CALLs of Setup: vanilla, then an
+  18th `diplomacy_option` (`se_treaty_option`) in cell (17 % columns, 17 / columns) with our glue on its
+  `action_option`; `se_treaty_button` keeps the vanilla `CanPerform` result and enables ours once per refresh.
+  `se_treaty_chooser` (the vtable slot) is gone; `SE_TREATY_CHOOSER_*` texts replaced by `SE_TREATY_BUTTON`.
+- **Open:** `GuiWindow+0x494` and its `vt[0xB0]` are only known from this use (I).

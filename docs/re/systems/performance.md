@@ -62,7 +62,7 @@ the frame side. At max speed a game day is **3–4 frames** (~50 ms each), not o
 (`Render_MapFrame`) is only ~14.5 ms/day. **[M]** The largest block is `CommandQueue_Process`: called
 from five sites in `CInGameIdler_Update`, it runs the queued commands through virtual calls (`CALL EAX`
 on `vt+0x1C`, `+0x20`, `+0x38`). The hourly-tick command, and therefore the whole simulation, is one of
-them. It also loops `Entity_RegisterSpatial` + `FUN_005F2AE0` over a queue. **[C]** Its 51 ms of own
+them. It also loops `Vector_PushBackPtr` (a `vector<T*>::push_back`) + `FUN_005F2AE0` over a queue. **[C]** Its 51 ms of own
 time are those unhooked virtual calls: probably the commands the AI issues (diplomacy, units,
 construction) and their execution.
 
@@ -80,7 +80,7 @@ here; the remaining ~16 ms is the evaluation of decisions that can still pass.
 **Sampled (v3, 1837, all fixes):** the job is 21.9 ms/day: `AI_DecisionUpdate` 10.7 and
 `AI_CountryDailyJob_Update` (`0x0084B690`) 9.7. In the latter, `AI_TargetScan` (`0x0084B0F0`, 3.9 ms
 own) stalls on relation `+0x34` for every country (90 % of its samples at `0x0084B29D`). **[M]**
-Patch: `prefetch_ai_relations` (shipped 0, not measured). `FUN_00826480` (4.1) has no hot spot.
+Patch: `prefetch_ai_relations` (ships at 1 in `performance_patch.ini`; not measured on its own). `FUN_00826480` (4.1) has no hot spot.
 
 ### `UpdateTimeThrottle` inside the tick: ruled out
 
@@ -104,7 +104,7 @@ Per instruction, the hottest samples sit right after the first read of a pop: `0
 country and each pop type of the market (`market+0x804`), a linked list (`province+0x194 + type*16`,
 next = `pop+0x27C`) **[C]**: every pop is a dependent cache miss.
 
-- **Built:** `prefetch_pops` (shipped 0): a register-preserving thunk on the call at `0x0048468F`
+- **Built:** `prefetch_pops` (ships at 1 in `performance_patch.ini`): a register-preserving thunk on the call at `0x0048468F`
   collects every list head of the country, advances all lists together and prefetches each pop's
   `0x280` bytes and the `+0xB0`/`+0xE8` lines of `[pop+0x1D4]`. Read-only.
 - **Next:** `year_timer` against 137 ms/day; a sampling run to see the stalls move. If it works, the

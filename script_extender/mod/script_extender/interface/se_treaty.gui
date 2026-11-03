@@ -1,0 +1,125 @@
+# Script Extender: treaty editor (treaty = 1 in script_extender.ini). Loaded by the plugin from this
+# folder; every name starts with se_ so it cannot clash with a game or mod type. Laid out on the
+# Justify-war dialog (MakeCBDialog), mirrored: the terms in the wide panel, the picker in the narrow one.
+
+guiTypes = {
+	eu3dialogtype = {
+		name = "se_treaty_dialog"
+		backGround = "Background"
+		position = { x = -52 y = -90 }
+		size = { x = 550 y = 440 }
+		orientation = "CENTER"
+		moveable = 0
+		dontRender = ""
+		horizontalBorder = ""
+		verticalBorder = ""
+		fullScreen = no
+
+		guiButtonType = {
+			name = "Background"
+			quadTextureSprite = "diplo_dialog"
+		}
+
+		iconType = {
+			name = "se_treaty_bg"
+			spriteType = "GFX_se_treaty_bg"
+			position = { x = 25 y = 32 }
+			Orientation = "UPPER_LEFT"
+		}
+
+		instantTextBoxType = {
+			name = "Title"
+			position = { x = 26 y = 31 }
+			font = "vic_32"
+			borderSize = { x = 4 y = 4 }
+			text = ""
+			maxWidth = 500
+			maxHeight = 40
+			format = centre
+		}
+
+		shieldtype = {
+			name = "LeftShield"
+			spriteType = "GFX_flag_popup"
+			position = { x = 31 y = 29 }
+		}
+
+		shieldtype = {
+			name = "RightShield"
+			spriteType = "GFX_flag_popup"
+			position = { x = 454 y = 29 }
+		}
+
+		# Left panel (x 31..309): the treaty, rows as MakeCBDialog's cb_list but wider (money first; click a
+		# row to remove it). Arrows: the visible part of the 32x32 texture is at +5..+21.
+		instantTextBoxType = { name = "se_terms_label" position = { x = 31 y = 86 } font = "vic_18" text = "" maxWidth = 278 maxHeight = 20 format = centre }
+		iconType = { name = "se_term_icon_0" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 115 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_0" position = { x = 61 y = 115 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_1" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 140 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_1" position = { x = 61 y = 140 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_2" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 165 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_2" position = { x = 61 y = 165 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_3" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 190 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_3" position = { x = 61 y = 190 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_4" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 215 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_4" position = { x = 61 y = 215 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_5" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 240 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_5" position = { x = 61 y = 240 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_6" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 265 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_6" position = { x = 61 y = 265 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_term_icon_7" spriteType = "GFX_diplo_wargoal_icons" position = { x = 37 y = 290 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_term_7" position = { x = 61 y = 290 } quadTextureSprite = "GFX_se_treaty_row" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_term_prev" position = { x = 32 y = 322 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" clicksound = click }
+		instantTextBoxType = { name = "se_term_page" position = { x = 119 y = 328 } font = "vic_18" text = "" maxWidth = 100 maxHeight = 20 format = centre }
+		guiButtonType = { name = "se_term_next" position = { x = 280 y = 322 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" clicksound = click }
+
+		# Right panel (x 311..519): Demand / Offer tabs (the peace dialog's, narrowed to the panel), then money or a treaty CB, then
+		# the amount or province; the summary below
+		guiButtonType = { name = "se_mode_demand" position = { x = 311 y = 83 } quadTextureSprite = "GFX_se_treaty_tab" clicksound = click buttonText = "" }
+		instantTextBoxType = { name = "se_mode_demand_text" position = { x = 311 y = 88 } font = "vic_18" text = "" maxWidth = 104 maxHeight = 20 format = centre }
+		guiButtonType = { name = "se_mode_give" position = { x = 415 y = 83 } quadTextureSprite = "GFX_se_treaty_tab" clicksound = click buttonText = "" }
+		instantTextBoxType = { name = "se_mode_give_text" position = { x = 415 y = 88 } font = "vic_18" text = "" maxWidth = 104 maxHeight = 20 format = centre }
+		instantTextBoxType = { name = "se_pick_label" position = { x = 311 y = 112 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }
+		iconType = { name = "se_pick_icon_0" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 140 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_0" position = { x = 347 y = 140 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_0" position = { x = 347 y = 140 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_pick_icon_1" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 165 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_1" position = { x = 347 y = 165 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_1" position = { x = 347 y = 165 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_pick_icon_2" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 190 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_2" position = { x = 347 y = 190 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_2" position = { x = 347 y = 190 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_pick_icon_3" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 215 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_3" position = { x = 347 y = 215 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_3" position = { x = 347 y = 215 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_pick_icon_4" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 240 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_4" position = { x = 347 y = 240 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_4" position = { x = 347 y = 240 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		iconType = { name = "se_pick_icon_5" spriteType = "GFX_diplo_wargoal_icons" position = { x = 323 y = 265 } Orientation = "UPPER_LEFT" }
+		guiButtonType = { name = "se_pick_5" position = { x = 347 y = 265 } quadTextureSprite = "GFX_diplo_wargoal_button" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_red_5" position = { x = 347 y = 265 } quadTextureSprite = "GFX_diplo_wargoal_button_invalid" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_prev" position = { x = 318 y = 292 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_back" position = { x = 373 y = 293 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
+		guiButtonType = { name = "se_pick_next" position = { x = 486 y = 292 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" clicksound = click }
+
+		instantTextBoxType = { name = "score" position = { x = 311 y = 320 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }
+		instantTextBoxType = { name = "acceptance" position = { x = 311 y = 338 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }
+
+		guiButtonType = {
+			name = "AgreeButton"
+			position = { x = 290 y = 376 }
+			quadTextureSprite = "GFX_button_standard_200"
+			buttonText = ""
+			buttonFont = "vic_18_black"
+			shortcut = "ENTER"
+		}
+		guiButtonType = {
+			name = "DeclineButton"
+			position = { x = 60 y = 376 }
+			quadTextureSprite = "GFX_button_standard_200"
+			buttonText = ""
+			buttonFont = "vic_18_black"
+			shortcut = "ESCAPE"
+		}
+	}
+}

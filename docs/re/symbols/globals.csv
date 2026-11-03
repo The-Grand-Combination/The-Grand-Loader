@@ -3,15 +3,15 @@ va,name,kind,conf,src,note
 0x012587E4,g_countryManager,ptr,C,cp,"+0 count of all defined tags, +4 CCountry* array"
 0x0131ACAC,g_cbManager,ptr,C,cp,"+0xC/+0x10 vector<CCasusBelliType*>; getter 0x0090CC40"
 0x01319730,g_decisionManager,ptr,C,cp,"lists +0xC/+0x10 and +0x28/+0x2C; getter 0x00875040"
-0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag"
+0x01258A74,g_renderDevice,ptr,I,cp,"+0x6BCA0 device-available byte: cleared when Present (device vt+0x44) returns D3DERR_DEVICELOST (FUN_005F8470, FUN_006BA220, FUN_0099A520), set at device creation (FUN_0099BF60) and when TestCooperativeLevel (vt+0xC) returns D3D_OK again; the frame loops sleep 100 ms while it is clear; +0x6BC44 mirrors the fog-of-war flag; +0x64 IDirect3DDevice9*; +0x158 texture manager (10000 entries of 0x2C from +0x15C: IDirect3DTexture9*, path, width, height, refcount)"
 0x01258A48,g_issueManager,ptr,I,re,"issue registry: +0x4/+0x8 string-hash buckets (lookup FUN_00975ED0, hash h = (h + c) * 0x3D), vectors +0x18.. +0x6C per issue category (element+0x30 read per country in FUN_00503020). CIssueGroupTrigger parser FUN_008C4A70 loads it at 0x008C4AD4; miss -> CNullIssue singleton DAT_01258A40 (FUN_00974850). Named g_unitManager until 2026-10-13"
-0x012586DC,g_economyDefines,ptr,?,cp,+0x50 market totals; +0x08 date-like value
+0x012586DC,g_economyDefines,ptr,C,cp,"root of the defines.lua blocks (loader 0x0042E410): +0x30 diplomacy, +0x40 country, +0x60 AI; +0x50 market totals; +0x08 date-like value"
 0x0125870C,g_provinceSource,ptr,I,re,vt[0x24] returns the province count
 0x01258A98,g_registryLow,ptr,C,re,object registry for type <= 0x1268; events are type 0x27
 0x01258A94,g_registryHigh,ptr,C,re,object registry for type > 0x1268
 0x01268FEC,g_parsingKeyType,u32,I,re,copied into event+0x08 while parsing
 0x01268FF0,g_parsingKeyId,u32,I,re,copied into event+0x0C while parsing
-0x012586E0,g_searchPaths,ptr,I,re,"+0x48 skip-mod-root flag"
+0x012586E0,g_searchPaths,ptr,I,re,"+0x48 skip-mod-root flag; +0x4C mode (1 mod only, 2 mod then game: SearchPaths_PickExisting); game folders std::string[] at +0x84, mod folders at +0x244 (0x1C each); folder 2 = gfx (event pictures)"
 0x0131BB34,g_popTypeDb,ptr,I,re,lazily created 0x188-byte database (ctor 0x0041A160)
 0x012587F4,g_goodsCount,u32,C,re,number of goods
 0x012588E6,g_timeState0,?,I,re,written by ProcessGameTimeAdvance
@@ -34,7 +34,7 @@ va,name,kind,conf,src,note
 0x00F0956C,kSpeedThrottle,f32[5],C,cp,"0.03 0.03 0.03 0.04 0.06, indexed by world+0xB28 in UpdateTimeThrottle"
 0x00F17B58,kSpeedAdvance0,f32,C,cp,4.0 (speed 0 in ProcessGameTimeAdvance)
 0x00F17B54,kSpeedAdvance1,f32,C,cp,2.0 (speed 1)
-0x00F092FC,kOne_f32,f32,C,cp,"1.0; speed 2 in ProcessGameTimeAdvance, also read by FUN_00475150"
+0x00F092FC,kOne_f32,f32,C,cp,"1.0; speed 2 in ProcessGameTimeAdvance, also read by FUN_00475150 and as the factor k / alpha of MapColor_Infrastructure"
 0x00F17898,kHalf_f32,f32,C,cp,0.5 (speed 3)
 0x00E45BB8,kSpeedAdvance4,f32,C,cp,"0.0001 (bytes 17 B7 D1 38; speed 4; MOVSS at 0x00682C59); several other xrefs. Was wrongly listed as 0.0004 until 2026-10-13"
 0x00E0764C,str_VersionLabel,char[],C,cp,"""V2 v3.04"""
@@ -71,7 +71,7 @@ va,name,kind,conf,src,note
 0x00E059F0,CBudgetView_vftable,vtable,I,re,slot 10 tooltip
 0x00E0FECC,CProductionView_vftable,vtable,I,re,slot 10 tooltip
 0x00E2C834,CEvent_vftable,vtable,C,re,slot 3 = body parser
-0x00E2CEB0,CMtthBlock_vftable,vtable,C,re,
+0x00E2CEB0,CMeanTimeToHappen_vftable,vtable,C,re,"MTTH block and ai_will_do (CDecision+0x110): 0x18 bytes, +4 0x18D, +8 base x1000, +0xC modifier vector; slot 4 0x008AE8A0 reads factor/base/days (value), months (x30), years (x365), modifier"
 0x00E2C818,CEventSub4C_vftable,vtable,C,re,
 0x00E2CECC,CEventSub54_vftable,vtable,C,re,
 0x00DFA6EC,CEffectBlock_vftable,vtable,C,re,slot 0x2C = Execute
@@ -97,3 +97,146 @@ va,name,kind,conf,src,note
 0x0125B5E0,g_settings,ptr,C,cp,"CSettings singleton (Settings_Get); +0x108 lastplayer, +0x124 lasthost, +0x140 serveradress, +0xC0 file name"
 0x00DFB5B4,CSettings_vftable,vtable,C,cp,"7 slots: +0x08 Write(stream), +0x10 ParseToken"
 0x00F0D840,g_chatChannelKey,u32[2],C,cp,"(type, id) of the multiplayer chat channel; ObjectRegistry_FindByTypeAndId gives the channel the chat command delivers to"
+0x012588DC,g_mapView,ptr,C,cp,"map view: +0x20BC CProvinceManager, +0x20D8/+0x20DC colour records (+0 primary, +4 secondary ARGB, +0xC CProvince*), +0x3648 renderer, +0x3A28 dirty"
+0x0125CE80,g_buildingDb,ptr,C,cp,"0x3C bytes: +0x0C all buildings, +0x1C province buildings, +0x2C null, +0x30 naval_base, +0x34 last type 2, +0x38 last type 4 (vanilla the fort; a mod's fourth building type listed after it, e.g. a bank); systems/buildings.md"
+0x01258730,g_nullBuilding,object,C,cp,CNullBuilding singleton (vtable 0x00DFDAF0)
+0x012586D6,g_instantConstruction,u8,C,cp,"console toggle; local player only, desyncs multiplayer"
+0x01258A9C,g_constructionIdCounter,u32,C,cp,"incremented by ConstructBuildingCommand_ctor; id = (word DAT_01258A90 + 0x1268, counter)"
+0x00E00C34,CConstructBuildingCommand_vftable,vtable,C,cp,"slots 2 Serialize, 4 Deserialize, 6 Execute, 7 TypeId, 12 keep-for-joiners (0), 13 Clone, 14 Validate"
+0x00DFDAC0,CBuilding_vftable,vtable,C,cp,
+0x00DFDB20,CProvinceBuilding_vftable,vtable,C,cp,second at 0x00DFDB4C
+0x00DFC09C,CBuildingConstruction_vftable,vtable,C,cp,"second at 0x00DFC0DC; slot 9 Complete, 14 DailyUpdate"
+0x00E0A5EC,CStack_MAPMODE_vftable,vtable,C,cp,map-mode history at idler+0xBC8
+0x00DFBA7C,CColor_vftable,vtable,C,cp,floats r/g/b/a at +8/+0xC/+0x10/+0x14
+0x00679B1C,kSetMapModeJumpTable,table,C,cp,"22 entries, CInGameIdler_SetMapMode"
+0x004B1600,kProvinceTooltipModeJumpTable,table,C,cp,CProvince_GetTooltip by map mode; infrastructure entry at 0x004B1610
+0x00E09A10,str_mapmode_1,string,C,cp,mapmode_1 .. mapmode_22 up to 0x00E09B0C
+0x00E09DB0,str_mapmode_infrastructure,string,C,cp,
+0x00DFCBDC,str_INFRA_LEVEL_HERE,string,C,cp,
+0x00E13314,str_PROVINCE_VIEW_BUILD_ALL_TOOLTIP,string,C,cp,"loaded at 0x0074793B, 0x0074EB63, 0x00751FA8"
+0x0131C99C,g_localisation,ptr,C,cp,0x54-byte object; +0x48 key -> value hash table (StringHashMap_Find); +0x24 the value returned for an empty key. Holds parsed text only: plain text must come from the CSV files
+0x00E0A58C,CButtonObserverGlue_CInGameIdler_vftable,vtable,C,cp,"10 slots: 0 dtor; 1..9 tail-call one handler pair each (ECX = [glue+4] + adjust; JMP handler): slot 1 +0x38, 2 +0x08, 3 +0x20, 4 +0x10, 5 +0x18, 6 +0x28, 7 +0x48, 8 +0x30, 9 +0x40 (slots 1, 7, 9 keep a frame). Slot 2 = the click (I: the only pair the map-mode glues fill); the other events are ?"
+0x00F092FA,g_mapDimFlagA,u8,I,cp,"1 in the file; with g_mapDimFlagB, MapColor_Infrastructure dims provinces whose [prov+0x5C]+0x360 < 1; meaning ?"
+0x00F092FB,g_mapDimFlagB,u8,I,cp,1 in the file; see g_mapDimFlagA
+0x00DEFC8C,kMapDim_f32,f32,C,cp,0.3; dim factor of MapColor_Infrastructure
+0x00DFCEBC,str_click,char[],C,cp,"""click"" (5 chars), the map-mode button sound"
+0x00E45978,k0_7_f64,const,C,cp,0.7; MapColor_Infrastructure khaki
+0x00E45918,k0_4_f64,const,C,cp,0.4; MapColor_Infrastructure khaki
+0x00E45770,k0_8_f64,const,C,cp,0.8; MapColor_Infrastructure red
+0x00E45598,k0_2_f64,const,C,cp,0.2; MapColor_Infrastructure red and gradient
+0x00E456D8,k0_1_f64,const,C,cp,0.1; MapColor_Infrastructure gradient
+0x00E45650,k0_999_f64,const,C,cp,0.999; MapColor_Infrastructure
+0x00E2C844,CEvent_vftable_OnToken,vtable,C,cp,"slot 4 of CEvent_vftable, holds Event_OnToken 0x008A6280; hook point for new event body keywords"
+0x00E08BEC,CEU3Button_vftable,vtable,C,cp,RTTI; slot 0xE0 = Button_SetSprite
+0x00E3CE50,GuiButton_vftable,vtable,I,cp,base button vtable (no RTTI name); slot 0xE0 = Button_SetSprite
+0x00E08D2C,CEU3ButtonType_vftable,vtable,C,cp,RTTI; guiButtonType definition of the EU3 layer
+0x00E3A930,Icon_vftable,vtable,I,cp,"icon vtable (no RTTI name); slot 0xE0 = Icon_SetSprite; same slot at 0x00E0A834; slots 0x34 Icon_Show, 0x38 Icon_Hide, 0x48 Icon_SetFrame: the same slots as a button's show / hide / frame"
+0x00E2CB18,str_GFX_event_no_image,char[],C,cp,template sprite type of the event picture
+0x00E2CB04,str_pictures_events,char[],C,cp,"""/pictures/events/""; event picture folder"
+0x01268FF8,g_staticTokens,array,C,cp,"2744 x {int id; char name[0x100]} (stride 0x104) up to 0x013172D8; filled by Tokens_RegisterKeywords"
+0x00F0EC04,g_lexerTable,object,C,cp,"word -> token id table; 0x00F0EC08 is 0 until Lexer_BuildTable"
+0x01258A64,g_lexerReady,u8,C,cp,"1 once Lexer_BuildTable has run"
+0x01258A60,g_lexerNextId,u32,C,cp,"highest static token id + 1"
+0x0131C8DC,g_dynamicTokens,vector,C,cp,"entries {int id; char name[0x100]}* added by Token_AddDynamic; end at 0x0131C8E0"
+0x0131C958,g_commandProtoCount,u32,C,cp,item count of the command prototype hash
+0x0131C95C,g_commandProtoBuckets,u32,C,cp,bucket count (0x1FF)
+0x0131C960,g_commandProtoTable,ptr,C,cp,"buckets of nodes {proto, next}; key proto+0x30 % 0x1FF; filled by Commands_RegisterPrototypes"
+0x01258738,g_budgetSlot,u32,I,cp,"current budget period; expenses at country+(slot+0xB)*0x10, income at country+(slot+0xD)*0x10"
+0x0131B1E8,g_relationMax,i32,I,cp,upper clamp of relation +0x3C (set at runtime)
+0x0131B2C8,g_relationMin,i32,I,cp,lower clamp of relation +0x3C (set at runtime)
+0x01318C70,g_controllerListeners,list,I,cp,Province_NotifyControllerListeners
+0x01318C80,g_ownerListeners,list,I,cp,Province_NotifyOwnerListeners
+0x01267970,g_countryDirtyBytes,u8*,I,cp,"one byte per country, set by Province_SetOwner (begin; end 0x01267974)"
+0x00F095B8,g_diplomacyActionTable,int[17][2],C,cp,"{token, alternative} per diplomacy view action button; 0x38D/0x81E declare war / peace; last 0x931 make_cb_action"
+0x01259ABC,g_nullDate,u32,I,cp,default date in action ctors
+0x0131B788,g_warGoalDefaultDate,u32,I,cp,CWarGoal+0x34 default
+0x012589A7,g_cheatAIAcceptAll,u8,I,cp,AI_EvaluateCommandChance returns 100 for others' actions when set; toggled by the yesmen console command (str_yesmen); the Script Extender treaty AI honours it
+0x01258A08,g_cheatInfiniteInfluence,u32,?,cp,DiplomaticAction_CanPerform uses 100000 influence when set
+0x01258A80,g_gui,ptr,C,cp,"CEU3Gui = app+0x120; vt[0x2C](const std::string* windowType, parent) instantiates; vt[0x48](const std::string* name) -> positionType (+0x64 x, +0x68 y, int); (+4)->vt[0xC](block) reads a .gui block"
+0x0131C974,g_guiReloadObservers,ptr,I,cp,file -> observers (Gui_ReloadFile)
+0x01258AC0,g_buttonClickHook,ptr,I,cp,cdecl (button*) called on every button click when set; no writer found
+0x00E3405C,CDiplomaticAction_vftable,vtable,C,cp,"RTTI; 38 slots (8 type id, 14 dialog, 27 auto-accept, 32 execute, 34 decline, 36 can perform)"
+0x00E340F8,CPeaceOffer_vftable,vtable,C,cp,RTTI; 6 slots (Persistent)
+0x00E34114,CDiplomaticActionCommand_vftable,vtable,C,cp,"RTTI; CCommand, type 900"
+0x00E34154,CNullDiplomaticAction_vftable,vtable,C,cp,RTTI
+0x00E341F4,CWarGoalBaseAction_vftable,vtable,C,cp,RTTI
+0x00E34294,CDeclareWarAction_vftable,vtable,C,cp,"RTTI; 0x38D; slot 32 (0x00E34314) CDeclareWarAction_Execute 0x00913510"
+0x00E34334,CAddWarGoalAction_vftable,vtable,C,cp,RTTI; 0x8DD
+0x00E343D4,CMakeCBAction_vftable,vtable,C,cp,RTTI; 0x931; 0x2C bytes; slot 14 entry 0x00E3440C = CMakeCBAction_CreateDialog
+0x00E34474,CPeaceAction_vftable,vtable,C,cp,RTTI; 0x81E; 0x98 bytes
+0x00E345B4,CWarSubsidiesAction_vftable,vtable,C,cp,RTTI; 0x470
+0x00E346F4,CCrisisOfferAction_vftable,vtable,C,cp,RTTI; 0x9FA
+0x00E34B6C,CPayingReparations_vftable,vtable,C,cp,0x24 bytes
+0x00E337E8,CWarSubsides_vftable,vtable,C,cp,RTTI; i64 +0x28
+0x00DFC6E4,CConquerProvinceCommand_vftable,vtable,C,cp,type 0x298; Execute = TransferProvinces
+0x00DEDA5C,CCommand_vftable,vtable,C,cp,"16 slots: 2 serialize, 3 read, 4 field, 6 execute, 7 type, 12 keep for joiners, 13 create, 14 validate"
+0x00E08694,CEU3Dialog_vftable,vtable,C,cp,"RTTI; 18 slots (1 per-frame IsActive, 4 tooltip, 6 agree, 7 decline, 13 show, 14 hide, 15 title, 16 description)"
+0x00E086E0,CButtonObserverGlue_CEU3Dialog_vftable,vtable,C,cp,"0x2C glue: slot k jumps to [glue+off] with ECX = [glue+4]; slot 1 +0x20 (button), 2 +0x08, 9 +0x24 (button); same code for 0x00E35A84, 0x00E359A0, 0x00E07484; the slots null-check their handler; the +0x20 handler receives (button)"
+0x00E0872C,CEU3DialogGui_vftable,vtable,C,cp,"RTTI; FixedWindow finders 0x34 button, 0x3C text, 0x44 icon, 0x48 checkbox, 0x4C scrollbar, 0x6C subwindow, 0x7C listbox, 0xBC add subwindow; +0x18 vtable 0x00E087FC"
+0x00E35714,CPeaceDialog_vftable,vtable,C,cp,RTTI
+0x00E356C4,CWarGoalDialog_vftable,vtable,C,cp,RTTI
+0x00E359CC,CPeaceGoalEntry_vftable,vtable,C,cp,RTTI; slot 4 toggle; +0x1C vtable 0x00E35A04
+0x00E35A64,CCheckBoxObserverGlue_CPeaceGoalEntry_vftable,vtable,C,cp,"0x38 glue: owner +4, six {fn, adjust} pairs"
+0x00E35760,CGoalEntry_vftable,vtable,C,cp,RTTI; slot 4 OnClick; +0x1C vtable 0x00E35794
+0x00E05F8C,CDiplomacyDialog_vftable,vtable,C,cp,RTTI
+0x00E05FDC,CStandardDiplomacyDialogue_vftable,vtable,C,cp,RTTI
+0x00E07450,CDiplomacyView_vftable,vtable,C,cp,"RTTI; slot 0 setup again, 10 tooltip, 11 refresh (I)"
+0x00E392F0,ListBoxItem_vftable,vtable,I,cp,"slot 0 dtor, slot 4 OnClick; +0x1C vtable 0x00E39320"
+0x00E08B24,CEU3CheckBox_vftable,vtable,C,cp,RTTI
+0x00DF8390,CScrollbarObserverGlue_CInvestProject_vftable,vtable,C,cp,slot 1 jumps to [glue+8] with ECX = owner
+0x00E0602C,CCBCreationDialog_vftable,vtable,C,cp,"RTTI; 1 0x0061A920, 4 0x0061AAB0, 6 0x00948CF0 (folded OnAgree)"
+0x00E06078,CCBTypeEntry_vftable,vtable,C,cp,RTTI; +0x1C vtable 0x00E060AC
+0x00E35820,CStateSelectionItem_vftable,vtable,C,cp,"RTTI; slot 4 OnClick 0x0093F5D0"
+0x00DFD78C,CState_vftable,vtable,C,cp,"RTTI; 10 slots; slot 8 (0x20) CState_GetName"
+0x00E0BF74,CMessageType_vftable,vtable,C,cp,"RTTI (.?AVCMessageType@@); 0x3C-byte message type, built by MessageTypes_Read"
+0x01262EF4,g_messageManager,ptr,C,cp,0x44-byte message-type manager; MessageManager_Get
+0x00DF213C,str_yesmen,string,C,cp,console command yesmen (referenced at 0x00422229); toggles g_cheatAIAcceptAll
+0x00E33864,str_THEY_ACCEPT,string,C,cp,_THEY_ACCEPT: CDiplomaticActionCommand_Execute appends it to slot 10 (if non-empty) or slot 9 name for the message key
+0x00E33874,str_WE_ACCEPT,string,C,cp,_WE_ACCEPT
+0x00E33880,str_OTHER_ACCEPT,string,C,cp,_OTHER_ACCEPT
+0x00E338A4,str_THEY_DECLINE,string,C,cp,_THEY_DECLINE
+0x00E338B4,str_WE_DECLINE,string,C,cp,_WE_DECLINE
+0x00E338C0,str_OTHER_DECLINE,string,C,cp,_OTHER_DECLINE
+0x00E080CC,str_interfaceMessagetypes,string,C,cp,interface/messagetypes.txt
+0x00E2CE78,CMtthModifier_vftable,vtable,C,cp,"modifier of a CMeanTimeToHappen (0x24 bytes, ctor 0x008AE250, ESI = this): a CAndTrigger (children +8/+0xC) with factor x1000 at +0x20"
+0x00E45660,k_nfPopulationFactor1,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E456C0,k_nfPopulationFactor2,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E45840,k_nfPopulationFactor3,const,?,cp,constant of the national-focus population factor (value not read yet)
+0x00E456C8,k_aiFrameBudget,f64,C,cp,0.02 s: AI_FrameUpdate pops jobs until the bucket is empty or this long has passed
+0x00E00C74,CConstructStateBuildingCommand_vftable,vtable,C,cp,"type 0x84E, ctor 0x0057C130"
+0x00E284EC,AiConstructionJob_vftable,vtable,C,cp,"RTTI just before it; slot 3 0x00825CF0 calls slot 6, slot 5 0x00826480 countdown tick, slot 6 (+0x18, at 0x00E28504) AI_ConstructionUpdate (se_buildings_ai_slot)"
+0x00E32D18,CCanBuildInProvinceTrigger_vftable,vtable,C,cp,can_build_in_province
+0x00E2B4AC,CReleaseVassalEffect_vftable,vtable,C,cp,"release_vassal: 0x2C bytes, ctor 0x0088DE60; slot 7 parse 0x0088DEA0, 9 tooltip 0x0088E2D0, 11 Execute 0x0088DF10; the Script Extender's dismantle effects are copies of it"
+0x00C8911A,k_codeCavePadding,code,C,cp,".text padding 0x00C8911A..0x00C891FF (zeros, executable): the only free code cave, one slice per patch; the shipped patches use trampolines instead"
+0x00F0E040,g_rng2State,u32,C,cp,"second RNG global (index 0x00F0EA00): the constant 1234, reset at every EconomyManager_PrepareUpdate (0x0068DAE5); used by FUN_009599A0 from the economy update and Pop_MonthlyUpdate, deterministic on every machine"
+0x00F0EA00,g_rng2Index,u32,C,cp,index of the second RNG global 0x00F0E040
+0x013F3034,g_lagWarningDay,u32,C,cp,day stamp of the lag announcement (with 0x013F3038); CClientPingCommand_Execute announces once per host day
+0x013F3038,g_lagWarningDay2,u32,C,cp,second word of the lag day stamp
+0x013F303C,g_lagWarningFlags,u32,C,cp,flags of the lag announcement (CClientPingCommand_Execute)
+0x00C8A310,imp_DispatchMessageA,ptr,C,cp,import slot; called from App_ProcessMessagePumpAndUpdate at 0x009DF308 and App_MainLoop at 0x009DF6A9
+0x00C8A330,imp_select,ptr,C,cp,import slot (winsock select); CALL [select] in enet_socket_wait at 0x00A8B477
+0x00C8A338,imp_WSARecvFrom,ptr,C,cp,import slot (winsock); ENet receive
+0x012586EC,g_lazySingleton_12586EC,ptr,I,cp,lazy singleton created at load (parallel-triggers.md: no race in mid-game)
+0x01258728,g_lazySingleton_1258728,ptr,I,cp,lazy singleton created at load
+0x012587EC,g_lazySingleton_12587EC,ptr,I,cp,lazy singleton created at load
+0x0125880C,g_lazySingleton_125880C,ptr,I,cp,lazy singleton created at load
+0x01258A10,g_nullPop,ptr,C,cp,CNullPop lazy singleton; built by Pop_ctor 0x00954A40
+0x01258A2C,g_lazySingleton_1258A2C,ptr,I,cp,lazy singleton created at load
+0x01258A34,g_lazySingleton_1258A34,ptr,I,cp,lazy singleton created at load
+0x0125EA24,g_sameValueHelper_125EA24,ptr,I,cp,"""store the same value"" helper (if (p == g) g = p); harmless under parallel evaluation"
+0x013F24F4,g_marketScratchBegin,array,C,cp,static scratch buffers 0x013F24F4..0x013F25A8 rewritten per country and per pop by WorldMarketUpdate / Market_UpdateCountryPops (not parallelisable)
+0x013F25A8,g_marketScratchEnd,array,C,cp,end of the WorldMarketUpdate scratch buffers (see 0x013F24F4)
+0x00DF31A4,CCrisisManager_vftable,vtable,C,cp,"crisis manager *(world+0xCF8); +0x08 current CCrisis*, +0x0C date the last crisis ended"
+0x00DF3188,CCrisis_vftable,vtable,C,cp,0xB4 bytes; layout in structs.csv (CCrisis)
+0x00E26CC4,CAllianceAction_vftable,vtable,C,cp,slot 36 CAllianceAction_CanPerform 0x0091DF80
+0x00E2BECC,CNeutralityEffect_vftable,vtable,C,cp,neutrality = yes: only ends alliances and wars; leaves no state behind
+0x00E34514,CCrisisBackDownAction_vftable,vtable,C,cp,"0x9C bytes; slot 36 0x0091CA90, slot 32 CCrisisBackDownAction_Execute 0x0091B1D0 ends the crisis"
+0x00E34654,CCallAllyAction_vftable,vtable,C,cp,"slot 27 0x0091E530 (auto-accept), 32 0x0091E5E0, 36 0x0091EF50"
+0x00F20C38,g_app,ptr,C,cp,CEU3Application*; set by App_CreateWindow; +0xD8 window
+0x013F3688,k_prepassResetValue,u32[2],C,cp,constant pair (DAT_013F3688/DAT_013F368C) FUN_0051FD10 stores into country+0x1514 and country+0x14F4 every day
+0x012587F0,g_goodsSource,ptr,C,cp,"+0xC/+0x10 vector; count = number of goods (FUN_0051FD10, country_prepass)"
+0x00F09740,g_consoleCommands,CConsoleCommand[60],C,cp,"static console command table, 0x4C bytes per entry (structs.csv CConsoleCommand), to 0x00F0A910"
+0x0125A5B4,g_modifierDefinitions,vector<CModifierDefinition*>,C,cp,"begin/end at 0x0125A5B4/0x0125A5B8; index = position (ModifierDefinitions_Init)"
+0x00E2ACF8,CSetProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882A90
+0x00E2AD30,CClrProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882B00
+0x01258720,g_navalBaseIndex,u32,C,cp,index of the naval base building in CProvince+0x118 (Country_HasColonialRangeTo)

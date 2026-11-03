@@ -60,11 +60,15 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::Config config = cp::load_config(host->config_file);
 
     // The order matters where two features hook the same call site: tick_profiler after cb_cull and
-    // before decision_cull, events_parallel and state_checksum, which chain to (or refuse) what it put
-    // there. Moving a line means checking the call sites both features touch.
+    // before ai_queue, decision_cull, events_parallel and state_checksum, which chain to (or refuse)
+    // what it put there. ai_queue before decision_cull: parallel_decisions (resolved inside
+    // install_decision_cull) needs fast_ai_queue's site taken (ai_queue_installed()), not just the
+    // option on; the AI_FrameUpdate call (0x006557C4) is shared with tick_profiler level 3 only.
+    // Moving a line means checking the call sites both features touch.
     cp::features::install_worker_threads(config);
     cp::features::install_cb_cull(config);
     cp::features::install_tick_profiler(config);
+    cp::features::install_ai_queue(config);
     cp::features::install_decision_cull(config);
     cp::features::install_year_timer();
     cp::features::install_sample_profiler(config);
@@ -75,7 +79,6 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
     cp::parallel::install_trigger_locks(config);  // before anything evaluates triggers on workers
-    cp::features::install_ai_queue(config);
     cp::features::install_events_parallel(config);
     cp::features::install_country_prepass(config);
 

@@ -20,5 +20,10 @@ call "%~dp0build.cmd" %1 || exit /b 1
 
 echo.
 echo Deploying to "%V2_GAME_DIR%"
+rem Old layout (before the .mod descriptors): the ini files sat in mod\ itself. The loader ignores them now.
+for %%f in (performance_patch script_extender) do (
+    if exist "%V2_GAME_DIR%\mod\%%f.ini" del /q "%V2_GAME_DIR%\mod\%%f.ini"
+    if exist "build\mod\%%f.ini" del /q "build\mod\%%f.ini"
+)
 xcopy /E /Y /I "build\*" "%V2_GAME_DIR%\" >nul || exit /b 1
 echo Done.

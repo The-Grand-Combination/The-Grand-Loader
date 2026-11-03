@@ -7,6 +7,7 @@
 
 #include "game/world.h"
 #include "hooks/memory.h"
+#include "hooks/thunk.h"
 #include "log.h"
 
 // v2game.exe 3.04 (docs/re/systems/economy.md, docs/re/systems/performance.md):
@@ -22,6 +23,10 @@
 //
 // Before the call, the thunk walks all the country's lists at once (one cursor per list, advanced
 // together) and prefetches every pop's lines, so the misses overlap. Nothing is written.
+//
+// Every thunk saves the general registers, the flags and XMM0-7 (CP_SAVE_ALL, CP_SAVED_ALL_BYTES =
+// 164: the callers keep values in any register across these calls and the walks use SSE prefetches),
+// and jumps to the original with the stack exactly as at entry.
 
 namespace cp::features {
 
@@ -109,19 +114,17 @@ void __stdcall before_update_pops(uintptr_t market, uintptr_t country) {
     walk(count);
 }
 
-// Stack at entry: [ret][market][country][...]. After pushad (32) + pushfd (4), market is at [esp+40]
-// and country at [esp+44]; the first push moves both down by 4.
+// Stack at entry: [ret][market][country][...]. After CP_SAVE_ALL, market is at [esp + 168] and
+// country at [esp + 172]; the first push moves both down by 4.
 __declspec(naked) void update_pops_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 44]       ; country
-        push dword ptr [esp + 44]       ; market
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 8]   ; country
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 8]   ; market (moved by the push above)
         call before_update_pops
-        popfd
-        popad
-        jmp dword ptr [g_update_pops]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_update_pops]
 }
 
 // DayTick (0x006859C0), province loop: for each province (EBX = world, EDI = index, ESI = province),
@@ -165,18 +168,18 @@ void __stdcall before_province_pops(uintptr_t world, int index) {
     walk(count);
 }
 
-// The callee takes the province in ESI; every register is kept, so it still finds it there.
+// The callee takes the province in ESI; every register is kept, so it still finds it there. The
+// arguments come from EBX and EDI, which still hold the entry values after CP_SAVE_ALL; nothing on
+// the stack is read.
 __declspec(naked) void province_pops_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
         push edi                        ; index
         push ebx                        ; world
         call before_province_pops
-        popfd
-        popad
-        jmp dword ptr [g_province_pops]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_province_pops]
 }
 
 // ProcessMarketAndGoodsDistribution (0x004808D0) has the same province x pop-type list walk inline, with no
@@ -197,16 +200,15 @@ void __stdcall prefetch_pop(uintptr_t pop) {
     }
 }
 
+// The next pop is in EAX at the call (entry value after CP_SAVE_ALL); nothing on the stack is read.
 __declspec(naked) void distribution_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
         push eax                        ; next pop
         call prefetch_pop
-        popfd
-        popad
-        jmp dword ptr [g_pop_distribute]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_pop_distribute]
 }
 
 // Every pop of a country: all lists of all its provinces (country+0x9D8 ids, every type entry of
@@ -254,16 +256,15 @@ bool g_enabled = false;
 
 void __stdcall before_daily_update(uintptr_t country) { walk_country_pops(country); }
 
+// Stack at entry: [ret][country][random array]; country at [esp + 168] after CP_SAVE_ALL.
 __declspec(naked) void daily_update_thunk() {
+    CP_SAVE_ALL
     __asm {
-        pushad
-        pushfd
-        push dword ptr [esp + 40]       ; country
+        push dword ptr [esp + CP_SAVED_ALL_BYTES + 4]   ; country
         call before_daily_update
-        popfd
-        popad
-        jmp dword ptr [g_daily_update]
     }
+    CP_RESTORE_ALL
+    __asm jmp dword ptr [g_daily_update]
 }
 
 }  // namespace
@@ -297,6 +298,10 @@ void install_pops_prefetch(const Config& config) {
             logf("prefetch_pops: call site %08X (%s) not recognised or already hooked, skipped",
                  hooks::listing_va(s.call_rva), s.name);
         }
+    }
+    if (active == 0) {
+        logf("prefetch_pops: off (every site taken)");
+        return;  // g_enabled stays false: country_prepass's pop prefetch is a no-op too
     }
     g_enabled = true;
     logf("prefetch_pops: active on %d of 4 pop loops "

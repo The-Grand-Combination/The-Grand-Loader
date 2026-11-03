@@ -1,15 +1,15 @@
 # Next steps (performance)
 
 Where the speed work goes after the easy cache-miss fixes (written 2026-10-11, at 132 ms/day in the
-first year of TGC against 196 vanilla). Evidence and the budget: [systems/performance.md](systems/performance.md).
+first year of TGC against 196 vanilla; later measurements in log.md: 129-169 ms/day, 1855-1892). Evidence and the budget: [systems/performance.md](systems/performance.md).
 
 ## Pending measurements
 
 - `year_timer` and a `sample_profiler = 1` run with the current settings (`prefetch_pops` with both
   sites, `prefetch_ai_relations`, `+0x2C` in `prefetch_relations`), against 132 ms/day. The last sample
   file is from the run with culls and prefetches off, so its ranking is stale.
-- `fast_ai_queue`: a second run before shipping it on.
-- `skip_network_wait` in multiplayer.
+- `fast_ai_queue`: ships at 1 in `performance_patch.ini`; a second measured run is still pending.
+- `skip_network_wait` ships at 1; a measured multiplayer run is still pending.
 
 ## Options, in recommended order
 
