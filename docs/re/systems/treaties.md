@@ -2,7 +2,7 @@
 
 **Status: built (2026-10-24), testing in progress.** ini key `treaty = 1` in `mod/script_extender.ini`.
 Code: `script_extender/src/features/treaty.cpp` (the action, validation, execution, AI) and `treaty_ui.cpp`
-(loading, the chooser, the editor, the texts). Engine background: [diplomacy.md](diplomacy.md) and
+(loading, the button, the editor, the texts). Engine background: [diplomacy.md](diplomacy.md) and
 [casus-belli.md](casus-belli.md). Addresses are in [functions.csv](../symbols/functions.csv); hook sites in
 [patch_sites.csv](../symbols/patch_sites.csv) (`se_treaty_*`).
 
@@ -20,8 +20,8 @@ object, with a budget, is the forced treaty the `dismantle` effects impose after
    peacetime. It keeps its usual fields (`peace_cost_factor`, `badboy_factor`, `prestige_factor`,
    `can_use`, `allowed_states`, `allowed_countries`, ...). A term goes either way: demanded or offered.
 2. **Money** is an extra term, a lump sum either way.
-3. **Entry point.** The diplomacy view's "Justify war" button opens a chooser ("Diplomatic Play"):
-   **Justify Casus Belli** (vanilla) or **Initiate Treaty** (the editor).
+3. **Entry point.** A "Propose Treaty" button in the diplomacy view, the 18th of its action grid, opens
+   the editor. "Justify war" is untouched.
 4. **The recipient** gets the vanilla incoming box, as for a peace offer. The AI answers with its own rule.
 
 ## Architecture
@@ -100,8 +100,8 @@ actorIdx, recTag, recIdx)`, RET 0x10):
 | `se_treaty_gfx` | `0x00635D89` end of the `.gfx` loop | `8B 55 C0 8B 8A 28 01 00 00` | JMP thunk: parses the plugin's `interface/*.gfx` |
 | `se_treaty_gui` | `0x0063690D` CALL `Gui_Finalize` (`0x009A4190`) | `E8 7E D8 36 00` | parses the plugin's `interface/*.gui` first |
 | `se_treaty_messagetypes` | `0x0063C4AA` CALL `MessageTypes_Read` (`0x006A4FA0`) | `E8 F1 8A 06 00` | then reads `interface/se_messagetypes.txt` |
-| `se_treaty_chooser` | `0x00E3440C` `CMakeCBAction` slot 14 | `00 6D 92 00` (`0x00926D00`) | the "Diplomatic Play" chooser |
-| `se_treaty_button` | `0x0062B9FC` CALL `DiplomaticAction_CanPerform` in `CDiplomacyView_RefreshActions` | `E8 5F 5D 2E 00` (`0x00911760`) | ESI = action; for `CMakeCBAction` (vtable `0x00E343D4`) the button is enabled when a treaty is possible |
+| `se_treaty_button_ctor`, `se_treaty_button_reset` | `0x0061BE1B`, `0x0061C096` CALL `CDiplomacyView_Setup` (`0x00622270`) | `E8 50 64 00 00`, `E8 D5 61 00 00` | the vanilla setup, then the "Propose Treaty" button |
+| `se_treaty_button` | `0x0062B9FC` CALL `DiplomaticAction_CanPerform` in `CDiplomacyView_RefreshActions` | `E8 5F 5D 2E 00` (`0x00911760`) | ESI = action, `[EBP+8]` = view; the vanilla result, and at the `CMakeCBAction` (vtable `0x00E343D4`, once per refresh) the button is enabled when a treaty is possible |
 
 If `se_treaty_create` does not match, the feature stays off. If a screen site does not match, it stays off
 too. `se_treaty_ai_switch` failing only makes the AI refuse every treaty (vanilla `default` = 0).
@@ -141,18 +141,22 @@ All have `is_triggered_only = yes`, `constructing_cb = no`, `truce_months = 0`, 
 
 ## Screens
 
-### "Diplomatic Play" chooser **[C]**
+### "Propose Treaty" button **[C]**
 
-- `CMakeCBAction` slot 14 returns a `CEU3Dialog` on the vanilla **"DefaultDialog"** with our vtable copy.
-  It keeps a clone of the action (`+0x68`) and the view (`+0x6C`).
-- Agree = "Justify Casus Belli": `CMakeCBAction_CreateDialog` `0x00926D00` with the clone, `vt[0x28]`,
-  `GuiOwner_AddDialog`. It is disabled when the vanilla `DiplomaticAction_CanPerform` fails (truce,
-  relations, ...).
-- Decline = "Initiate Treaty": the editor.
-- The view's button is enabled when a treaty is possible (both exist, not the same, not at war), whatever
-  the CB rules say (`se_treaty_button`).
-- The button text stays `MAKE_CB_BUTTON` (`CDiplomacyView_MakeAction` keeps 0x931, whose alternative is also
-  0x931). A mod may rename it (for example "Diplomatic Play") in its own localisation; the plugin does not.
+- Both CALLs of `CDiplomacyView_Setup` `0x00622270` (stdcall `(view)`, RET 4; in the ctor at `0x0061BE1B`
+  and in `FUN_0061BF70` at `0x0061C096`, where the view is rebuilt) are redirected: the vanilla setup runs,
+  then an 18th `diplomacy_option` is made the way Setup makes the 17 (`0x00623C41..0x0062410D`):
+  `g_gui->vt[0x2C]("diplomacy_option", owner->vt[0x3C]())`, attached to the view's window (`+0x4C`) by
+  `vt[0xBC]("se_treaty_option", window)`, placed by `vt[0x18]` at `diplomacy_actions_pos` plus the
+  window's size (`vt[0x60]`) times the cell (column 17 % columns, row 17 / columns, with the columns of
+  `diplomacy_actions_wrap_count`: Setup fills the grid column by column, so with vanilla's 2 columns the
+  free cell is right of "Command Units"), then `(window+0x494)->vt[0xB0]()` as Setup does.
+- Its `action_option` gets a `CButtonObserverGlue<CEU3Dialog>` of ours (owner = the view): the click opens
+  the editor for the player (`world+0xB60`) and the view's selected country (`+0x38C`). The text is
+  `SE_TREATY_BUTTON` from the plugin's CSV (a mod may override it).
+- Enabled at the `CanPerform` call of `CDiplomacyView_RefreshActions` (`se_treaty_button`), once per refresh
+  (at the `CMakeCBAction`), when a treaty is possible (both exist, not the same, not at war). The vanilla
+  result is kept for every action, so "Justify war" (`MAKE_CB_BUTTON`) behaves as in vanilla.
 
 ### The editor **[C]**
 
@@ -482,11 +486,14 @@ synced state.
 - **Interest lists (2026-11-01).** `common/ai_interests.txt` (the mod's, else the plugin's; the partitions
   format, `TAG = { REGION ... provinces = { id ... } }`, loaded by the same `load_tag_lists`) names the land a
   country wants. A land term whose gainer (the AI, or the ally that gets it) lists one of its provinces is
-  x `treaty_dismantle_ai_interest`% (200): after cores (3 x core_gain), before colonies (1.3). It is taken
+  x `treaty_dismantle_ai_interest`% (200): after cores (3 x core_gain), before colonies (1.3).
+- **Frontier (2026-11-02).** Land freed to a third country (liberate, free peoples, partition) that already
+  borders a country other than the loser, or is coastal, is x `treaty_dismantle_ai_frontier`% (150), applied
+  after the land rules: peoples are freed along the loser's borders and coasts rather than out of its middle. It is taken
   across the sea like a colony (no exclave rule, the coastal-only rule still applies) and, when its CB costs
   infamy, without the `treaty_dismantle_ai_infamy` discount, within `BADBOY_LIMIT`.
 - **Single provinces.** A `po_demand_province` term (cede province, for the AI or for an ally) is taken only
-  when that province itself borders, by land or strait, a province of its gainer or a state the treaty
+  when that province itself borders, by land, a province of its gainer or a state the treaty
   already gives it (`province_borders`), colonial or not; land of the gainer's interest is the one
   exception. No stray provinces across the map.
 - **Abroad (2026-11-01, evening).** The loser's non-colonial land on a continent other than that of the
@@ -508,8 +515,8 @@ synced state.
 - Terms are taken one per round, the best value per point as the treaty stands, then the bigger term;
   the total stays within the budget plus `treaty_dismantle_ai_overspend`. The value of a land term
   depends on what the treaty already moves (2026-11-01, `Picker::worth` in `treaty_ai_dismantle.cpp`): x `treaty_dismantle_ai_border`%
-  (150) when one of its states borders, by land or strait (`CProvince+0x5C` geography, neighbours at
-  `+0xC8`), a province of its gainer or a state the treaty already gives that gainer; x `_adjacent`% (120)
+  (150) when one of its states borders, by land (`CProvince+0x5C` geography, neighbours at `+0xC8`, kind 1; kind 2 links coastal
+  provinces across water and does not count: 2026-11-02), a province of its gainer or a state the treaty already gives that gainer; x `_adjacent`% (120)
   when it is the first state of a country yet to exist and borders a state given to someone else (a
   later state of that country must border its earlier ones, or it is an exclave: no country in two pieces); x `_exclave`% (0: never, until a neighbour is taken) when it borders neither, unless it is colonial or
   the first state of a country yet to exist. A colonial state on a continent named in
@@ -527,7 +534,7 @@ synced state.
   into more connected groups of states (an enclave, a detached part: `splits_loser`, `game::components` over the
   same adjacency) is dropped. A partition term (`po_partition`) is eligible only while one of its states
   borders land the treaty gives a third country (`borders_others`): partitions extend freed land, they
-  do not start it. Weights: liberate 2.5, free peoples 2, partition 0.3. A term whose third country is an ally of the AI
+  do not start it. Weights: liberate 2.5, free peoples 2.5 (2026-11-02, was 2: colonies at 1.3 with the border and continent bonuses were winning), partition 0.3. A term whose third country is an ally of the AI
   (`Relation+0x28` either way: allied cores, colonies to an ally) is x `treaty_dismantle_ai_ally`% (130), and
   colonies go only to an ally that is a great or secondary power. The colony CB's weight is 1 (was 1.5),
   the allied-core CB's 3 (was 2), the same as its own cores.
@@ -651,7 +658,7 @@ All sites are in `patch_sites.csv`; the engine rows of the table under "Hooks" c
 | `se_treaty_keyword` (chained with `se_demand_province_keyword`) | `0x00E33734` | `is_treaty_cb` and the other CB keywords |
 | `se_treaty_load` (chained with `se_demand_province_load`) | `0x0063DCD2` | tokens and the merged CB file |
 | `se_treaty_gfx`, `se_treaty_gui`, `se_treaty_messagetypes` | `0x00635D89`, `0x0063690D`, `0x0063C4AA` | the screens and the answer messages |
-| `se_treaty_chooser`, `se_treaty_button` | `0x00E3440C`, `0x0062B9FC` | the "Diplomatic Play" chooser and its button |
+| `se_treaty_button_ctor`, `se_treaty_button_reset`, `se_treaty_button` | `0x0061BE1B`, `0x0061C096`, `0x0062B9FC` | the "Propose Treaty" button |
 | `se_treaty_effect_factory` | `0x00876B30` | the dismantle effects (effects.md) |
 | `se_treaty_peace_execute` | `0x00E344F4` | forced treaties taken after the peace |
 

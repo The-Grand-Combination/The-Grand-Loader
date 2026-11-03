@@ -132,7 +132,7 @@ std::vector<uint32_t> neighbours(uint32_t province) {
     for (uintptr_t e = read<uintptr_t>(geo + kGeoNeighbours); e < end; e += kNeighbourEntry) {
         int kind = read<int>(e);
         uint32_t id = read<uint32_t>(e + 4);
-        if ((kind == kNeighbourLand || kind == kNeighbourStrait) && id) {
+        if (kind == kNeighbourLand && id) {
             out.push_back(id);
         }
     }
@@ -157,20 +157,24 @@ int homeland_states(int country) {
     return n;
 }
 
-int components(std::vector<uintptr_t> states) {
+int components(std::vector<uint32_t> provinces) {
+    std::sort(provinces.begin(), provinces.end());
+    std::vector<bool> left(provinces.size(), true);
     int n = 0;
-    while (!states.empty()) {
+    for (size_t start = 0; start < provinces.size(); ++start) {
+        if (!left[start]) {
+            continue;
+        }
         n++;
-        std::vector<uintptr_t> group{states.back()};
-        states.pop_back();
+        left[start] = false;
+        std::vector<uint32_t> group{provinces[start]};
         for (size_t i = 0; i < group.size(); ++i) {
-            for (uint32_t province : state_provinces(group[i])) {
-                for (uint32_t other : neighbours(province)) {
-                    auto it = std::find(states.begin(), states.end(), read<uintptr_t>(game::province(other) + kProvinceState));
-                    if (it != states.end()) {
-                        group.push_back(*it);
-                        states.erase(it);
-                    }
+            for (uint32_t other : neighbours(group[i])) {
+                auto it = std::lower_bound(provinces.begin(), provinces.end(), other);
+                size_t at = static_cast<size_t>(it - provinces.begin());
+                if (it != provinces.end() && *it == other && left[at]) {
+                    left[at] = false;
+                    group.push_back(other);
                 }
             }
         }

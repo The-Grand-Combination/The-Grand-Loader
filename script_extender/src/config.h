@@ -54,6 +54,7 @@ struct Config {
     int treaty_dismantle_ai_colony_repeat = 70;  // percent: each colony already taken on a near or coastal_only continent scales the next
     int treaty_dismantle_ai_infamy = 40;      // percent of the value of a term that costs infamy (land without a claim); 0 = never
     int treaty_dismantle_ai_interest = 200;   // percent: land of the gainer's interest (common/ai_interests.txt)
+    int treaty_dismantle_ai_frontier = 150;   // percent: land freed to a third country that borders another country or the sea
     int treaty_dismantle_ai_abroad = 50;      // percent: the loser's homeland off the gainer's continent, next to land it already owned; 0 = never
 };
 

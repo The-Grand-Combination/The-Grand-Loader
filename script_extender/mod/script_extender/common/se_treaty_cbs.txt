@@ -686,7 +686,7 @@ treaty_free_peoples = {
 
 	is_treaty_cb = yes
 	is_dismantling_cb = yes  # may be a term of a forced (dismantle) treaty
-	ai_dismantle_weight = 2  # AI dismantler: freeing cores before puppets, colonies and new countries
+	ai_dismantle_weight = 2.5  # AI dismantler: freeing peoples a little before colonies (1.3 with their bonuses)
 	repeat_cost = 0.75  # each further state freed for the same people costs 75%
 
 	can_use = {

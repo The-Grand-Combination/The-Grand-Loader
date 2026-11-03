@@ -32,6 +32,7 @@
 //      continent only on the coast; a colony is x _home_continent% on the gainer's own continent and
 //      x _colony_repeat% per colony already taken on a near or coastal-only continent;
 //   7. anything else is an exclave: treaty_dismantle_ai_exclave% (0: never).
+// Land freed to a third country that already borders another country, or the sea, is x treaty_dismantle_ai_frontier%.
 // Land of interest (common/ai_interests.txt) is exempt from 1, 2 and 4. Every land value is also x the
 // distance factor of the near continents (treaty_dismantle_ai_near / _far / _near_range) where applied.
 // Reads only: the same result on every machine.
@@ -122,6 +123,7 @@ struct Candidate {
     bool coastal_only_continent;    // a state on a treaty_dismantle_ai_coastal_only continent
     bool near_continent;            // a state on a treaty_dismantle_ai_near_continents continent
     bool in_colonial_range;         // a coastal province within the gainer's colonial range (colonies, existing gainer)
+    bool frontier;                  // a state borders a province of a country other than the loser
 };
 
 // Land the treaty already moves: the loser's state, or one province of it, and who gets it.
@@ -155,8 +157,8 @@ int near_percent(const Config& k, const std::vector<uintptr_t>& states, int gain
     return static_cast<int>(far + (near - far) * (range - distance) / range);
 }
 
-// Calls visit(province, state) for every province outside `states` that borders one of them, until it
-// returns true.
+// Calls visit(province, state) for every province outside `states` that borders one of them by land, until
+// it returns true.
 template <class Visit>
 bool borders_where(const std::vector<uintptr_t>& states, Visit visit) {
     for (uintptr_t state : states) {
@@ -207,24 +209,27 @@ bool province_borders(uint32_t province, int gainer, const std::vector<Moved>& m
     return false;
 }
 
-// The loser's states the treaty leaves it, without `taken`.
-std::vector<uintptr_t> states_left_to(int loser, const std::vector<Moved>& moved, const std::vector<uintptr_t>& taken) {
-    std::vector<uintptr_t> out;
-    for (uintptr_t node = read<uintptr_t>(game::country(loser) + game::kCountryStates); node; node = read<uintptr_t>(node + 8)) {
-        uintptr_t state = read<uintptr_t>(node);
-        bool gone = std::find(taken.begin(), taken.end(), state) != taken.end() ||
-                    std::any_of(moved.begin(), moved.end(), [&](const Moved& m) { return !m.province && m.state == state; });
-        if (state && !gone) {
-            out.push_back(state);
+// The loser's provinces the treaty leaves it, without those a term takes (`states`, or one `province`).
+std::vector<uint32_t> provinces_left_to(int loser, const std::vector<Moved>& moved, const std::vector<uintptr_t>& states,
+                                        uint32_t province) {
+    std::vector<uint32_t> out;
+    for (uint32_t id : game::owned_provinces(loser)) {
+        uintptr_t state = read<uintptr_t>(game::province(id) + game::kProvinceState);
+        bool gone = id == province || (!province && std::find(states.begin(), states.end(), state) != states.end()) ||
+                    std::any_of(moved.begin(), moved.end(), [&](const Moved& m) { return moves(m, id, state); });
+        if (!gone) {
+            out.push_back(id);
         }
     }
     return out;
 }
 
-// Taking `states` would split what the loser keeps into more pieces: an enclave or a detached part.
-bool splits_loser(int loser, const std::vector<Moved>& moved, const std::vector<uintptr_t>& states) {
-    std::vector<uintptr_t> after = states_left_to(loser, moved, states);
-    return !after.empty() && game::components(after) > game::components(states_left_to(loser, moved, {}));
+// Taking the term's land would split what the loser keeps, by land borders, into more pieces: an enclave or
+// a detached part. A single province is tested as that province.
+bool splits_loser(int loser, const std::vector<Moved>& moved, const Candidate& c) {
+    uint32_t province = c.one_province ? c.term.province : 0;
+    std::vector<uint32_t> after = provinces_left_to(loser, moved, c.states, province);
+    return !after.empty() && game::components(after) > game::components(provinces_left_to(loser, moved, {}, 0));
 }
 
 // Every term the winner could impose on the loser now (as the editor offers them), with its value and
@@ -280,6 +285,10 @@ std::vector<Candidate> candidates(const Config& k, uintptr_t action, int winner,
                 c.coastal_only_continent = states_on(c.states, lists.coastal_only);
                 c.near_continent = states_on(c.states, lists.near);
                 c.near = near_percent(k, c.states, c.gainer, c.near_continent);
+                c.frontier = borders_where(c.states, [&](uint32_t id, uintptr_t) {
+                    int owner = read<int>(game::province(id) + game::kProvinceOwner);
+                    return owner > 0 && owner != loser;
+                });
                 c.in_colonial_range = false;
                 if (c.colonial && game::country_exists(c.gainer)) {
                     for (uintptr_t state : c.states) {
@@ -335,7 +344,15 @@ public:
     }
 
     // The term's value as the treaty stands, 0 when it cannot be taken now, and the land rule that decided.
+    // Land freed to a third country is worth treaty_dismantle_ai_frontier% more when it already touches
+    // another country or the sea: peoples are freed along the loser's borders and coasts, not out of its
+    // middle.
     int64_t worth(const Candidate& c, const char** why) const {
+        int64_t value = land_value(c, why);
+        return value > 0 && c.term.third && (c.frontier || c.coastal) ? value * k_.treaty_dismantle_ai_frontier / 100 : value;
+    }
+
+    int64_t land_value(const Candidate& c, const char** why) const {
         auto say = [&](const char* reason) { *why = reason; };
         if (c.states.empty()) {
             say("no land");
@@ -417,7 +434,7 @@ public:
         if (is_new(c) && static_cast<int>(new_countries_.size()) >= k_.treaty_dismantle_ai_max_new) {
             return "too many new countries";
         }
-        if (!c.one_province && !c.states.empty() && splits_loser(loser_, moved_, c.states)) {
+        if (!c.states.empty() && splits_loser(loser_, moved_, c)) {
             return "would leave the loser an enclave or a detached part";
         }
         if (c.infamy > 0 && treaty::infamy_x1000(winner_) + infamy_taken_ + c.infamy > game::badboy_limit_x1000()) {

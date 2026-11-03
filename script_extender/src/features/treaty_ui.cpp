@@ -35,8 +35,12 @@
 //   (the -mod= folder's, else the game's; game::game_file), into common/se_cb_types.generated.txt, which CBManager_Load then parses
 //   (it clears the CB list first, so a second call cannot add to it). Their names and descriptions come
 //   from our CSV into the game's localisation table, as the message texts do.
-// - "Diplomatic Play": CMakeCBAction's slot 14 (vtable entry 0x00E3440C) returns a chooser built on the
-//   vanilla "DefaultDialog" box instead: Agree opens the vanilla Justify-war dialog, Decline the editor.
+// - "Propose Treaty": after CDiplomacyView_Setup (0x00622270, stdcall (view); its calls at 0x0061BE1B and
+//   0x0061C096) an 18th diplomacy_option is made as Setup makes the 17 vanilla ones (0x00623C41..0x0062410D):
+//   instantiated by g_gui from the window type, attached to the view's window, placed in the first free cell
+//   of the action grid (right of "Command Units" with vanilla's wrap count of 2), its action_option bound to
+//   our glue, which opens the editor. The CanPerform call of CDiplomacyView_RefreshActions enables it (once
+//   per refresh, at the CMakeCBAction) when a treaty is possible. The vanilla "Justify war" button is untouched.
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
 //   0 dtor, 1 per-frame refresh, 6 send, 7 cancel). Its rows are fixed buttons, paged: the terms
 //   (money first, then the CB terms; click = remove) and the picker (Demand / Offer tabs, then money or a
@@ -100,15 +104,35 @@ constexpr uint32_t kTextBoxString = 0xDC;
 constexpr uint32_t kTextBoxSprite = 0xA0;
 constexpr uint32_t kStringAssignFrom = 0x00408ED0;  // thiscall (const std::string*, pos, count)
 constexpr uint32_t kTextSpriteSetText = 0x00A5ECC0;  // ESI = sprite, (const std::string*, 0)
-// "Justify war"
-constexpr uint32_t kRefreshCanPerform = 0x0062B9FC;  // CDiplomacyView_RefreshActions: CALL CanPerform, ESI = action
+// "Propose Treaty" button (diplomacy.md, "Diplomacy view")
+constexpr uint32_t kRefreshCanPerform = 0x0062B9FC;  // CDiplomacyView_RefreshActions: CALL CanPerform, ESI = action, [EBP+8] = view
 constexpr uint32_t kCanPerform = 0x00911760;         // DiplomaticAction_CanPerform: ESI = action, (bool) -> AL
-constexpr uint32_t kMakeCbVtable = 0x00E343D4;
-constexpr uint32_t kMakeCbDialogSlot = 0x00E3440C;   // CMakeCBAction_vftable slot 14
-constexpr uint32_t kMakeCbDialog = 0x00926D00;       // thiscall (owner, view) -> dialog
-constexpr uint32_t kActionClone = 0x30;              // action vt: Clone
+constexpr uint32_t kMakeCbVtable = 0x00E343D4;       // CMakeCBAction: one of the 17 actions, refreshed once each
 constexpr uint32_t kActionActorIndex = 0x0C;
 constexpr uint32_t kActionRecipientIndex = 0x14;
+constexpr uint32_t kViewSetup = 0x00622270;          // CDiplomacyView_Setup: stdcall (view), RET 4
+constexpr uint32_t kViewSetupCallCtor = 0x0061BE1B;  // its CALL in CDiplomacyView_ctor
+constexpr uint32_t kViewSetupCallReset = 0x0061C096; // its CALL in FUN_0061BF70 (the view rebuilt)
+constexpr uint32_t kViewWindow = 0x4C;               // the country_diplomacy instance
+constexpr uint32_t kViewOwner = 0x54;                // gui owner
+constexpr uint32_t kViewSelectedIndex = 0x38C;       // the recipient of every action
+constexpr uint32_t kGuiVa = 0x01258A80;              // g_gui
+constexpr uint32_t kGuiInstantiate = 0x2C;           // g_gui vt: (const std::string* type, parent) -> window
+constexpr uint32_t kGuiPositionType = 0x48;          // g_gui vt: (const std::string* name) -> positionType
+constexpr uint32_t kPositionTypeX = 0x64;            // int
+constexpr uint32_t kPositionTypeY = 0x68;
+constexpr uint32_t kOwnerParent = 0x3C;              // gui owner vt: the parent of a new window
+constexpr uint32_t kWindowSetPosition = 0x18;        // (packed {i16 x, i16 y})
+constexpr uint32_t kWindowGetSize = 0x60;            // (out) -> {i16 x, i16 y}*
+constexpr uint32_t kWindowAddChild = 0xBC;           // (const std::string* name, window)
+constexpr uint32_t kWindowElement = 0x494;           // Setup calls its vt[0xB0] once the window is placed
+constexpr uint32_t kElementPlaced = 0xB0;
+constexpr int kVanillaActions = 17;
+constexpr const char* kOptionType = "diplomacy_option";
+constexpr const char* kOptionButton = "action_option";
+constexpr const char* kOptionName = "se_treaty_option";  // next to action0..action16
+constexpr const char* kActionsPosition = "diplomacy_actions_pos";
+constexpr const char* kActionsWrap = "diplomacy_actions_wrap_count";
 
 // Countries, provinces
 constexpr uint32_t kCountryTag = 0x1C;
@@ -122,7 +146,6 @@ constexpr uint32_t kCountryManagerVa = 0x012587E4;  // g_countryManager: +0 coun
 constexpr int64_t kMoneyOne = 32768;
 
 constexpr const char* kEditorType = "se_treaty_dialog";
-constexpr const char* kChooserType = "DefaultDialog";
 constexpr int kTermRows = 8;  // se_term_<i> in se_treaty.gui
 constexpr int kPickRows = 6;  // se_pick_<i>
 constexpr int kMaxRows = kTermRows > kPickRows ? kTermRows : kPickRows;
@@ -136,8 +159,8 @@ uintptr_t g_gfx_back = 0;  // kGfxLoopEnd + 9
 uintptr_t g_message_types_read = 0;
 uintptr_t g_can_perform = 0;
 uintptr_t g_make_cb_vtable = 0;
+uintptr_t g_view_setup = 0;
 uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
-uintptr_t g_chooser_vtable_storage[kDialogSlots + 1];
 uintptr_t g_forced_vtable_storage[kDialogSlots + 1];  // the dismantle editor: no way out but sending
 
 template <class T>
@@ -578,8 +601,7 @@ const char* const kUiKeys[] = {
     "SE_TREATY_PICK_CB_DEMAND", "SE_TREATY_PICK_CB_OFFER", "SE_TREATY_PICK_PROVINCE", "SE_TREATY_NO_OPTIONS",
     "SE_TREATY_BACK",         "SE_TREATY_MONEY",       "SE_TREATY_PICK_MONEY",     "SE_TREATY_SCORE",
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
-    "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC",
-    "SE_TREATY_CHOOSER_JUSTIFY", "SE_TREATY_CHOOSER_TREATY", "SE_TREATY_PICK_COUNTRY",
+    "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_PICK_COUNTRY",
     "SE_TREATY_DISMANTLE_TITLE", "SE_TREATY_DISMANTLE_POINTS", "SE_TREATY_DISMANTLE_INFAMY", "SE_TREATY_DISMANTLE_FORCED",
     "SE_TREATY_IMPOSE",       "SE_TREATY_NOTICE_TITLE", "SE_TREATY_NOTICE",       "SE_TREATY_OK",
 };
@@ -1342,32 +1364,103 @@ void open_next_forced() {
     }
 }
 
-// The vanilla gate of an action (DiplomaticAction_CanPerform), e.g. whether a CB may be justified.
-bool vanilla_can_perform(uintptr_t action) {
-    uintptr_t f = g_can_perform;
-    bool result;
+// --- "Propose Treaty" button ---------------------------------------------------------------------------
+
+struct TreatyButton {
+    uintptr_t button = 0;
+    Glue glue{};
+};
+std::map<uintptr_t, TreatyButton>& g_treaty_buttons() {  // by view; a node outlives the view's windows
+    static std::map<uintptr_t, TreatyButton> m;
+    return m;
+}
+
+// Click: the editor for the player and the view's selected country.
+void __fastcall treaty_button_click(uintptr_t view, void*, uintptr_t) {
+    int me = read<int>(game::world() + game::kWorldPlayerIndex);
+    int them = read<int>(view + kViewSelectedIndex);
+    if (treaty::enabled() && treaty::possible(me, them)) {
+        open_editor(read<uintptr_t>(view + kViewOwner), me, them);
+    }
+}
+
+uintptr_t position_type(uintptr_t gui, const char* name) {
+    GameString game_name{std::string(name)};
+    using FindFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*);
+    return vt<FindFn>(gui, kGuiPositionType)(gui, nullptr, &game_name);
+}
+
+// An 18th diplomacy_option on the view's window, as CDiplomacyView_Setup makes the 17 vanilla ones.
+void add_treaty_button(uintptr_t view) {
+    uintptr_t gui = read<uintptr_t>(hooks::exe_va(kGuiVa));
+    uintptr_t owner = read<uintptr_t>(view + kViewOwner);
+    uintptr_t view_window = read<uintptr_t>(view + kViewWindow);
+    if (!gui || !owner || !view_window || !gui_type_exists(owner, kOptionType)) {
+        logf("treaty: no %s window type; no Propose Treaty button", kOptionType);
+        return;
+    }
+    GameString type{std::string(kOptionType)};
+    uintptr_t parent = vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(owner, kOwnerParent)(owner, nullptr);
+    using MakeFn = uintptr_t(__fastcall*)(uintptr_t, void*, const GameString*, uintptr_t);
+    uintptr_t window = vt<MakeFn>(gui, kGuiInstantiate)(gui, nullptr, &type, parent);
+    if (!window) {
+        return;
+    }
+    GameString name{std::string(kOptionName)};
+    using AddFn = void(__fastcall*)(uintptr_t, void*, const GameString*, uintptr_t);
+    vt<AddFn>(view_window, kWindowAddChild)(view_window, nullptr, &name, window);
+
+    // The grid fills column by column; the free cell after 17 is (17 % columns, 17 / columns).
+    uintptr_t base = position_type(gui, kActionsPosition);
+    uintptr_t wrap = position_type(gui, kActionsWrap);
+    int columns = wrap ? read<int>(wrap + kPositionTypeX) : 2;
+    columns = columns < 1 ? 1 : columns;
+    uint32_t size_out = 0;
+    using SizeFn = const int16_t*(__fastcall*)(uintptr_t, void*, uint32_t*);
+    const int16_t* size = vt<SizeFn>(window, kWindowGetSize)(window, nullptr, &size_out);
+    int x = (base ? read<int>(base + kPositionTypeX) : 0) + size[0] * (kVanillaActions % columns);
+    int y = (base ? read<int>(base + kPositionTypeY) : 0) + size[1] * (kVanillaActions / columns);
+    uint32_t packed = static_cast<uint16_t>(x) | (static_cast<uint32_t>(static_cast<uint16_t>(y)) << 16);
+    vt<void(__fastcall*)(uintptr_t, void*, uint32_t)>(window, kWindowSetPosition)(window, nullptr, packed);
+    if (uintptr_t element = read<uintptr_t>(window + kWindowElement)) {
+        vt<void(__fastcall*)(uintptr_t, void*)>(element, kElementPlaced)(element, nullptr);
+    }
+
+    TreatyButton& b = g_treaty_buttons()[view];
+    b.button = find(window, kFindButton, kOptionButton);
+    b.glue.vtable = hooks::exe_va(kGlueVtable);
+    b.glue.owner = view;
+    b.glue.handlers[kGlueClickWithButton] = reinterpret_cast<uintptr_t>(&treaty_button_click);
+    observe(b.button, &b.glue, true);
+    auto texts = game::read_localisation({"SE_TREATY_BUTTON"});
+    button_text(b.button, texts.count("SE_TREATY_BUTTON") ? texts["SE_TREATY_BUTTON"] : "SE_TREATY_BUTTON");
+    enable(b.button, false);  // until the first refresh
+}
+
+// Replaces both CALLs of CDiplomacyView_Setup: the vanilla setup, then our button.
+void __stdcall setup_with_treaty_button(uintptr_t view) {
+    uintptr_t setup = g_view_setup;
     __asm {
-        push esi
-        mov esi, action
-        push 1
-        call f
-        mov result, al
-        pop esi
+        push view
+        call setup
     }
-    return result;
+    if (treaty::enabled()) {
+        add_treaty_button(view);
+    }
 }
 
-// The button's state: "Diplomatic Play" is usable when a treaty is, whatever the CB rules say (those
-// still decide "Justify Casus Belli" in the chooser and the command that fabricates).
-bool __stdcall button_usable(uintptr_t action) {
-    if (treaty::enabled() &&
-        treaty::possible(read<int>(action + kActionActorIndex), read<int>(action + kActionRecipientIndex))) {
-        return true;
+// At the CanPerform call of CDiplomacyView_RefreshActions, once per refresh (the CMakeCBAction): the
+// button follows whether a treaty is possible between the actions' actor and recipient.
+void __stdcall refresh_treaty_button(uintptr_t view, uintptr_t action) {
+    auto it = g_treaty_buttons().find(view);
+    if (it != g_treaty_buttons().end()) {
+        enable(it->second.button, treaty::enabled() && treaty::possible(read<int>(action + kActionActorIndex),
+                                                                        read<int>(action + kActionRecipientIndex)));
     }
-    return vanilla_can_perform(action);
 }
 
-// Replaces the CALL CanPerform of CDiplomacyView_RefreshActions; ESI = the button's action, (bool).
+// Replaces the CALL CanPerform of CDiplomacyView_RefreshActions; ESI = the button's action, (bool); the
+// vanilla result is kept for every action.
 __declspec(naked) void refresh_thunk() {
     __asm {
         mov eax, [esi]
@@ -1375,78 +1468,12 @@ __declspec(naked) void refresh_thunk() {
         jne vanilla
         SE_SAVE_ALL
         push esi
-        call button_usable
-        movzx eax, al
-        mov [esp + SE_SAVED_EAX], eax
+        push dword ptr [ebp + 8]
+        call refresh_treaty_button
         SE_RESTORE_ALL
-        ret 4
     vanilla:
         jmp g_can_perform
     }
-}
-
-// --- "Diplomatic Play" chooser ------------------------------------------------------------------------
-
-constexpr uint32_t kChooserAction = 0x68;  // the CMakeCBAction clone
-constexpr uint32_t kChooserView = 0x6C;
-constexpr size_t kChooserExtra = 8;
-
-uintptr_t __fastcall chooser_dtor(uintptr_t dialog, void*, int flags) {
-    delete_action(read<uintptr_t>(dialog + kChooserAction));
-    *reinterpret_cast<uintptr_t*>(dialog + kChooserAction) = 0;
-    destroy_dialog_base(dialog, flags);
-    return dialog;
-}
-
-// Agree: the vanilla Justify-war dialog.
-void __fastcall chooser_justify(uintptr_t dialog, void*) {
-    uintptr_t owner = read<uintptr_t>(dialog + kDialogOwner);
-    uintptr_t action = read<uintptr_t>(dialog + kChooserAction);
-    uintptr_t view = read<uintptr_t>(dialog + kChooserView);
-    using CreateFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, uintptr_t);
-    uintptr_t vanilla = fn<CreateFn>(kMakeCbDialog)(action, nullptr, owner, view);
-    if (vanilla) {
-        add_dialog(owner, vanilla);
-    }
-    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
-}
-
-// Decline: the treaty editor.
-void __fastcall chooser_treaty(uintptr_t dialog, void*) {
-    uintptr_t owner = read<uintptr_t>(dialog + kDialogOwner);
-    uintptr_t action = read<uintptr_t>(dialog + kChooserAction);
-    *reinterpret_cast<uint8_t*>(dialog + kDialogClosed) = 1;
-    open_editor(owner, read<int>(action + kActionActorIndex), read<int>(action + kActionRecipientIndex));
-}
-
-// Replaces CMakeCBAction slot 14: thiscall (owner, view) -> dialog.
-uintptr_t __fastcall make_cb_dialog(uintptr_t action, void*, uintptr_t owner, uintptr_t view) {
-    using CreateFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, uintptr_t);
-    auto vanilla = fn<CreateFn>(kMakeCbDialog);
-    if (!treaty::enabled()) {
-        return vanilla(action, nullptr, owner, view);
-    }
-    uintptr_t dialog = new_dialog(owner, kChooserType, g_chooser_vtable_storage, kChooserExtra);
-    if (!dialog) {
-        return vanilla(action, nullptr, owner, view);
-    }
-    *reinterpret_cast<uintptr_t*>(dialog + kChooserAction) =
-        vt<uintptr_t(__fastcall*)(uintptr_t, void*)>(action, kActionClone)(action, nullptr);
-    *reinterpret_cast<uintptr_t*>(dialog + kChooserView) = view;
-    std::vector<std::string> keys = {"SE_TREATY_CHOOSER_TITLE", "SE_TREATY_CHOOSER_DESC", "SE_TREATY_CHOOSER_JUSTIFY",
-                                     "SE_TREATY_CHOOSER_TREATY"};
-    auto texts = game::read_localisation(keys);
-    auto t = [&](const std::string& key) { return texts.count(key) ? texts[key] : key; };
-    uintptr_t w = read<uintptr_t>(dialog + kDialogWindow);
-    set_text(find(w, kFindTextBox, "Title"), t("SE_TREATY_CHOOSER_TITLE"));
-    set_text(find(w, kFindTextBox, "Description"), t("SE_TREATY_CHOOSER_DESC"));
-    uintptr_t justify = find(w, kFindButton, "AgreeButton");
-    button_text(justify, t("SE_TREATY_CHOOSER_JUSTIFY"));
-    enable(justify, vanilla_can_perform(action));  // the CB rules (truce, relations, ...) still apply here
-    button_text(find(w, kFindButton, "DeclineButton"), t("SE_TREATY_CHOOSER_TREATY"));
-    shield(w, kSetLeftShield, read<int>(action + kActionActorIndex));
-    shield(w, kSetRightShield, read<int>(action + kActionRecipientIndex));
-    return dialog;
 }
 
 void build_vtable(uintptr_t* storage, uintptr_t dtor, uintptr_t update, uintptr_t agree, uintptr_t decline) {
@@ -1480,8 +1507,6 @@ bool install(const Config& config) {
     build_vtable(g_editor_vtable_storage, reinterpret_cast<uintptr_t>(&editor_dtor),
                  reinterpret_cast<uintptr_t>(&editor_update), reinterpret_cast<uintptr_t>(&editor_agree),
                  reinterpret_cast<uintptr_t>(&dialog_close));
-    build_vtable(g_chooser_vtable_storage, reinterpret_cast<uintptr_t>(&chooser_dtor), 0,
-                 reinterpret_cast<uintptr_t>(&chooser_justify), reinterpret_cast<uintptr_t>(&chooser_treaty));
     g_gui_finalize = hooks::exe_va(kGuiFinalize);
     g_message_types_read = hooks::exe_va(kMessageTypesRead);
     if (!hooks::redirect_call(hooks::exe_va(kMessageTypesCall), g_message_types_read,
@@ -1504,10 +1529,11 @@ bool install(const Config& config) {
         logf("treaty: the Gui_Finalize call at %08X is not the expected one", kGuiFinalizeCall);
         return false;
     }
-    if (!hooks::replace_pointer(hooks::exe_va(kMakeCbDialogSlot), hooks::exe_va(kMakeCbDialog),
-                                reinterpret_cast<uintptr_t>(&make_cb_dialog))) {
-        logf("treaty: CMakeCBAction's dialog slot at %08X is not the expected one", kMakeCbDialogSlot);
-        return false;
+    g_view_setup = hooks::exe_va(kViewSetup);
+    for (uint32_t site : {kViewSetupCallCtor, kViewSetupCallReset}) {
+        if (!hooks::redirect_call(hooks::exe_va(site), g_view_setup, reinterpret_cast<uintptr_t>(&setup_with_treaty_button))) {
+            logf("treaty: the CDiplomacyView_Setup call at %08X is not the expected one; no Propose Treaty button", site);
+        }
     }
     return true;
 }

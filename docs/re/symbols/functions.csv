@@ -589,8 +589,8 @@ va,name,conf,area,src,note
 0x0052FC10,Country_GetFlagTexture,C,ui,cp,EAX = CCountry*: flag texture of its government; for sprite vt[0x150]
 0x0043D130,ScrollbarRange_Make,I,ui,cp,"ESI = out {min, max, step, count}, EAX = &min, (&max, &step)"
 0x0061B820,CDiplomacyView_ctor,C,ui,cp,0x398 bytes; country_diplomacy; selected country +0x388/+0x38C
-0x00622270,CDiplomacyView_Setup,C,ui,cp,17 diplomacy_option instances attached as action<i>; called at 0x0061BE1B (ctor) and 0x0061C096 (slot 0)
-0x0062B620,CDiplomacyView_RefreshActions,C,ui,cp,"action<i>: <ACTION>_BUTTON text, enabled from DiplomaticAction_CanPerform; CALL DiplomaticAction_CanPerform at 0x0062B9FC (ESI = action): Script Extender treaty enables CMakeCBAction there when a treaty is possible"
+0x00622270,CDiplomacyView_Setup,C,ui,cp,"stdcall (view) RET 4; 17 diplomacy_option instances (g_gui vt[0x2C](type, owner->vt[0x3C]()), attached by the view window's vt[0xBC](name, child) as action<i>) placed column by column from positionType diplomacy_actions_pos by diplomacy_actions_wrap_count columns (17 / columns rows, the first 17 % columns columns one longer); called at 0x0061BE1B (ctor) and 0x0061C096 (FUN_0061BF70): Script Extender treaty redirects both CALLs and adds an 18th (Propose Treaty)"
+0x0062B620,CDiplomacyView_RefreshActions,C,ui,cp,"action<i>: <ACTION>_BUTTON text, enabled from DiplomaticAction_CanPerform; CALL DiplomaticAction_CanPerform at 0x0062B9FC (ESI = action, [EBP+8] = view): Script Extender treaty enables its Propose Treaty button there (at the CMakeCBAction, once per refresh)"
 0x0062F7B0,CDiplomacyView_MakeAction,C,diplomacy,cp,"(view, out, index): g_diplomacyActionTable, DiplomaticAction_CreateByType, actor = player, target = view+0x388; 0x38D -> 0x81E when at war"
 0x00624E60,CDiplomacyView_OnActionClick,C,ui,cp,"glue slot 1 (button) RET 4: dlg = action->vt[0x38](view+0x54, view); dlg->vt[0x28](); GuiOwner_AddDialog"
 0x00916840,CWarGoalBaseAction_CreateDialog,C,diplomacy,cp,slot 14 of CDeclareWarAction / CAddWarGoalAction: new 0xAC CWarGoalDialog
@@ -648,7 +648,7 @@ va,name,conf,area,src,note
 0x00615C40,CDiplomacyDialog_dtorBody,C,ui,cp,removes +0x6C from the pending list and deletes it
 0x00615D40,CDiplomacyDialog_PlaySound,C,ui,cp,slot 18: sound diplomaticoffer
 0x00615E80,CDiplomacyDialog_IsValid,C,ui,cp,slot 8: DiplomaticAction_CanPerform(0)
-0x00926D00,CMakeCBAction_CreateDialog,C,diplomacy,cp,"slot 14 (vtable entry 0x00E3440C), thiscall (owner, view) RET 8: new 0x78 CCBCreationDialog; Script Extender treaty replaces the vtable entry with the Diplomatic Play chooser"
+0x00926D00,CMakeCBAction_CreateDialog,C,diplomacy,cp,"slot 14 (vtable entry 0x00E3440C), thiscall (owner, view) RET 8: new 0x78 CCBCreationDialog (justify war)"
 0x00926E90,CMakeCBAction_GetName,C,diplomacy,cp,"slot 9: MAKE_CB (button key MAKE_CB_BUTTON, vanilla housedivided.csv)"
 0x00919E20,CPeaceAction_GetName,C,peace,cp,slot 9: PEACE
 0x00619CB0,CCBCreationDialog_ctor,C,ui,cp,"ECX = owner, (this, action, view) RET 0xC; 0x78; MakeCBDialog; cb_list: real type, constructing_cb, not held, not always, can_use, allowed_countries / allowed_states"

@@ -743,7 +743,7 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 - **Also:** a single-province term (for the AI or an ally) only when the province itself borders the gainer's land or land it gets in the treaty, interest land excepted (`province_borders`).
 - **Correction (2026-11-01, evening):** in the first AI dismantle seen in game a great power took single provinces (`treaty_cede_province`, `po_demand_province`) from across the map: `states_moved` knew only `po_demand_state` and `po_transfer_provinces`, so those terms had no land and skipped every border rule. They now stand by their province's state in the rules, count for no whole state in the limits, and their interest is checked on the province.
 - **Also (evening):** the first AI dismantle seen (Japan leading a great war) still took Italian states, most likely chained from a state the peace itself gave it: now the loser's homeland off the gainer's own continent comes only next to land the gainer owned before, at `treaty_dismantle_ai_abroad` (50%), never through land taken in the treaty; `treaty_dismantle_log = 1` logs each term with its rule, for the next test. `CState+0x84` as colonial status confirmed in `CIsColonialTrigger_Evaluate` (0x008FACB0).
-- **Open:** in-game check of an AI dismantle with the new weights; whether kind 2 is the strait (I).
+- **Open:** in-game check of an AI dismantle with the new weights; whether kind 2 is a strait (I; 2026-11-02: it is not, it links coasts across water).
 
 ## 2026-11-01 — Colonial range
 
@@ -763,3 +763,26 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
 
 - **Why:** after a month of rules added one by one, the picker was 900 lines inside treaty.cpp, mixed with map-file readers, with the rules split between three places and dependent on their order (the Magadan case).
 - **Done:** `game/map.{h,cpp}` holds the generic readers (adjacency, coasts, colonial status, connected components, continents and positions from the mod's map files, `BADBOY_LIMIT`, the game's colonial range), loaded once each; `script_words` / `read_file` moved to `game/script`. `features/treaty_ai_dismantle.cpp` holds the dismantler: a `Candidate` carries every fact the rules read, computed once (colonial, coastal, continents, interest, infamy, distance, colonial range); `Picker::worth` is the single rule chain for a term's value as the treaty stands, `Picker::rejected` the single list of hard limits, `Picker::take` the bookkeeping. Land moved by a single-province term is tracked as that province, not its state. treaty.cpp exposes the few facts it keeps through `treaty::` wrappers (treaty.h). No rule changed; `treaty_dismantle_log` also logs dropped terms with the reason.
+- **Also:** `treaty_dismantle_ai_frontier` (150%): land freed to a third country is worth more when it already borders another country or the sea.
+- **Also:** `treaty_free_peoples` weighs 2.5 (was 2): at 2 the colonies (1.3 x border 150% x home continent 130%) still came first.
+
+## 2026-11-02 — Enclaves: neighbour kind 2 is not a strait
+
+- **Question:** AI dismantles left enclaves and coastal blobs (provinces along the Channel given to the Netherlands as "bordering" it; a loser's state kept inside freed land in the Caucasus).
+- **Answer:** the land rules took both kinds of the province neighbour entries; kind 2 joins coastal provinces across water (Normandy to the Netherlands), it is no strait as assumed from `AI_PickFortProvince`. **[I]** Only kind 1 counts now, in adjacency and in the loser's connectivity. The split test is by province (`game::components` over the loser's provinces), so a single-province term is tested too; before, it was by state and skipped single provinces.
+
+## 2026-11-02 — "Propose Treaty" as its own button
+
+- **Why:** the treaty editor was reached through a chooser on "Justify war" (`CMakeCBAction` slot 14), which
+  changed what that button does. The button goes back to vanilla; the editor gets a button of its own.
+- **Read:** `CDiplomacyView_Setup` (`0x00623C41..0x0062410D`, listing): stdcall `(view)` RET 4; each of the 17
+  `diplomacy_option` windows comes from `g_gui->vt[0x2C](type, owner->vt[0x3C]())`, is attached by the view
+  window's `vt[0xBC](name, child)`, placed by `vt[0x18]` at `diplomacy_actions_pos` + size (`vt[0x60]`) x cell,
+  then `(window+0x494)->vt[0xB0]()`. The cells fill column by column (`IDIV` by the wrap count's x: 17 / 2 =
+  8 rows, remainder 1 makes the first column 9 long), which matches the screen: "Command Units" is index 8 at
+  the foot of the left column and the free cell is right of it. The positionTypes come from `g_gui->vt[0x48]`.
+- **Done:** `se_treaty_button_ctor` / `se_treaty_button_reset` redirect both CALLs of Setup: vanilla, then an
+  18th `diplomacy_option` (`se_treaty_option`) in cell (17 % columns, 17 / columns) with our glue on its
+  `action_option`; `se_treaty_button` keeps the vanilla `CanPerform` result and enables ours once per refresh.
+  `se_treaty_chooser` (the vtable slot) is gone; `SE_TREATY_CHOOSER_*` texts replaced by `SE_TREATY_BUTTON`.
+- **Open:** `GuiWindow+0x494` and its `vt[0xB0]` are only known from this use (I).

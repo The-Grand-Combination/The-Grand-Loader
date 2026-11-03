@@ -152,7 +152,7 @@ va,name,kind,conf,src,note
 0x0131B788,g_warGoalDefaultDate,u32,I,cp,CWarGoal+0x34 default
 0x012589A7,g_cheatAIAcceptAll,u8,I,cp,AI_EvaluateCommandChance returns 100 for others' actions when set; toggled by the yesmen console command (str_yesmen); the Script Extender treaty AI honours it
 0x01258A08,g_cheatInfiniteInfluence,u32,?,cp,DiplomaticAction_CanPerform uses 100000 influence when set
-0x01258A80,g_gui,ptr,C,cp,"CEU3Gui = app+0x120; vt[0x2C](const std::string* windowType, parent) instantiates; (+4)->vt[0xC](block) reads a .gui block"
+0x01258A80,g_gui,ptr,C,cp,"CEU3Gui = app+0x120; vt[0x2C](const std::string* windowType, parent) instantiates; vt[0x48](const std::string* name) -> positionType (+0x64 x, +0x68 y, int); (+4)->vt[0xC](block) reads a .gui block"
 0x0131C974,g_guiReloadObservers,ptr,I,cp,file -> observers (Gui_ReloadFile)
 0x01258AC0,g_buttonClickHook,ptr,I,cp,cdecl (button*) called on every button click when set; no writer found
 0x00E3405C,CDiplomaticAction_vftable,vtable,C,cp,"RTTI; 38 slots (8 type id, 14 dialog, 27 auto-accept, 32 execute, 34 decline, 36 can perform)"

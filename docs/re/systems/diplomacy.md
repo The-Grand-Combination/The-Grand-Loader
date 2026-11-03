@@ -413,13 +413,20 @@ Other helpers **[C]**:
 
 - `CDiplomacyView` (vtable `0x00E07450`, 0x398 bytes): selected country at `+0x388/+0x38C`, gui owner at
   `+0x54`.
-- `CDiplomacyView_Setup` `0x00622270` creates 17 `diplomacy_option` windows, attaches them as
-  `action<i>` and binds every `action_option` button to `CDiplomacyView_OnActionClick`.
+- `CDiplomacyView_Setup` `0x00622270` (stdcall `(view)`, RET 4; called by the ctor at `0x0061BE1B` and by
+  `FUN_0061BF70` at `0x0061C096`) creates 17 `diplomacy_option` windows (`g_gui->vt[0x2C](type, owner->vt[0x3C]())`),
+  attaches them to the view window (`+0x4C`) as `action<i>` (`vt[0xBC](name, child)`), binds every
+  `action_option` button to `CDiplomacyView_OnActionClick` (glue at `+0x178`) and stores the index in the
+  button (`vt[0xD4]`; read back by `vt[0x80]` on click). The grid: the positionTypes `diplomacy_actions_pos`
+  and `diplomacy_actions_wrap_count` (`g_gui->vt[0x48](name)`, `+0x64` x, `+0x68` y) give the origin and the
+  number of columns; the buttons fill column by column (17 / columns rows, the first 17 % columns columns one
+  row longer), each at origin + window size (`vt[0x60]`) times the cell, set by `vt[0x18](packed {i16 x, i16 y})`,
+  then `(window+0x494)->vt[0xB0]()`. The Script Extender adds an 18th cell this way (treaties.md).
 - The button text is `<NAME>_BUTTON`: "Justify war" is `MAKE_CB_BUTTON` (vanilla `housedivided.csv`). **[C]**
   `CDiplomacyView_MakeAction` keeps 0x931 (its alternative is also 0x931). A mod may rename the text (e.g. "Diplomatic
   Play") in its own localisation.
 - `CDiplomacyView_RefreshActions` re-enables the buttons from `CanPerform` (call at `0x0062B9FC`, ESI =
-  action; the Script Extender's `se_treaty_button` site).
+  action, `[EBP+8]` = view; the Script Extender's `se_treaty_button` site).
 
 ### Widgets **[C]**
 

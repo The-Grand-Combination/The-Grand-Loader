@@ -209,7 +209,7 @@ CConstructBuildingCommand,0x40,provinceId,u32,C,cp,
 CConstructBuildingCommand,0x44,constructionId,u32[2],C,cp,
 CConstructBuildingCommand,0x4C,countryTag,char[4],C,cp,index at +0x50
 CConstructBuildingCommand,0x54,popProject,u8,C,cp,
-CProvince,0x5C,geography,ptr,I,cp,"terrain and adjacency (was terrainData): +0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C); neighbours vector at +0xC8/+0xCC of 0x24-byte entries {kind (1 land, 2 strait), province id, ...}, land flag u8 +0x2A (AI_PickFortProvince)"
+CProvince,0x5C,geography,ptr,I,cp,"terrain and adjacency (was terrainData): +0x14 -> +0x34 byte[] min_build per building (+0x58); +0x360 < 1 -> dimmed by MapColor_Infrastructure (C); neighbours vector at +0xC8/+0xCC of 0x24-byte entries {kind (1 land border, 2 coastal provinces across water: I, seen in game 2026-11-02), province id, ...}, land flag u8 +0x2A (AI_PickFortProvince)"
 CProvince,0xD8,constructions,list,C,cp,"head, tail +0xDC, count +0xE0; nodes {entry, ?, next}; entry vt[0x30] (slot 12, thiscall -> bool) = is a building construction (CBuildingConstruction: 1), entry+0x58 = CBuilding*; vt[0x34] (slot 13) is also read by MapColor_Infrastructure (CBuildingConstruction: 0; meaning ?)"
 CProvince,0x110,foreignInvestBlock,u32,?,cp,must be 0 for a foreign railroad investment
 CProvince,0x118,buildings,vector<CProvinceBuilding*>,C,cp,indexed by CBuilding+0x134
@@ -466,3 +466,6 @@ ProvinceSource,0x2AA4,provinces,CProvince*[],I,cp,by id (ProvinceSource_PairDist
 ProvinceSource,0x2AB0,distanceNodes,u32,I,cp,count n of the triangular distance table
 ProvinceSource,0x2AB4,distances,u16[],I,cp,"pair (lo, hi) at (n-1) x lo - lo(lo-1)/2 + hi; map units (x1000 when read)"
 ProvinceSource,0x2AB8,distanceKnown,u8[],I,cp,same index: the pair has a distance
+PositionType,0x64,x,i32,C,cp,"positionType of a .gui (g_gui vt[0x48](name)); CDiplomacyView_Setup: diplomacy_actions_pos, diplomacy_actions_wrap_count (x = columns)"
+PositionType,0x68,y,i32,C,cp,
+GuiWindow,0x494,element,ptr,I,cp,"CDiplomacyView_Setup calls its vt[0xB0]() right after vt[0x18](packed {i16 x, i16 y}) places the window; vt[0x60](out) -> {i16 x, i16 y}* size; vt[0xBC](const std::string* name, child) attaches a subwindow"

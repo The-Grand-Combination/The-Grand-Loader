@@ -28,10 +28,7 @@ SE_TREATY_SEND;Propose;;;;;;;;;;;;;x
 SE_TREATY_CANCEL;Cancel;;;;;;;;;;;;;x
 SE_TREATY_TERM_GAIN;Demand: $TERM$;;;;;;;;;;;;;x
 SE_TREATY_TERM_GIVE;Offer: $TERM$;;;;;;;;;;;;;x
-SE_TREATY_CHOOSER_TITLE;Diplomatic Play;;;;;;;;;;;;;x
-SE_TREATY_CHOOSER_DESC;Justify a casus belli against them, or open negotiations for a treaty.;;;;;;;;;;;;;x
-SE_TREATY_CHOOSER_JUSTIFY;Justify Casus Belli;;;;;;;;;;;;;x
-SE_TREATY_CHOOSER_TREATY;Initiate Treaty;;;;;;;;;;;;;x
+SE_TREATY_BUTTON;Propose Treaty;;;;;;;;;;;;;x
 SE_TREATY_PICK_CB_DEMAND;We demand:;;;;;;;;;;;;;x
 SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
 SE_TREATY_MONEY;Money;;;;;;;;;;;;;x

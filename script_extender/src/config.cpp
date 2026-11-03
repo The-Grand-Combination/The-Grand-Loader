@@ -75,6 +75,7 @@ constexpr Key kKeys[] = {
     {"treaty_dismantle_ai_colony_repeat", nullptr, &Config::treaty_dismantle_ai_colony_repeat, 0},
     {"treaty_dismantle_ai_infamy", nullptr, &Config::treaty_dismantle_ai_infamy, 0},
     {"treaty_dismantle_ai_interest", nullptr, &Config::treaty_dismantle_ai_interest, 0},
+    {"treaty_dismantle_ai_frontier", nullptr, &Config::treaty_dismantle_ai_frontier, 0},
     {"treaty_dismantle_ai_abroad", nullptr, &Config::treaty_dismantle_ai_abroad, 0},
 };
 

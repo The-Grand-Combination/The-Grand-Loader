@@ -16,7 +16,7 @@ constexpr uint32_t kProvinceGeo = 0x5C;       // geography: terrain and adjacenc
 constexpr uint32_t kGeoNeighbours = 0xC8;     // vector of kNeighbourEntry-byte entries {kind, province id, ...}; end +0xCC
 constexpr uint32_t kNeighbourEntry = 0x24;
 constexpr int kNeighbourLand = 1;
-constexpr int kNeighbourStrait = 2;
+constexpr int kNeighbourAcrossWater = 2;  // coastal provinces of neighbouring seas (I): not a border
 constexpr uint32_t kProvinceOwner = 0x12C;    // country index
 constexpr uint32_t kProvinceCoastal = 0x158;  // non-zero: a port can be built
 constexpr uint32_t kProvinceState = 0x188;    // CState*
@@ -33,7 +33,8 @@ std::vector<uint32_t> state_provinces(uintptr_t state);
 std::vector<uint32_t> owned_provinces(int country);
 bool country_exists(int country);  // owns a province
 
-// The provinces a province borders by land or strait (AI_PickFortProvince walks the same entries).
+// The provinces a province borders by land (kind 1 of the entries AI_PickFortProvince walks; kind 2 links
+// coastal provinces across water and is left out).
 std::vector<uint32_t> neighbours(uint32_t province);
 
 bool is_colonial_state(uintptr_t state);
@@ -42,8 +43,8 @@ bool is_coastal_state(uintptr_t state);
 // The country's states that are not colonial.
 int homeland_states(int country);
 
-// Connected groups (by land or strait between their provinces) that `states` form.
-int components(std::vector<uintptr_t> states);
+// Connected groups (by land borders) that `provinces` form.
+int components(std::vector<uint32_t> provinces);
 
 // map/continent.txt (the mod's, else the game's): `<name> = { provinces = { ids } ... }`, read once.
 struct Continents {
