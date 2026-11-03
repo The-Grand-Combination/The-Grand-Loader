@@ -29,6 +29,7 @@ SE_TREATY_CANCEL;Cancel;;;;;;;;;;;;;x
 SE_TREATY_TERM_GAIN;Demand: $TERM$;;;;;;;;;;;;;x
 SE_TREATY_TERM_GIVE;Offer: $TERM$;;;;;;;;;;;;;x
 SE_TREATY_BUTTON;Propose Treaty;;;;;;;;;;;;;x
+SE_TREATY_BUTTON_TOOLTIP;Negotiate a treaty with this country in peacetime: demand or offer terms and money. Only possible when you are not at war with each other.;;;;;;;;;;;;;x
 SE_TREATY_PICK_CB_DEMAND;We demand:;;;;;;;;;;;;;x
 SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
 SE_TREATY_MONEY;Money;;;;;;;;;;;;;x

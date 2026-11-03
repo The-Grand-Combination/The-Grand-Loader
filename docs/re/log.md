@@ -792,5 +792,8 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   repeated. With both, the button shows (user, in game).
 - **Then:** the diplomacy screen opened by itself once at the start: `+0x18 vt[0x34]` is a show, and Setup
   hides the view right after it (slot 4, `0x007539D0`). Now the view is hidden again when it was hidden.
+- **Tooltip:** slot 10 of the view (`0x0061CA40`) builds every tooltip of the screen into a 0x5C-byte
+  struct returned by value (text first; copied from a local at `0x00621BE1`, RET 8). `se_treaty_button_tooltip`
+  wraps it and sets the text over the Propose Treaty button.
 - **Open:** `GuiWindow+0x494` and its `vt[0xB0]`, `GuiWindow+0x18` and its `vt[0x34]` are only known from
   these uses (I).

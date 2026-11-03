@@ -102,6 +102,7 @@ actorIdx, recTag, recIdx)`, RET 0x10):
 | `se_treaty_messagetypes` | `0x0063C4AA` CALL `MessageTypes_Read` (`0x006A4FA0`) | `E8 F1 8A 06 00` | then reads `interface/se_messagetypes.txt` |
 | `se_treaty_button_ctor`, `se_treaty_button_reset` | `0x0061BE1B`, `0x0061C096` CALL `CDiplomacyView_Setup` (`0x00622270`) | `E8 50 64 00 00`, `E8 D5 61 00 00` | the vanilla setup, then the "Propose Treaty" button |
 | `se_treaty_button` | `0x0062B9FC` CALL `DiplomaticAction_CanPerform` in `CDiplomacyView_RefreshActions` | `E8 5F 5D 2E 00` (`0x00911760`) | ESI = action, `[EBP+8]` = view; the vanilla result, and at the `CMakeCBAction` (vtable `0x00E343D4`, once per refresh) the button is enabled when a treaty is possible |
+| `se_treaty_button_tooltip` | `0x00E07478` `CDiplomacyView` slot 10 | `40 CA 61 00` (`0x0061CA40`) | the button's tooltip text |
 
 If `se_treaty_create` does not match, the feature stays off. If a screen site does not match, it stays off
 too. `se_treaty_ai_switch` failing only makes the AI refuse every treaty (vanilla `default` = 0).
@@ -158,6 +159,9 @@ All have `is_triggered_only = yes`, `constructing_cb = no`, `truce_months = 0`, 
 - Its `action_option` gets a `CButtonObserverGlue<CEU3Dialog>` of ours (owner = the view): the click opens
   the editor for the player (`world+0xB60`) and the view's selected country (`+0x38C`). The text is
   `SE_TREATY_BUTTON` from the plugin's CSV (a mod may override it).
+- Tooltip: `CDiplomacyView` slot 10 (`0x0061CA40`, vtable entry `0x00E07478`, `se_treaty_button_tooltip`) is
+  thiscall `(view, Tooltip* ret, element)` RET 8 and returns `ret`, whose first field is the text. The plugin
+  calls it, then over its button assigns `SE_TREATY_BUTTON_TOOLTIP` to that string (the game's `assign`).
 - Enabled at the `CanPerform` call of `CDiplomacyView_RefreshActions` (`se_treaty_button`), once per refresh
   (at the `CMakeCBAction`), when a treaty is possible (both exist, not the same, not at war). The vanilla
   result is kept for every action, so "Justify war" (`MAKE_CB_BUTTON`) behaves as in vanilla.
@@ -662,7 +666,7 @@ All sites are in `patch_sites.csv`; the engine rows of the table under "Hooks" c
 | `se_treaty_keyword` (chained with `se_demand_province_keyword`) | `0x00E33734` | `is_treaty_cb` and the other CB keywords |
 | `se_treaty_load` (chained with `se_demand_province_load`) | `0x0063DCD2` | tokens and the merged CB file |
 | `se_treaty_gfx`, `se_treaty_gui`, `se_treaty_messagetypes` | `0x00635D89`, `0x0063690D`, `0x0063C4AA` | the screens and the answer messages |
-| `se_treaty_button_ctor`, `se_treaty_button_reset`, `se_treaty_button` | `0x0061BE1B`, `0x0061C096`, `0x0062B9FC` | the "Propose Treaty" button |
+| `se_treaty_button_ctor`, `se_treaty_button_reset`, `se_treaty_button`, `se_treaty_button_tooltip` | `0x0061BE1B`, `0x0061C096`, `0x0062B9FC`, `0x00E07478` | the "Propose Treaty" button |
 | `se_treaty_effect_factory` | `0x00876B30` | the dismantle effects (effects.md) |
 | `se_treaty_peace_execute` | `0x00E344F4` | forced treaties taken after the peace |
 

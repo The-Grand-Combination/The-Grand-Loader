@@ -134,6 +134,9 @@ constexpr uint32_t kWindowChildren = 0x18;           // embedded; vt[0x34] shows
 constexpr uint32_t kChildrenShow = 0x34;
 constexpr uint32_t kWindowShown = 0x67;              // u8: CDiplomacyView slot 7 (0x00753B60) returns it
 constexpr uint32_t kViewHide = 0x10;                 // CDiplomacyView slot 4 (0x007539D0): window vt[0x24], (+0x50)+0x18 vt[0x38]
+constexpr uint32_t kViewTooltipSlot = 0x00E07478;   // CDiplomacyView_vftable slot 10
+constexpr uint32_t kViewTooltip = 0x0061CA40;       // thiscall (view, Tooltip* ret, element) RET 8 -> ret
+constexpr uint32_t kTooltipText = 0x00;             // Tooltip (0x5C): std::string text first
 constexpr int kVanillaActions = 17;
 constexpr const char* kOptionType = "diplomacy_option";
 constexpr const char* kOptionButton = "action_option";
@@ -167,6 +170,7 @@ uintptr_t g_message_types_read = 0;
 uintptr_t g_can_perform = 0;
 uintptr_t g_make_cb_vtable = 0;
 uintptr_t g_view_setup = 0;
+uintptr_t g_view_tooltip = 0;
 uintptr_t g_editor_vtable_storage[kDialogSlots + 1];
 uintptr_t g_forced_vtable_storage[kDialogSlots + 1];  // the dismantle editor: no way out but sending
 
@@ -1459,6 +1463,26 @@ void add_treaty_button(uintptr_t view) {
     logf("treaty: Propose Treaty button at %d,%d (%d columns)%s", x, y, columns, b.button ? "" : ", no action_option in it");
 }
 
+// Replaces CDiplomacyView slot 10 (0x0061CA40, thiscall (view, Tooltip* ret, element) RET 8, returns ret):
+// the vanilla tooltip, whose first string (+0) is the text; over our button the text is SE_TREATY_BUTTON_TOOLTIP.
+uintptr_t __fastcall view_tooltip(uintptr_t view, void*, uintptr_t ret, uintptr_t element) {
+    using TipFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, uintptr_t);
+    uintptr_t result = reinterpret_cast<TipFn>(g_view_tooltip)(view, nullptr, ret, element);
+    auto it = g_treaty_buttons().find(view);
+    if (it == g_treaty_buttons().end() || !element || element != it->second.button) {
+        return result;
+    }
+    static std::string text;  // read on the first hover, never under the loader lock
+    if (text.empty()) {
+        auto texts = game::read_localisation({"SE_TREATY_BUTTON_TOOLTIP"});
+        text = texts.count("SE_TREATY_BUTTON_TOOLTIP") ? texts["SE_TREATY_BUTTON_TOOLTIP"] : "SE_TREATY_BUTTON_TOOLTIP";
+    }
+    GameString value(text);
+    using AssignFn = void(__fastcall*)(uintptr_t, void*, const GameString*, size_t, size_t);
+    fn<AssignFn>(kStringAssignFrom)(ret + kTooltipText, nullptr, &value, 0, static_cast<size_t>(-1));
+    return result;
+}
+
 // Replaces both CALLs of CDiplomacyView_Setup: the vanilla setup, then our button.
 void __stdcall setup_with_treaty_button(uintptr_t view) {
     uintptr_t setup = g_view_setup;
@@ -1550,6 +1574,10 @@ bool install(const Config& config) {
     if (!hooks::redirect_call(hooks::exe_va(kGuiFinalizeCall), g_gui_finalize, reinterpret_cast<uintptr_t>(&finalize_thunk))) {
         logf("treaty: the Gui_Finalize call at %08X is not the expected one", kGuiFinalizeCall);
         return false;
+    }
+    g_view_tooltip = hooks::exe_va(kViewTooltip);
+    if (!hooks::replace_pointer(hooks::exe_va(kViewTooltipSlot), g_view_tooltip, reinterpret_cast<uintptr_t>(&view_tooltip))) {
+        logf("treaty: the diplomacy view's tooltip slot at %08X is not the expected one; no button tooltip", kViewTooltipSlot);
     }
     g_view_setup = hooks::exe_va(kViewSetup);
     for (uint32_t site : {kViewSetupCallCtor, kViewSetupCallReset}) {
