@@ -33,7 +33,8 @@ SE_TREATY_BUTTON_TOOLTIP;Negotiate a treaty with this country in peacetime: dema
 SE_TREATY_PICK_CB_DEMAND;We demand:;;;;;;;;;;;;;x
 SE_TREATY_PICK_CB_OFFER;We offer:;;;;;;;;;;;;;x
 SE_TREATY_MONEY;Money;;;;;;;;;;;;;x
-SE_TREATY_PICK_MONEY;Money: choose the amount;;;;;;;;;;;;;x
+SE_TREATY_PICK_MONEY;Money: type the amount in pounds;;;;;;;;;;;;;x
+SE_TREATY_MONEY_TREASURY;$COUNTRY$ has $MONEY$ pounds.;;;;;;;;;;;;;x
 SE_TREATY_TERM_DUPLICATE;That state is already part of the treaty.;;;;;;;;;;;;;x
 
 SE_TREATY_THEY_ACCEPT_1;$RECIPIENT$;;;;;;;;;;;;;x

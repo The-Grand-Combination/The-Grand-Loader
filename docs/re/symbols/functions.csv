@@ -433,9 +433,9 @@ va,name,conf,area,src,note
 0x0053F4B0,Country_PruneRallyPoints,?,provinces,cp,ESI = country; removes +0x1570 entries whose province is no longer valid
 0x005DBD90,Units_UpdateHostileFlags,I,military,cp,EAX = unit list; recomputes unit+0x164 (in hostile territory)
 0x005B53D0,Military_RepositionArmies,I,military,cp,"(world+0xAB4, country): armies not moving or fighting are re-checked (expelled); run per participant after peace"
-0x0068AA10,World_DeleteArmy,I,military,cp,"used by Country_Annex, po_disarmament, secede_province"
+0x0068AA10,World_DeleteArmy,C,military,cp,"thiscall (ECX = world, unit), RET 4; armies and fleets (when slot 0x3C is true, inferred fleet, it unloads the +0x1A4 list first); leaves battles (+0x70/+0x74), returns the regiments' pops, removes from the owner's +0x7B4 list (an error path when absent, inferred a log); used by Country_Annex, po_disarmament, secede_province, fix_ghost_units"
 0x005DCBD0,Units_SumStrength,C,military,cp,"(unit list, int* land, int* naval); force balance of AI_EvaluatePeaceOffer; stdcall; ADDS to *land / *naval (zero them first)"
-0x00887420,SecedeProvinceEffect_Execute,C,effects,cp,CSecedeProvinceEffect slot 11; TransferProvinces or Country_Release; resets pop +0x118..; re-checks the old owner's armies
+0x00887420,SecedeProvinceEffect_Execute,C,effects,cp,"CSecedeProvinceEffect slot 11; TransferProvinces or Country_Release; resets pop +0x118..; then walks the old owner's +0x7B4: FUN_005C8330(unit, 0), unit+0xBC = 1, World_DeleteArmy only for armies without regiments (+0x40 = 0); fleets untouched"
 0x00887FF0,InheritEffect_Execute,C,effects,cp,Country_Annex in either direction
 0x008975F0,MoneyEffect_Execute,C,effects,cp,"country scope: treasury += v x 32768 / 1000, no clamp, no ledger; pop scope pays the pops"
 0x00896580,TreasuryEffect_Execute,C,effects,cp,treasury += v x 32768 / 1000
@@ -678,6 +678,11 @@ va,name,conf,area,src,note
 0x009C43C0,Icon_Show,C,ui,cp,"Icon_vftable slot 0x34 (as Button show): +0x4F = 1 unless +0xF6, then sprite (+0x94) vt[0x34]"
 0x009C43F0,Icon_Hide,C,ui,cp,"Icon_vftable slot 0x38: +0x4F = 0, then sprite vt[0x38]"
 0x009C4410,Icon_SetFrame,C,ui,cp,"Icon_vftable slot 0x48, thiscall (frame): sprite (+0x94) vt[0x60]"
+0x009B5890,EditBox_dtor,C,ui,cp,"writes EditBox_vftable and the text widget's 0x00E39938 at +0x54, then frees +0x110 / +0x114"
+0x009B5C10,EditBox_Show,C,ui,cp,"EditBox_vftable slot 0x34 (as Button / Icon show): +0x4F = 1, (+0x110)->vt[0x34](), and (+0x114)->vt[0x34]() when +0x164"
+0x009B5C40,EditBox_Hide,C,ui,cp,"EditBox_vftable slot 0x38: +0x4F = 0, (+0x110) and (+0x114) vt[0x38]()"
+0x009F5290,EditText_SetText,C,ui,cp,"text widget (editbox+0x54) vt[0x40], thiscall (const std::string*) RET 4: clears +0x18, +0x38 = 0, +0xB5 = 1, then vt[0x54](text); JoinIpDialog_Open fills 'edit' with it"
+0x009F5950,EditText_GetText,C,ui,cp,"text widget vt[0x4C], thiscall (std::string* out) RET 4 -> out: a copy of +0x18; JoinIpDialog_OnJoin and the ledger's search_edit read it"
 0x00513A90,Country_SetGovernment,I,country,cp,the receiver takes the actor's government type in WarGoal_Execute (po_install_communist_gov_type 0x975); 14 callers
 0x009D5450,FileBuffer_ctor,?,engine,cp,builds the object FileReader reads a file into; an in-memory parser source could use it (not done)
 0x00990DF0,TokenReader_CtorFromBuffer,I,engine,cp,"EAX = buffer, thiscall: a token reader over memory (vtable 0x00E37C30 then 0x00E37C48), used for network commands"

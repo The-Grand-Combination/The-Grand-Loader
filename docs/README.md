@@ -45,6 +45,7 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 | [`fix_tech_window_crash`](fix-tech-window-crash.md) | technology window with an invention that has no status object |
 | [`fix_missing_modifier`](fix-missing-modifier.md) | add/remove modifier effects that name a modifier that does not exist: empty tooltip, no effect, name logged |
 | [`fix_missing_state_crash`](fix-missing-state-crash.md) | AI scan over a unit in a province without an owner, which has no state object |
+| [`fix_ghost_units`](fix-ghost-units.md) | armies and fleets of a country left without provinces by a secession, release or province transfer are deleted (annexation already does it); rebels kept. Changes results where vanilla leaves ghosts: same value for all players |
 | [`borderless_fullscreen`](borderless-fullscreen.md) | borderless window at the monitor's size instead of exclusive fullscreen: no device loss on alt-tab |
 | [`fix_edge_scroll`](fix-edge-scroll.md) | the map edge-scrolls only with the cursor inside the focused game window; correct mouse position in a window |
 | [`edge_scroll_lock`](fix-edge-scroll.md) | holds the cursor in the game view until pushed past an edge (mouse counts, 0 = off) |

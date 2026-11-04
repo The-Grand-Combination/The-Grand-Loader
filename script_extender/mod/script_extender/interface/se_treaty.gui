@@ -101,6 +101,9 @@ guiTypes = {
 		guiButtonType = { name = "se_pick_prev" position = { x = 318 y = 292 } quadTextureSprite = "GFX_button_arrow_left" buttonText = "" clicksound = click }
 		guiButtonType = { name = "se_pick_back" position = { x = 373 y = 293 } quadTextureSprite = "GFX_button_thin_84" buttonFont = "vic_18_black" buttonText = "" clicksound = click }
 		guiButtonType = { name = "se_pick_next" position = { x = 486 y = 292 } quadTextureSprite = "GFX_button_arrow_right" buttonText = "" clicksound = click }
+		# Money: the amount is typed here (shown instead of the rows), the payer's treasury below it
+		editBoxType = { name = "se_money_edit" position = { x = 335 y = 140 } textureFile = "gfx\\interface\\small_tiles_dialog.dds" font = "vic_18" borderSize = { x = 8 y = 4 } size = { x = 160 y = 30 } text = "" orientation = "UPPER_LEFT" }
+		instantTextBoxType = { name = "se_money_hint" position = { x = 311 y = 178 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 40 format = centre }
 
 		instantTextBoxType = { name = "score" position = { x = 311 y = 320 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }
 		instantTextBoxType = { name = "acceptance" position = { x = 311 y = 338 } font = "vic_18" text = "" maxWidth = 208 maxHeight = 20 format = centre }

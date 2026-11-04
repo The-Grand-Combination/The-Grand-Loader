@@ -49,8 +49,11 @@ so the tick is re-entered from the frame. The profiler matches frames by `ESP` f
 
 ## `Country_DailyUpdate` (0x005091A0)
 
-`(country, random array)`, `RET 8`, 683 calls/day in TGC (all defined tags; the loop skips countries
-without provinces). In order: **[C]** unless marked
+`(country, random array)`, `RET 8`, 683 calls/day in TGC: `DayTick` calls it for every tag from index 1,
+with or without provinces (so does the `Country_PrePass` loop). Inside, the province-driven parts (pops,
+migration) are empty for a tag without provinces, and `AI_DailyUpdate`/`AI_DailyRoll` are skipped for
+it and for `REB`; units, leaders, delayed events and `on_action` pulses still run. In order: **[C]** unless
+marked
 
 1. Pops of every owned province: a pop is updated when `pop.id % month_length == day_of_month`
    (`Pop_MonthlyUpdate` `0x00957EA0`), so each pop is updated once a month, spread over the days. A pop

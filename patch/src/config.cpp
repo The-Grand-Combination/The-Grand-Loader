@@ -49,6 +49,7 @@ constexpr Key kKeys[] = {
     {"fix_tech_window_crash", &Config::fix_tech_window_crash, nullptr},
     {"fix_missing_modifier", &Config::fix_missing_modifier, nullptr},
     {"fix_missing_state_crash", &Config::fix_missing_state_crash, nullptr},
+    {"fix_ghost_units", &Config::fix_ghost_units, nullptr},
     {"borderless_fullscreen", &Config::borderless_fullscreen, nullptr},
     {"fix_edge_scroll", &Config::fix_edge_scroll, nullptr},
     {"edge_scroll_lock", nullptr, &Config::edge_scroll_lock},

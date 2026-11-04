@@ -41,6 +41,7 @@ add_library(performance_patch SHARED
     src/features/stability/window_mode.cpp
     src/features/stability/modifier_guard.cpp
     src/features/stability/state_guard.cpp
+    src/features/stability/ghost_units.cpp
     src/features/interface/clipboard_paste.cpp
     src/features/interface/last_ip.cpp
     src/features/interface/join_port.cpp

@@ -131,6 +131,8 @@ va,name,kind,conf,src,note
 0x00E3CE50,GuiButton_vftable,vtable,I,cp,base button vtable (no RTTI name); slot 0xE0 = Button_SetSprite
 0x00E08D2C,CEU3ButtonType_vftable,vtable,C,cp,RTTI; guiButtonType definition of the EU3 layer
 0x00E3A930,Icon_vftable,vtable,I,cp,"icon vtable (no RTTI name); slot 0xE0 = Icon_SetSprite; same slot at 0x00E0A834; slots 0x34 Icon_Show, 0x38 Icon_Hide, 0x48 Icon_SetFrame: the same slots as a button's show / hide / frame"
+0x00E39878,EditBox_vftable,vtable,C,cp,"editBoxType (no RTTI name; written by EditBox_dtor): slots 0x34 EditBox_Show, 0x38 EditBox_Hide (the button / icon slots); found with window vt[0x40]"
+0x00E39938,EditText_vftable,vtable,C,cp,"the edit box's text widget at +0x54: slot 0x40 EditText_SetText, 0x4C EditText_GetText; the text at +0x18"
 0x00E2CB18,str_GFX_event_no_image,char[],C,cp,template sprite type of the event picture
 0x00E2CB04,str_pictures_events,char[],C,cp,"""/pictures/events/""; event picture folder"
 0x01268FF8,g_staticTokens,array,C,cp,"2744 x {int id; char name[0x100]} (stride 0x104) up to 0x013172D8; filled by Tokens_RegisterKeywords"

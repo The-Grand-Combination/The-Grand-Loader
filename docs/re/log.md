@@ -797,3 +797,45 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   wraps it and sets the text over the Propose Treaty button.
 - **Open:** `GuiWindow+0x494` and its `vt[0xB0]`, `GuiWindow+0x18` and its `vt[0x34]` are only known from
   these uses (I).
+
+## 2026-11-04 — Treaty money typed in an edit box
+
+- The ledger's `search_edit` and `JoinIpDialog` read their edit box as `(edit+0x54)->vt[0x4C](std::string*
+  out)` and fill it with `vt[0x40]`. The vtables: `EditBox_dtor` (`0x009B5890`) writes `0x00E39878` at +0 and
+  `0x00E39938` at +0x54; slot `0x4C` of the latter (`0x009F5950`) copies `+0x18`, so the text is at edit+0x6C.
+  `EditBox_Show` / `_Hide` sit at the button slots `0x34` / `0x38` and set `+0x4F`. **[C]**
+- The treaty editor's money picker is now `se_money_edit`: the text is read each frame from the per-frame
+  slot, its digits replace the treaty's money in the picker's direction, `MONEY_SHORT` checks the payer.
+  The fixed amounts (100 … 100 000) are gone.
+- `treaty_ai_money_per_point` 1000 → 100000: the AI counts money a hundred times less, both received and paid. The
+  forced treaty's cost of money demanded uses the same key.
+
+## 2026-11-04 — Skipping tags without provinces in Country_DailyUpdate / Country_PrePass: rejected
+
+- **Proposal:** two ini keys, `skip_empty_country_daily_update` and `skip_empty_country_prepass`, skipping the
+  whole call for a tag whose province vector (`country+0x9D8..0x9DC`) is empty.
+- **Checked:** both `DayTick` loops call every tag from index 1, unfiltered. For such a tag
+  `Country_DailyUpdate` still walks the army list (`+0x7B4`), the leader list (`+0xBD4`, death rolls through
+  `FUN_009B7950`, the RNG engine), the delayed-event counter and `on_action` pulses (`Event_Fire`); the engine
+  itself already skips `AI_DailyUpdate`/`AI_DailyRoll` for it and for `REB`. `REB` never owns provinces but owns
+  every rebel army, so a skip freezes rebels; any skipped draw shifts the world RNG for everyone. For
+  `Country_PrePass` the 2026-10-11 finding stands (the relation loop at `0x00508DA7` moves money into
+  `other+0xE78`), and its dead-tag costs are already cut: `Country_Recalculate` is skipped by the engine,
+  `FUN_0051FD10` by `skip_clean_resets`, the relation misses by `prefetch_relations`.
+- **Decision:** neither is result-preserving; not built. A dead/live split of the two calls in `tick_profiler`
+  would size what is left before revisiting.
+
+## 2026-11-04 — Ghost units: dead tags keep their units unless annexed
+
+- **Reported (user):** a tag that disappears sometimes leaves troops in other countries.
+- **Found:** armies and fleets share `country+0x7B4` (count `+0x7BC`, owner index `unit+0xC4`).
+  `TransferProvinces` has ten callers; only `Country_Annex` then deletes the victim's units
+  (`World_DeleteArmy` loop at `0x00518E5F`). `SecedeProvinceEffect_Execute` deletes only armies without
+  regiments, and fleets never. `FUN_0068DD70`, called by the annexation right after, is not the fleet
+  deletion (it clears the `+0x148C`/`+0x1490` lists). → [systems/diplomacy.md](systems/diplomacy.md)
+- **Built:** `fix_ghost_units`, chained onto the `CALL DayTick` (`0x00683AB1`): before each day, the units
+  of every tag from index 1 without provinces, except `REB`, go through `World_DeleteArmy`. The loop stops
+  when a deletion does not shorten the list or the owner index does not match. Each cleanup is logged
+  (64 lines at most). Changes results where vanilla leaves ghosts.
+- **Open:** first run (a save with known ghosts); whether a fleet carrying another country's army
+  should unload it rather than let `World_DeleteArmy` do what the annexation does.

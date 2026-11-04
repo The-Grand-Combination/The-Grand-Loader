@@ -25,7 +25,7 @@ CCountry,0x68,delayedEvents,vector,C,re,"+0x68/+0x6C; item+0x54 counts days down
 CCountry,0x208,aiObject,AiObject*,C,cp,"created on the host only (World_CreateAiObjects); null on clients; Event_Fire chooses AI options only when set"
 CCountry,0x37C,aiDailyDone,u8,C,cp,"embedded AI state +0x18 (base 0x364): set by AI_DailyUpdate; Country_DailyUpdate skips the update when non-zero"
 CCountry,0x37D,aiSkipDiplomacy,u8,C,cp,"embedded AI state +0x19; AI_DiplomacyUpdate returns when non-zero"
-CCountry,0x7B4,armies,list,I,re,military strength source
+CCountry,0x7B4,units,list,C,cp,"armies and fleets: node {unit +0, prev +4, next +8}; World_DeleteArmy removes; Country_Annex empties it"
 CCountry,0x9D8,ownedProvinces,vector,C,cp,"+0x9D8/+0x9DC; empty = country does not exist"
 CCountry,0xBCC,technology,ptr,C,re,"+0x2B8 tech state array indexed by tech+0x2E4"
 CCountry,0xBD4,leaders,list,I,re,daily roll for leader deaths
@@ -270,7 +270,7 @@ CWarGoal,0x28,province,u32,C,cp,province id: the target of a state war goal
 CCountry,0xEA0,prestigeX1000,i32,C,cp,Country_AddPrestige; total adds tech(+0xBCC)+0x28C (I)
 CCountry,0x9E8,controlledProvinces,list,C,cp,"nodes {provId, ?, next}; Province_SetController; returned at peace"
 CCountry,0x9F8,coreProvinces,list,I,cp,Province_RemoveCore
-CCountry,0x7BC,armyCount,u32,C,cp,count of +0x7B4
+CCountry,0x7BC,unitCount,u32,C,cp,count of +0x7B4 (armies and fleets)
 CCountry,0x1490,navies,list,I,cp,count +0x1494; deleted by Country_Annex
 CCountry,0xE8C,loans,vector,I,cp,"entries +0xC lender index, +0x18 i64 amount"
 CCountry,0xE88,bank,ptr,I,cp,+0x18 i64 lent amount
@@ -377,6 +377,9 @@ GuiButton,0x4F,visible,u8,C,cp,
 GuiButton,0x154,userIndex,u32,C,cp,vt 0xD4 / 0x80
 GuiTextBox,0xA0,textSprite,ptr,C,cp,ESI of TextSprite_SetText
 GuiTextBox,0xDC,text,std::string,C,cp,assigned before TextSprite_SetText
+GuiEditBox,0x4F,visible,u8,C,cp,"EditBox_Show / EditBox_Hide"
+GuiEditBox,0x54,textWidget,embedded,C,cp,"vtable EditText_vftable (0x00E39938): vt[0x40] SetText, vt[0x4C] GetText"
+GuiEditBox,0x6C,text,std::string,C,cp,"textWidget + 0x18: what EditText_GetText copies; read directly by the treaty editor each frame"
 FixedWindow,0x248,backgroundButton,ptr,I,cp,the backGround button (not in the button lists)
 FixedWindow,0x424,subWindows,vector,C,cp,"{std::string name, window*} 0x20 bytes"
 GuiOwner,0x60,dialogs,list,C,cp,"nodes {dlg, prev, next}; tail +0x64, count +0x68"
@@ -471,3 +474,6 @@ PositionType,0x68,y,i32,C,cp,
 GuiWindow,0x494,element,ptr,I,cp,"CDiplomacyView_Setup calls its vt[0xB0]() right after vt[0x18](packed {i16 x, i16 y}) places the window; vt[0x60](out) -> {i16 x, i16 y}* size; vt[0xBC](const std::string* name, child) attaches a subwindow"
 GuiWindow,0x18,children,embedded,I,cp,"vt[0x34]() shows the window and its children (end of CDiplomacyView_Setup 0x00624266, CEU3Dialog_ctor), vt[0x38]() hides; a child window added later is drawn only after vt[0x34] runs again"
 GuiWindow,0x67,shown,u8,I,cp,"CDiplomacyView slot 7 (0x00753B60) returns it for its window"
+CUnit,0xC0,ownerTag,u32,C,cp,read with +0xC4 by World_DeleteArmy
+CUnit,0xC4,ownerIndex,u32,C,cp,country index; World_DeleteArmy looks the unit up in that country's +0x7B4 list
+CUnit,0x1A4,embarked,list,C,cp,fleet: the armies it carries; World_DeleteArmy unloads them first

@@ -31,6 +31,7 @@
 #include "features/profilers/sample_profiler.h"
 #include "features/profilers/tick_profiler.h"
 #include "features/profilers/year_timer.h"
+#include "features/stability/ghost_units.h"
 #include "features/stability/modifier_guard.h"
 #include "features/stability/state_guard.h"
 #include "features/stability/supply_guard.h"
@@ -98,6 +99,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_tech_window_guard(config);
     cp::features::install_modifier_guard(config);
     cp::features::install_state_guard(config);
+    cp::features::install_ghost_units(config);  // chains onto the CALL DayTick after state_checksum: runs first
     cp::features::install_borderless_fullscreen(config);
     cp::features::install_edge_scroll_fix(config);
 

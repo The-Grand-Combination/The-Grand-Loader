@@ -46,7 +46,8 @@
 // - The editor is a CEU3Dialog on se_treaty_dialog (interface/se_treaty.gui) with our vtable copy (slots
 //   0 dtor, 1 per-frame refresh, 6 send, 7 cancel). Its rows are fixed buttons, paged: the terms
 //   (money first, then the CB terms; click = remove) and the picker (Demand / Offer tabs, then money or a
-//   treaty CB, then an amount or a province).
+//   treaty CB, then a province, or the amount typed in an edit box: se_money_edit, read each frame from
+//   its text widget, edit+0x54, whose std::string is at +0x18).
 
 namespace se::features::treaty_ui {
 
@@ -92,6 +93,7 @@ constexpr uint32_t kGuiTypes = 0x34;              // gui + 0x34: type table, vt[
 // Window finders: thiscall (const std::string*) -> element or 0
 constexpr uint32_t kFindButton = 0x34;
 constexpr uint32_t kFindTextBox = 0x3C;
+constexpr uint32_t kFindEditBox = 0x40;
 constexpr uint32_t kFindIcon = 0x44;
 constexpr uint32_t kCbSpriteIndex = 0x0C;  // the frame of GFX_diplo_wargoal_icons (as CGoalEntry shows it)
 // Buttons
@@ -106,6 +108,10 @@ constexpr uint32_t kTextBoxString = 0xDC;
 constexpr uint32_t kTextBoxSprite = 0xA0;
 constexpr uint32_t kStringAssignFrom = 0x00408ED0;  // thiscall (const std::string*, pos, count)
 constexpr uint32_t kTextSpriteSetText = 0x00A5ECC0;  // ESI = sprite, (const std::string*, 0)
+// Edit boxes (vtable 0x00E39878: show 0x34, hide 0x38 as buttons): the text widget at +0x54 (vtable 0x00E39938)
+constexpr uint32_t kEditText = 0x54;
+constexpr uint32_t kEditTextValue = 0x18;  // std::string, what vt[0x4C] (0x009F5950) copies out
+constexpr uint32_t kEditTextSet = 0x40;    // thiscall (const std::string*): 0x009F5290
 // "Propose Treaty" button (diplomacy.md, "Diplomacy view")
 constexpr uint32_t kRefreshCanPerform = 0x0062B9FC;  // CDiplomacyView_RefreshActions: CALL CanPerform, ESI = action, [EBP+8] = view
 constexpr uint32_t kCanPerform = 0x00911760;         // DiplomaticAction_CanPerform: ESI = action, (bool) -> AL
@@ -159,7 +165,8 @@ constexpr const char* kEditorType = "se_treaty_dialog";
 constexpr int kTermRows = 8;  // se_term_<i> in se_treaty.gui
 constexpr int kPickRows = 6;  // se_pick_<i>
 constexpr int kMaxRows = kTermRows > kPickRows ? kTermRows : kPickRows;
-constexpr int kMoneyAmounts[] = {100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000};
+constexpr const char* kMoneyEdit = "se_money_edit";  // editBoxType: the typed amount
+constexpr size_t kMoneyDigits = 12;               // at most 10^12 pounds: no overflow in fixed point
 constexpr uintptr_t kMoneyOption = 1;       // in the CB options: the money item
 constexpr uint32_t kButtonSetFrame = 0x48;  // Button_SetFrame: the tabs show frame 2 when active
 
@@ -504,6 +511,17 @@ void button_text(uintptr_t button, const std::string& text) {
     vt<TextFn>(button, kButtonSetText)(button, nullptr, &value, 0);
 }
 
+std::string edit_text(uintptr_t edit) { return edit ? GameString::copy(edit + kEditText + kEditTextValue) : std::string(); }
+
+void set_edit_text(uintptr_t edit, const std::string& text) {
+    if (!edit) {
+        return;
+    }
+    GameString value(text);
+    uintptr_t widget = edit + kEditText;
+    vt<void(__fastcall*)(uintptr_t, void*, const GameString*)>(widget, kEditTextSet)(widget, nullptr, &value);
+}
+
 void button_call(uintptr_t button, uint32_t slot) {
     if (button) {
         vt<void(__fastcall*)(uintptr_t, void*)>(button, slot)(button, nullptr);
@@ -611,6 +629,7 @@ const char* const kUiKeys[] = {
     "SE_TREATY_TITLE",        "SE_TREATY_TERMS",       "SE_TREATY_MODE_DEMAND",    "SE_TREATY_MODE_GIVE",
     "SE_TREATY_PICK_CB_DEMAND", "SE_TREATY_PICK_CB_OFFER", "SE_TREATY_PICK_PROVINCE", "SE_TREATY_NO_OPTIONS",
     "SE_TREATY_BACK",         "SE_TREATY_MONEY",       "SE_TREATY_PICK_MONEY",     "SE_TREATY_SCORE",
+    "SE_TREATY_MONEY_TREASURY",
     "SE_TREATY_WILL_ACCEPT",  "SE_TREATY_WILL_NOT_ACCEPT", "SE_TREATY_SEND",       "SE_TREATY_CANCEL",
     "SE_TREATY_TERM_GAIN",    "SE_TREATY_TERM_GIVE",   "SE_TREATY_PICK_COUNTRY",
     "SE_TREATY_DISMANTLE_TITLE", "SE_TREATY_DISMANTLE_POINTS", "SE_TREATY_DISMANTLE_INFAMY", "SE_TREATY_DISMANTLE_FORCED",
@@ -648,17 +667,19 @@ struct Editor {
     uintptr_t term_prev = 0, term_next = 0, term_page_text = 0, mode_demand_text = 0, mode_give_text = 0;
     uintptr_t mode_demand = 0, mode_give = 0, prev = 0, next = 0, back = 0, agree = 0, decline = 0;
     uintptr_t title = 0, terms_label = 0, pick_label = 0, score = 0, acceptance = 0;
+    uintptr_t money_edit = 0, money_hint = 0;
+    std::string money_typed;  // the edit box text last seen
     std::vector<uintptr_t> observed;
     // picker
     Mode mode = kDemand;
-    uintptr_t picked_cb = 0;  // 0: choosing a CB; kMoneyOption: choosing an amount
+    uintptr_t picked_cb = 0;  // 0: choosing a CB; kMoneyOption: typing an amount
     int picked_third = 0;     // the third country chosen for picked_cb (CBs with allowed_countries)
     std::vector<int> country_options;
     int page = 0;
     int term_page = 0;
     std::vector<uintptr_t> cb_options;
     std::vector<bool> cb_enabled;  // parallel to cb_options: grey when false
-    std::vector<uint32_t> province_options;  // or amounts in pounds
+    std::vector<uint32_t> province_options;
     bool dirty = true;
 
     std::string t(const char* key) const {
@@ -779,15 +800,7 @@ void compute_options(Editor& e) {
         return;
     }
     if (e.picked_cb == kMoneyOption) {
-        int64_t m = treaty::money(e.action);
-        for (int amount : kMoneyAmounts) {
-            int64_t next = m + (e.mode == kGive ? amount : -amount) * kMoneyOne;  // positive: we pay
-            uintptr_t payer = game::country(next > 0 ? e.me : e.them);
-            if (next == 0 || read<int64_t>(payer + kCountryTreasury) >= (next > 0 ? next : -next)) {
-                e.province_options.push_back(static_cast<uint32_t>(amount));
-            }
-        }
-        return;
+        return;  // typed in the edit box
     }
     if (treaty::cb_needs_country(e.picked_cb) && !e.picked_third) {
         int count = read<int>(read<uintptr_t>(hooks::exe_va(kCountryManagerVa)));
@@ -870,6 +883,62 @@ std::string option_name(const Editor& e, uintptr_t cb) { return cb == kMoneyOpti
 
 std::string pounds_of(int64_t fixed) { return std::to_string((fixed < 0 ? -fixed : fixed) / kMoneyOne); }
 
+// The money of the treaty in the editor's direction (Demand: they pay us), in pounds; 0 when it goes the
+// other way.
+int64_t money_this_way(const Editor& e) {
+    int64_t m = treaty::money(e.action);  // positive: we pay
+    int64_t ours = e.mode == kGive ? m : -m;
+    return ours > 0 ? ours / kMoneyOne : 0;
+}
+
+// The pounds typed: its digits (anything else is ignored), at most kMoneyDigits of them.
+int64_t typed_pounds(const std::string& text) {
+    int64_t pounds = 0;
+    size_t digits = 0;
+    for (char c : text) {
+        if (c >= '0' && c <= '9' && digits < kMoneyDigits) {
+            pounds = pounds * 10 + (c - '0');
+            ++digits;
+        }
+    }
+    return pounds;
+}
+
+// The money edit box: shown while an amount is typed, with the payer's treasury below it. Rewritten only
+// when the treaty's money no longer matches what it holds (the money row removed), not while typing.
+void refresh_money_edit(Editor& e) {
+    bool typing = e.budget >= 0 && e.picked_cb == kMoneyOption;
+    show(e.money_edit, typing);
+    if (!typing) {
+        set_text(e.money_hint, std::string());
+        return;
+    }
+    int64_t pounds = money_this_way(e);
+    if (typed_pounds(edit_text(e.money_edit)) != pounds) {
+        e.money_typed = pounds ? std::to_string(pounds) : std::string();
+        set_edit_text(e.money_edit, e.money_typed);
+    }
+    int payer = e.mode == kGive ? e.me : e.them;
+    int64_t treasury = read<int64_t>(game::country(payer) + kCountryTreasury);
+    set_text(e.money_hint, replace(replace(e.t("SE_TREATY_MONEY_TREASURY"), "$COUNTRY$", country_name(e, payer)),
+                                   "$MONEY$", pounds_of(treasury)));
+}
+
+// Per frame while typing: a changed text sets the treaty's money at once (replacing money either way).
+void read_money_edit(Editor& e) {
+    if (e.budget < 0 || e.picked_cb != kMoneyOption || !e.money_edit) {
+        return;
+    }
+    std::string text = edit_text(e.money_edit);
+    if (text == e.money_typed) {
+        return;
+    }
+    e.money_typed = text;
+    int64_t amount = typed_pounds(text) * kMoneyOne;
+    treaty::set_money(e.action, e.mode == kGive ? amount : -amount);
+    e.dirty = true;
+}
+
 // A notice: the terms an AI dismantler imposed on us, read only, and OK. No points: they were reckoned
 // on the map before the terms moved it.
 void refresh_notice(Editor& e) {
@@ -887,6 +956,7 @@ void refresh_notice(Editor& e) {
         cb_icon(e.pick_icons[i], 0);
     }
     set_text(e.pick_label, replace(e.t("SE_TREATY_NOTICE"), "$COUNTRY$", country_name(e, e.them)));
+    refresh_money_edit(e);
     set_text(e.score, std::string());
     set_text(e.acceptance, std::string());
     button_text(e.agree, e.t("SE_TREATY_OK"));
@@ -996,7 +1066,7 @@ void refresh(Editor& e) {
                              : choosing_country(e) ? replace(e.t("SE_TREATY_PICK_COUNTRY"), "$CB$", cb_name(e, e.picked_cb))
                              : e.picked_cb ? replace(e.t("SE_TREATY_PICK_PROVINCE"), "$CB$", cb_name(e, e.picked_cb))
                              : e.t(e.mode == kDemand ? "SE_TREATY_PICK_CB_DEMAND" : "SE_TREATY_PICK_CB_OFFER");
-    if (count == 0) {
+    if (count == 0 && e.picked_cb != kMoneyOption) {
         pick_label = e.t("SE_TREATY_NO_OPTIONS");
     }
     set_text(e.pick_label, pick_label);
@@ -1015,8 +1085,7 @@ void refresh(Editor& e) {
         enable(e.picks_red[i], usable);
         cb_icon(e.pick_icons[i], row_cb);
         if (visible) {
-            std::string label = e.picked_cb == kMoneyOption ? std::to_string(e.province_options[index])
-                                : choosing_country(e)     ? country_name(e, e.country_options[index])
+            std::string label = choosing_country(e)     ? country_name(e, e.country_options[index])
                                 : e.picked_cb             ? place_name(e, e.picked_cb, e.province_options[index])
                                                           : option_name(e, e.cb_options[index]);
             button_text(e.picks[i], label);
@@ -1026,6 +1095,7 @@ void refresh(Editor& e) {
     show(e.prev, e.page > 0);
     show(e.next, e.page + 1 < pages);
     show(e.back, e.picked_cb != 0);
+    refresh_money_edit(e);
 
     // Summary
     std::string why = treaty::problem(e.action);
@@ -1102,11 +1172,6 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
                     e->term_page = 1 << 20;  // show the last page, where the new term is
                     e->picked_third = 0;
                 }
-            } else if (e->picked_cb == kMoneyOption && index < e->province_options.size()) {
-                int64_t amount = static_cast<int64_t>(e->province_options[index]) * kMoneyOne;
-                treaty::set_money(e->action, treaty::money(e->action) + (e->mode == kGive ? amount : -amount));
-                e->picked_cb = 0;
-                e->picked_third = 0;
             } else if (!e->picked_cb && index < e->cb_options.size() && !e->cb_enabled[index]) {
                 return;  // grey: nothing to take with it now
             } else if (!e->picked_cb && index < e->cb_options.size()) {
@@ -1114,6 +1179,7 @@ void __fastcall on_click(uintptr_t dialog, void*, uintptr_t button) {
                 if (cb == kMoneyOption || treaty::cb_needs_province(cb) || treaty::cb_needs_country(cb)) {
                     e->picked_cb = cb;
                     e->picked_third = 0;
+                    e->money_typed = edit_text(e->money_edit);  // only what is typed from now on counts
                 } else {
                     treaty::add_term(e->action, {cb, e->gains(), e->gives(), 0});
                     e->term_page = 1 << 20;  // show the last page, where the new term is
@@ -1207,6 +1273,9 @@ uintptr_t __fastcall editor_dtor(uintptr_t dialog, void*, int flags) {
 bool __fastcall editor_update(uintptr_t dialog, void*) {
     drop_forced();  // the dialogs loop: outside the pending walk
     Editor* e = editor_of(dialog);
+    if (e) {
+        read_money_edit(*e);
+    }
     if (e && e->dirty) {
         refresh(*e);
     }
@@ -1343,6 +1412,11 @@ bool open_editor(uintptr_t owner, int me, int them, uintptr_t invitation = 0, in
     e->pick_label = find(w, kFindTextBox, "se_pick_label");
     e->score = find(w, kFindTextBox, "score");
     e->acceptance = find(w, kFindTextBox, "acceptance");
+    e->money_edit = find(w, kFindEditBox, kMoneyEdit);
+    e->money_hint = find(w, kFindTextBox, "se_money_hint");
+    if (!e->money_edit) {
+        logf("treaty: %s has no edit box %s", kEditorType, kMoneyEdit);
+    }
     shield(w, kSetLeftShield, me);
     shield(w, kSetRightShield, them);
     reset_picker(*e);

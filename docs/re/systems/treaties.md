@@ -181,7 +181,8 @@ cancel. Layout:
 **Picker rules** (the war-goal dialog's, generalised):
 1. Money (always the first item), then each treaty CB that is supported and whose `can_use` passes for
    (gains, gives). A CB that needs nothing more is listed only if the term would be valid.
-2. Money → an amount (100 … 100 000) the payer can afford.
+2. Money → the amount typed in the `se_money_edit` edit box (pounds, digits only; any amount, the
+   payer's treasury shown below it). It replaces the money either way and is checked as `MONEY_SHORT`.
 3. A CB whose `allowed_countries` has children → choose a third country: every country except the two,
    evaluated per candidate (scopes below).
 4. A CB whose `allowed_states` has children and not `all_allowed_states`, or with `po_demand_state` → choose
@@ -278,7 +279,7 @@ score = gain - give + relation + power - reluctance × 100
 |---|---|---|
 | `treaty_ai_reluctance` | 10 | points the AI wants on top of a fair deal |
 | `treaty_ai_give_weight` | 150 | percent: what it gives counts this much |
-| `treaty_ai_money_per_point` | 1000 | pounds per war-score point |
+| `treaty_ai_money_per_point` | 100000 | pounds per war-score point |
 | `treaty_ai_relation` | 8 | points at the best relation (minus at the worst) |
 | `treaty_ai_core_gain` / `_core_give` | 2000 / 4000 | percent: worth of a core province it gets / gives |
 | `treaty_ai_power` | 5 | points per 100% the proposer is stronger |

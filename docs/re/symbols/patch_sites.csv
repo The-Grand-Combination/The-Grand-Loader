@@ -100,6 +100,7 @@ cp_has_province_modifier_tooltip,0x00E308B8,00 E0 8C 00,slot replace,shipped,cp,
 cp_state_presence_guard,0x0048F070,55 8B EC 83 EC 24 53 56,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_HasHostilePresence; null state -> returns 0 (RET 8)
 cp_state_tag_guard,0x0048E120,55 8B EC 83 EC 08,jump hook,shipped,cp,fix_missing_state_crash: prologue of State_GetControllerTag; null state (ECX) -> tag "---" index 0
 cp_state_walk_scan,0x00851F51,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: AI_UnitTargetScan walks state+0x14 of another unit's province; null state -> not-found branch 0x00852043
+cp_ghost_units_day,0x00683AB1,E8 0A 1F 00 00,call redirect,shipped,cp,"fix_ghost_units: CALL DayTick in Update_World_and_Advance_Time; before the day, World_DeleteArmy on every unit of a tag without provinces (not REB); (chained with cp_tick_day, cp_mp_day_tick)"
 cp_state_walk_score,0x00853BEF,8B 40 14 85 C0,jump hook,shipped,cp,fix_missing_state_crash: FUN_00853B30 (unit scoring from FUN_00851AD0) same walk; null -> 0x00853C03
 cp_lock_is_possible_vassal,0x00E30FE0,30 80 8D 00,slot replace,shipped,cp,trigger_locks: CIsPossibleVassalTrigger vt+0x18 (Evaluate 0x008D8030) -> critical-section wrapper when a parallel trigger feature is on
 cp_lock_can_create_vassals,0x00E30FA8,40 7D 8D 00,slot replace,shipped,cp,trigger_locks: CCanCreateVassalsTrigger vt+0x18 (Evaluate 0x008D7D40) -> same wrapper

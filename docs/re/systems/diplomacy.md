@@ -330,6 +330,26 @@ Root `g_economyDefines` `0x012586DC`. The blocks are +0x30 diplomacy, +0x40 coun
 - **Death of the old owner** when it loses its last province. `Country_Annex` does that cleanup.
 - **The capital.** `Country_ValidateCapital` `0x0050E540` fixes it daily, or when called.
 - **Expelling units.** The peace path does that afterwards with `Military_RepositionArmies`.
+- **The old owner's units.** See below.
+
+### Units of a dead tag **[C]**
+
+A country's armies and fleets share one list, `country+0x7B4` (node `{unit, prev, next}`, count
+`+0x7BC`); `unit+0xC4` is the owner's index. `World_DeleteArmy` `0x0068AA10` (thiscall, `ECX` = world,
+the unit on the stack, `RET 4`) is the full deletion: it unloads a fleet's armies, takes the unit out of
+its battles, returns the regiments' pops and removes it from the owner's list.
+
+Of the ten callers of `TransferProvinces`, only `Country_Annex` deletes the victim's units: after the
+transfer, `while (victim+0x7BC != 0) World_DeleteArmy(world, first unit)` (`0x00518E5F`..`0x00518E9A`).
+`SecedeProvinceEffect_Execute` walks the old owner's list but deletes only armies without regiments
+(`unit+0x40 == 0`); the others (release, peace transfers, the conquer-province command) touch no unit.
+A tag that loses its last province by one of those keeps every army and fleet where it stands, often in
+other countries' land: ghost units. `Country_DailyUpdate` still walks them, but `AI_DailyUpdate` is
+skipped for a tag without provinces, so nothing moves them. Rebels are the exception that must stay:
+`REB` never owns a province and owns every rebel army.
+
+`fix_ghost_units` deletes them with the annexation's loop, before each day's `DayTick` (patch site
+`cp_ghost_units_day`).
 
 Other helpers **[C]**:
 
@@ -438,7 +458,7 @@ Other helpers **[C]**:
 |---|---|
 | `0x34` | button |
 | `0x3C` | text box |
-| `0x40` | edit box **[I]** |
+| `0x40` | edit box |
 | `0x44` | icon (icons only) |
 | `0x48` | checkbox |
 | `0x4C` | scrollbar |
@@ -462,6 +482,10 @@ Other helpers **[C]**:
   `Icon_Hide` `0x009C43F0`, `Icon_SetFrame` `0x009C4410`).
 - Text boxes: assign `tb+0xDC` (`0x00408ED0`, thiscall `(const std::string*, pos, count)`), then
   `TextSprite_SetText` `0x00A5ECC0` (ESI = `tb+0xA0`).
+- Edit boxes (`editBoxType`, window finder `0x40`, `EditBox_vftable` `0x00E39878`): show / hide at `0x34` /
+  `0x38` as buttons. The text widget at `+0x54` (`EditText_vftable` `0x00E39938`) holds the text as a
+  std::string at its `+0x18`: `vt[0x40]` sets it (`EditText_SetText` `0x009F5290`), `vt[0x4C]` copies it
+  out (`EditText_GetText` `0x009F5950`). Typing reaches the focused one through `WM_CHAR` (ui-console.md).
 - Listbox: `vt[0x5C]` clear, `vt[0x10](item, 1)` add.
 - Button glue (0x2C bytes, vtable `0x00E086E0` and its folded twins): `+4` owner, `+0x08` click `()`,
   `+0x20` click `(button)`, `+0x24` right click. The slots null-check their handler, so a glue with only `+0x20`

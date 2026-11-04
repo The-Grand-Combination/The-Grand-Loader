@@ -42,6 +42,7 @@ struct Config {
                                         // that does not exist
     bool fix_missing_state_crash = false;  // crash prevention: AI scan over a unit in a province without a state
                                            // (uncolonised)
+    bool fix_ghost_units = false;       // fix: units of a tag left without provinces (not by annexation) are deleted
     bool borderless_fullscreen = false;  // stability: borderless window at the monitor's size (no device loss on alt-tab)
     bool fix_edge_scroll = false;       // stability: edge scroll only with the cursor inside the focused window
     int edge_scroll_lock = 0;           // stability: cursor held in the window; mouse counts pushed past an

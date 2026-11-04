@@ -40,7 +40,7 @@ the AI accepts when it is at least 0. Details: `docs/re/systems/treaties.md` ("A
 | `treaty_infamy` | 1 | a term costs its CB's infamy, as a war goal |
 | `treaty_ai_reluctance` | 10 | points the AI wants on top of a fair deal |
 | `treaty_ai_give_weight` | 150 | percent: what the AI gives counts this much against it (above 100: fair deals get refused) |
-| `treaty_ai_money_per_point` | 1000 | pounds the AI counts as one war-score point |
+| `treaty_ai_money_per_point` | 100000 | pounds the AI counts as one war-score point |
 | `treaty_ai_relation` | 8 | points at the best relation, minus that at the worst |
 | `treaty_ai_core_gain` | 2000 | percent: worth of a province with its core when the AI gets one |
 | `treaty_ai_core_give` | 4000 | percent: worth of a province with its core when the AI gives one |

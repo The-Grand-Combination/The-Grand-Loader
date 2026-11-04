@@ -20,7 +20,7 @@ struct Config {
     bool treaty_infamy = true;       // a treaty term costs the gaining side the CB's infamy, as a war goal does
     int treaty_ai_reluctance = 10;   // war-score points the AI wants on top of a fair deal
     int treaty_ai_give_weight = 150;  // percent: what it gives counts this much against it
-    int treaty_ai_money_per_point = 1000;  // pounds the AI counts as one war-score point
+    int treaty_ai_money_per_point = 100000;  // pounds the AI counts as one war-score point
     int treaty_ai_relation = 8;      // points at the best relation (minus at the worst)
     int treaty_ai_core_gain = 2000;  // percent: value of a province of its own cores that it gets
     int treaty_ai_core_give = 4000;  // percent: value of a province of its own cores that it gives away
