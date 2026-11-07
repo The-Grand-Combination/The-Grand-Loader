@@ -62,7 +62,7 @@ void read_mod_file(const std::wstring& game_dir, const std::wstring& mod_file, M
         if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
             value = value.substr(1, value.size() - 2);
         }
-        if (key == "path") {
+        if (key == "path" && !value.empty()) {  // `path = ""` (the plugin .mod files): no folder
             std::wstring folder = game_dir + L"\\" + std::wstring(value.begin(), value.end());
             std::replace(folder.begin(), folder.end(), L'/', L'\\');
             out.folders.push_back(folder);
