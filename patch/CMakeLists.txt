@@ -58,8 +58,17 @@ target_link_options(performance_patch PRIVATE "/MAP:$<TARGET_FILE_DIR:performanc
 target_compile_definitions(performance_patch PRIVATE PERFORMANCE_PATCH_VERSION="${PROJECT_VERSION}")
 set_target_properties(performance_patch PROPERTIES PREFIX "" OUTPUT_NAME "performance_patch")
 
-install(TARGETS performance_patch RUNTIME DESTINATION mod/performance_patch COMPONENT performance_patch)
-install(FILES mod/performance_patch.mod DESTINATION mod COMPONENT performance_patch)
-install(FILES mod/performance_patch/performance_patch.ini DESTINATION mod/performance_patch COMPONENT performance_patch)
+# Also in the loader's zip, so the-grand-loader-<version>.zip is the whole game drop-in (EXCLUDE_FROM_ALL:
+# build/ gets the files once, from the performance_patch rules).
+foreach(component IN ITEMS performance_patch loader)
+    set(exclude)
+    if(component STREQUAL "loader")
+        set(exclude EXCLUDE_FROM_ALL)
+    endif()
+    install(TARGETS performance_patch RUNTIME DESTINATION mod/performance_patch COMPONENT ${component} ${exclude})
+    install(FILES mod/performance_patch.mod DESTINATION mod COMPONENT ${component} ${exclude})
+    install(FILES mod/performance_patch/performance_patch.ini DESTINATION mod/performance_patch
+            COMPONENT ${component} ${exclude})
+endforeach()
 
 set(PERFORMANCE_PATCH_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

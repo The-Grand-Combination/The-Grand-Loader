@@ -35,7 +35,7 @@ if(BUILD_SCRIPT_EXTENDER)
 endif()
 
 # Release packages: `cpack --preset x86-release` writes one zip per component into out/release/:
-#   the-grand-loader-<loader version>.zip       dinput8.dll + readme
+#   the-grand-loader-<loader version>.zip       dinput8.dll + readme + both plugins below: the whole game drop-in
 #   performance-patch-<patch version>.zip       mod/performance_patch.mod + mod/performance_patch/ (DLL, ini)
 #   script-extender-<extender version>.zip    mod/script_extender.mod + mod/script_extender/ (DLL, ini, localisation/)
 #   the-grand-loader-sdk-<loader version>.zip   include/tgl/plugin_api.h + PLUGINS.md

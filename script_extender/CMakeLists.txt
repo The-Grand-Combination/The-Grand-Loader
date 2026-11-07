@@ -31,12 +31,21 @@ target_link_libraries(script_extender PRIVATE tgl::plugin_api shell32)
 target_compile_definitions(script_extender PRIVATE SCRIPT_EXTENDER_VERSION="${PROJECT_VERSION}")
 set_target_properties(script_extender PROPERTIES PREFIX "" OUTPUT_NAME "script_extender")
 
-install(TARGETS script_extender RUNTIME DESTINATION mod/script_extender COMPONENT script_extender)
-install(FILES mod/script_extender.mod DESTINATION mod COMPONENT script_extender)
-install(FILES mod/script_extender/script_extender.ini DESTINATION mod/script_extender COMPONENT script_extender)
-install(DIRECTORY mod/script_extender/localisation mod/script_extender/interface mod/script_extender/gfx
-                  mod/script_extender/common
-        DESTINATION mod/script_extender
-        COMPONENT script_extender)
+# Also in the loader's zip, so the-grand-loader-<version>.zip is the whole game drop-in (EXCLUDE_FROM_ALL:
+# build/ gets the files once, from the script_extender rules).
+foreach(component IN ITEMS script_extender loader)
+    set(exclude)
+    if(component STREQUAL "loader")
+        set(exclude EXCLUDE_FROM_ALL)
+    endif()
+    install(TARGETS script_extender RUNTIME DESTINATION mod/script_extender COMPONENT ${component} ${exclude})
+    install(FILES mod/script_extender.mod DESTINATION mod COMPONENT ${component} ${exclude})
+    install(FILES mod/script_extender/script_extender.ini DESTINATION mod/script_extender
+            COMPONENT ${component} ${exclude})
+    install(DIRECTORY mod/script_extender/localisation mod/script_extender/interface mod/script_extender/gfx
+                      mod/script_extender/common
+            DESTINATION mod/script_extender
+            COMPONENT ${component} ${exclude})
+endforeach()
 
 set(SCRIPT_EXTENDER_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)

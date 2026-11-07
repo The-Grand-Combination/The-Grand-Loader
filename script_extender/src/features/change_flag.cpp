@@ -489,15 +489,31 @@ void __fastcall execute(uintptr_t effect, void*, uintptr_t scope, int arg) {
     }
 }
 
-std::once_flag g_texts_once;
+// Texts by key, read from the localisation CSVs on first use; a missing key is kept as empty so the files
+// are scanned once per key, not on every tooltip.
+std::mutex& g_texts_mutex() { static std::mutex v; return v; }
 std::map<std::string, std::string>& g_texts() { static std::map<std::string, std::string> v; return v; }
 
-std::string text(const std::string& key) {
-    std::call_once(g_texts_once, [] {
-        g_texts() = game::read_localisation({"SE_CHANGE_FLAG_EFFECT", "SE_CHANGE_FLAG_DEFAULT_EFFECT"});
-    });
+std::string lookup(const std::string& key) {
+    std::lock_guard<std::mutex> lock(g_texts_mutex());
     auto it = g_texts().find(key);
-    return it == g_texts().end() ? key : it->second;
+    if (it == g_texts().end()) {
+        auto found = game::read_localisation({key});
+        it = g_texts().emplace(key, found.count(key) ? found[key] : std::string()).first;
+    }
+    return it->second;
+}
+
+std::string text(const std::string& key) {
+    std::string value = lookup(key);
+    return value.empty() ? key : value;
+}
+
+// The name shown for the flag at `path`: the localisation key `<path, / as __>` (USA/USA_51 -> USA__USA_51)
+// when a CSV has it, else the path itself.
+std::string flag_title(const std::string& path) {
+    std::string value = lookup(flag_name(path).substr(std::strlen(kFlagPrefix)));
+    return value.empty() ? path : value;
 }
 
 // Slot 9, the tooltip: thiscall (std::string* out, scope, std::string by value, int), RET 0x28. `out` is
@@ -512,7 +528,7 @@ uintptr_t __fastcall tooltip(uintptr_t effect, void*, uintptr_t out, uintptr_t, 
         size_t at = line.find("$FLAG$");
         if (at != std::string::npos) {
             std::string path = normalise(value);
-            line.replace(at, 6, path.empty() ? value : path);
+            line.replace(at, 6, path.empty() ? value : flag_title(path));
         }
     }
     std::memset(reinterpret_cast<void*>(out), 0, sizeof(GameString));
