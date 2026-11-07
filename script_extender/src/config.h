@@ -14,6 +14,7 @@ struct Config {
     bool province_flags = false;     // has_province_flag works (the engine never implemented the trigger)
     bool demand_province = false;    // cb_types.txt `po_demand_province = yes`: the peace takes one province
     bool event_background = false;   // `background = "name"` in an event body: gfx/pictures/events/backgrounds/name
+    bool change_flag = false;        // effect `change_flag = "path"`: the country draws gfx/flags/extra/path.tga
     bool vassal_map_color = false;   // political map: substates and puppets in a shade of their overlord
     int vassal_map_color_own = 30;   // percent of the vassal's own colour in that shade (0-100)
     bool treaty = false;             // peacetime treaties: CBs with `is_treaty_cb = yes` as terms, plus money

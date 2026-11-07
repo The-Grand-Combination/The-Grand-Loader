@@ -64,6 +64,7 @@ Guards for crashes of the unpatched game; a game that would not have crashed is 
 | option | what it does |
 |---|---|
 | [`compress_flag_cache`](compress-flag-cache.md) | keeps the flag atlases compressed (DXT1): ~8× less memory each |
+| [`share_flag_atlases`](share-flag-atlases.md) | governments with the same flag type share one flag atlas instead of a copy each |
 
 ## Diagnostics
 

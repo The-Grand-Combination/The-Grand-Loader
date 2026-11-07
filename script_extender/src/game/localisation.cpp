@@ -30,12 +30,29 @@ struct ModFolders {
     bool replaces_localisation = false;
 };
 
-// `path = "mod/X"` and `replace_path = "localisation"` of one .mod file (relative to the game folder).
+// The line up to its `#` comment; a `#` inside quotes is part of the value.
+std::string_view strip_comment(std::string_view line) {
+    bool quoted = false;
+    for (size_t i = 0; i < line.size(); ++i) {
+        if (line[i] == '"') {
+            quoted = !quoted;
+        } else if (line[i] == '#' && !quoted) {
+            return line.substr(0, i);
+        }
+    }
+    return line;
+}
+
+// `path = "mod/X"` and `replace_path = "localisation"` of one .mod file (as given with -mod=: relative to
+// the game folder, or absolute). Mods put comments after the values (`path = "mod/X" # location ...`).
 void read_mod_file(const std::wstring& game_dir, const std::wstring& mod_file, ModFolders& out) {
-    std::ifstream in(game_dir + L"\\" + mod_file);
+    std::wstring file = mod_file;
+    std::replace(file.begin(), file.end(), L'/', L'\\');
+    bool absolute = file.size() > 1 && (file[1] == L':' || file[0] == L'\\');
+    std::ifstream in(absolute ? file : game_dir + L"\\" + file);
     std::string line;
     while (std::getline(in, line)) {
-        std::string_view text = trim(line);
+        std::string_view text = trim(strip_comment(line));
         size_t eq = text.find('=');
         if (eq == std::string_view::npos) {
             continue;

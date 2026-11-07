@@ -7,6 +7,7 @@ add_library(script_extender SHARED
     src/config.cpp
     src/hooks/memory.cpp
     src/features/building_map_mode.cpp
+    src/features/change_flag.cpp
     src/features/buildings_ai.cpp
     src/features/country_upgrade.cpp
     src/features/demand_province.cpp
@@ -19,6 +20,7 @@ add_library(script_extender SHARED
     src/features/vassal_map_color.cpp
     src/game/buildings.cpp
     src/game/console.cpp
+    src/game/effects.cpp
     src/game/localisation.cpp
     src/game/script.cpp
     src/game/map.cpp

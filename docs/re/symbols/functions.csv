@@ -173,7 +173,7 @@ va,name,conf,area,src,note
 0x00A5FF00,NetSession_ctor,C,network,cp,"base constructor (vtable 0x00E426A8, 44 slots), timeout 15 ms"
 0x00A635C0,NetClient_ctor,C,network,cp,"vtable 0x00E427C8; gethostbyname; enet host at +0x18, timeout +0x20 = 35 ms"
 0x00A63830,NetServer_ctor,C,network,cp,"vtable 0x00E427C8; enet host on the given port at +0x18, timeout +0x20 = 35 ms; created from SessionManager_CreateServer (0x009B1190)"
-0x007E3900,FlagAtlas_BuildOrLoad,C,flags,cp,"builds the per-government flag atlas from gfx/flags/*.tga or loads gfx/flags/flagfiles*.tga; D3DX create/save/load at 0x007E5ADA/0x007E629C/0x007E6367/0x007E6492; D3DXCreateTextureFromFileInMemoryEx for the individual flags at 0x007E55CC (size -2, Format UNKNOWN, MANAGED; left alone by compress_flag_cache); D3DXLoadSurfaceFromSurface atlas -> copy at 0x007E62CC"
+0x007E3900,FlagAtlas_BuildOrLoad,C,flags,cp,"stdcall (atlas, const std::string* folder, g_countryManager, g_flagOwner, const std::string* flagType) RET 0x14; writes only the atlas; builds the atlas of one government from gfx/flags/*.tga or loads gfx/flags/flagfiles*.tga; D3DX create/save/load at 0x007E5ADA/0x007E629C/0x007E6367/0x007E6492; D3DXCreateTextureFromFileInMemoryEx for the individual flags at 0x007E55CC (size -2, Format UNKNOWN, MANAGED; left alone by compress_flag_cache); D3DXLoadSurfaceFromSurface atlas -> copy at 0x007E62CC"
 0x007E1DC0,FlagAtlas_Index,I,flags,cp,"references flagfiles.txt/.tga strings; no D3DX calls"
 0x0084B690,AI_CountryDailyJob_Update,I,ai,cp,"vtable slot 0x00E27738; AI object +0x38 country index; per AI country per day from AI_CountryFrameJob (~9.7 ms/day); sums child values, updates sub-AIs, 8x FUN_0084EF30"
 0x0084B0F0,AI_TargetScan,I,ai,cp,"vtable slot 0x00E2773C; loops every country, tests self+0xBE8[other]+0x34 (relation miss, 90% of its samples at 0x0084B29D); ~5.5 ms/day"
@@ -537,8 +537,8 @@ va,name,conf,area,src,note
 0x00936FC0,War_GetWarScore,C,war,cp,"stdcall (war, &a, &b, ?) RET 0x10; -100..100; MAX_WARSCORE_FROM_BATTLES"
 0x0093BCC0,War_CountWarGoals,C,war,cp,fastcall war; goals in the +0xE0 map
 0x00401000,Math_FloorFloat,C,engine,cp,CRT floor before _ftol2; constants appear as x.5
-0x004FBC10,CCountry_OnKeyword,I,country,cp,case 0x8AF diplomatic_action -> DiplomaticAction_CreateByType -> pending list
-0x004FF310,CCountry_WriteFields,I,country,cp,writes the pending actions (+0xCE4)
+0x004FBC10,CCountry_OnKeyword,I,country,cp,"case 0x8AF diplomatic_action -> DiplomaticAction_CreateByType -> pending list; case 0x25F govt_flag = { government flag }: country+0x154C[government+0x40] = flag government"
+0x004FF310,CCountry_WriteFields,I,country,cp,"writes the pending actions (+0xCE4); writes govt_flag for every country+0x154C entry that is a real government"
 0x0091D920,WarSubsidies_ComputeAmount,C,diplomacy,cp,WARSUBSIDIES_PERCENT x recipient value; 2^15 fixed
 0x0091D080,CWarSubsidiesAction_Execute,C,diplomacy,cp,creates CWarSubsides (world+0xA84); relation+0x38
 0x0094BDB0,CWarGoal_Ctor,C,cb,cp,"EAX = this, ECX = cb, stack (actorTag, actorIdx, receiverTag, receiverIdx) RET 0x10; 0x40 bytes, no heap members"
@@ -586,7 +586,7 @@ va,name,conf,area,src,note
 0x009EFFC0,Button_SetUserIndex,C,ui,cp,vt 0xD4: +0x154 and sprite vt[0x14C]; read back by vt 0x80
 0x009A8BC0,CheckBox_SetChecked,I,ui,cp,"EDI = checkbox: +0x6C = 1, observers vt[8]"
 0x00A5ECC0,TextSprite_SetText,C,ui,cp,"ESI = textbox+0xA0, (const std::string*, 0) RET 8; assign textbox+0xDC first; 907 callers"
-0x0052FC10,Country_GetFlagTexture,C,ui,cp,EAX = CCountry*: flag texture of its government; for sprite vt[0x150]
+0x0052FC10,Country_GetFlagTexture,C,flags,cp,"EAX = CCountry*, returns EAX (plain RET): index of the flag atlas in g_flagOwner+0x6BD6C; the government is [country+0xBD0], or country+0x154C[gov+0x40] when that entry is a real government (govt_flag; CNullGovernment slot 0x2C = false); looked up by the government name (+0x24) in g_flagOwner+0x6BDAC; 0 when the atlas has no cell for the country (atlas+0x24[country+0x20] != 1); every flag drawn goes through it (83 calls); entry 56 8B F0 8B 8E D0 0B 00 00 (se_change_flag)"
 0x0043D130,ScrollbarRange_Make,I,ui,cp,"ESI = out {min, max, step, count}, EAX = &min, (&max, &step)"
 0x0061B820,CDiplomacyView_ctor,C,ui,cp,0x398 bytes; country_diplomacy; selected country +0x388/+0x38C
 0x00622270,CDiplomacyView_Setup,C,ui,cp,"stdcall (view) RET 4; 17 diplomacy_option instances (g_gui vt[0x2C](type, owner->vt[0x3C]()), attached by the view window's vt[0xBC](name, child) as action<i>) placed column by column from positionType diplomacy_actions_pos by diplomacy_actions_wrap_count columns (17 / columns rows, the first 17 % columns columns one longer); called at 0x0061BE1B (ctor) and 0x0061C096 (FUN_0061BF70): Script Extender treaty redirects both CALLs and adds an 18th (Propose Treaty)"
@@ -719,7 +719,7 @@ va,name,conf,area,src,note
 0x0053A6D0,FUN_0053A6D0,?,ui,cp,decision tooltip: evaluates the decision for the player on UI refresh
 0x006D2DD0,FUN_006D2DD0,?,ui,cp,evaluates decisions on UI refresh (player only)
 0x006DB2E0,FUN_006DB2E0,?,ui,cp,evaluates decisions on UI refresh (player only)
-0x00876B30,EffectBlock_AddChild,C,effects,cp,"effect vtable slot 4 (OnKeyword) of every compound effect: thiscall (block, parser, token) RET 8; the switch on the token allocates the child, appends it to block+0x08/+0x0C/+0x10 (0x10-byte nodes {effect, prev, next, u8}) and calls its slot 7 with the parser value (0x104 bytes from parser+0x228); the default case tries a tag (FUN_004DC420 / FUN_004DACC0) or a region scope, else logs an unknown effect; also called directly at 0x00886DF0, 0x00888B32, 0x0088E915, 0x008A2AAB; prologue 55 8B EC 83 E4 F8 (se_treaty_effect_factory)"
+0x00876B30,EffectBlock_AddChild,C,effects,cp,"effect vtable slot 4 (OnKeyword) of every compound effect: thiscall (block, parser, token) RET 8; the switch on the token allocates the child, appends it to block+0x08/+0x0C/+0x10 (0x10-byte nodes {effect, prev, next, u8}) and calls its slot 7 with the parser value (0x104 bytes from parser+0x228); the default case tries a tag (FUN_004DC420 / FUN_004DACC0) or a region scope, else logs an unknown effect; also called directly at 0x00886DF0, 0x00888B32, 0x0088E915, 0x008A2AAB; prologue 55 8B EC 83 E4 F8 (se_effect_factory)"
 0x0087A3F0,Effect_dtor,C,effects,cp,vtable slot 0 shared by the simple effects (CReleaseVassalEffect)
 0x0087A6C0,FUN_0087A6C0,?,effects,cp,"effect vtable slot 8, shared (29 callers)"
 0x0088DE60,CReleaseVassalEffect_ctor,C,effects,cp,"EAX = memory (0x2C bytes), vtable 0x00E2B4AC; built by EffectBlock_AddChild for token 0x700 (release_vassal)"
@@ -867,3 +867,17 @@ va,name,conf,area,src,note
 0x00456700,Province_Distance,I,map,cp,"EAX = to id, stack (country+0x10C cache, int* out, from id), RET 0xC: ProvinceSource_PairDistance, overridden by the cache's entry +0x10 when it has one for `to` (std::map find 0x0093D080); map units x1000"
 0x0049B7F0,ProvinceSource_PairDistance,I,map,cp,"EDI = g_provinceSource, ECX = from id, stack (int* out, to id, bool* known): distance nodes CProvince+0xE0 (-1: node of +0xDC), triangular u16 table at +0x2AB4 (n at +0x2AB0, known flags +0x2AB8) x 1000; a large constant without nodes"
 0x0061CA40,CDiplomacyView_GetTooltip,C,ui,cp,"slot 10 (vtable entry 0x00E07478): thiscall (view, Tooltip* ret, element) RET 8 -> ret; Tooltip 0x5C bytes, text std::string at +0 (copied from a local at 0x00621BE1); by element name (filter_<i>, ...); Script Extender treaty: the Propose Treaty button's text"
+0x007E0C00,FlagAtlas_CreateAll,C,flags,cp,"(g_flagOwner): one atlas per government of g_governments, in file order: new 0x44-byte FlagAtlas, FlagAtlas_BuildOrLoad at 0x007E0DE1 with the government's flagType (+0x60, empty when slot 0x2C is false), appended to owner+0x6BD6C, government name (+0x24) -> index into owner+0x6BDAC (vt 0x18), texture registered in the texture manager (owner+0x158) under the atlas index; governments with the same flagType get identical copies (share_flag_atlases)"
+0x007E0800,FlagOwner_Teardown,I,flags,cp,frees the atlas vector's array (owner+0x6BD6C) but not the atlases
+0x007E1D60,FlagAtlas_CellUV,C,flags,cp,"EAX = atlas, ECX = country index (0 -> 1), EDI = out {u, v}: cell (index-1) of the atlas's row table (+0x14), row width = entries of row 0"
+0x007DFB90,FlagQuad_Draw,I,flags,cp,"draws a country's flag quad: atlas = Country_GetFlagTexture, UV from the row table (+0x14) and 1 / columns (+0x38), 1 / rows (+0x34); device SetTexture vt 0x104"
+0x00817110,CShieldObject_ctor,C,ui,cp,"ESI = this: vtable CShieldObject; +0x184 / +0x188 (= g_flagOwner); +0x1A0 = atlas 0"
+0x00817B40,CShieldObject_SetAtlas,C,ui,cp,"shield sprite vt[0x150], thiscall (atlas index): +0x1A0 = owner+0x6BD6C[index], 0 when out of range; vt[0x14C] takes the country"
+0x009705A0,CGovernment_ctor,C,country,cp,"(this, const std::string* name, index): vtable CGovernment, +0x24 name, +0x40 index, +0x60 flagType = """", +0x20 = Token_AddDynamic(name)"
+0x0053D7F0,Country_SetGovernmentFlag,C,flags,cp,"EAX = government, EDX = country, stack = flag government: country+0x154C[government+0x40] = flag government"
+0x0053D810,Country_GetGovernmentFlag,C,flags,cp,"EAX = government, EDX = country: country+0x154C[government+0x40]"
+0x005EBE20,CGovernmentFlagChange_Apply,C,history,cp,"history govt_flag entry (CGovernmentFlagChange, built by FUN_005E68B0): thiscall (bool apply): stores the old flag government (+0x18) and sets +0x14 for government +0x10, or puts the old one back"
+0x00880030,CGovernmentEffect_Parse,C,effects,cp,"slot 7 of CGovernmentEffect (token 0x2BF, 0x28 bytes): the government named by the value into +0x20; +0x24 set for one special value (string at 0x00DFDC14)"
+0x008802F0,CGovernmentEffect_Execute,I,effects,cp,slot 11 of CGovernmentEffect
+0x008829B0,CSetCountryFlagEffect_Parse,C,effects,cp,slot 7 of CSetCountryFlagEffect (token 0x40B): copies the value text into the name std::string at +0x20
+0x007E06F0,FlagOwner_ctor,I,flags,cp,"fills the flag fields (+0x6BD6C.., +0x6BDAC CTernary<int>) and sets g_flagOwner = this"

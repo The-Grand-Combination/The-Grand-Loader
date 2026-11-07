@@ -5,6 +5,7 @@
 #include "config.h"
 #include "features/building_map_mode.h"
 #include "features/buildings_ai.h"
+#include "features/change_flag.h"
 #include "features/country_upgrade.h"
 #include "features/demand_province.h"
 #include "features/event_background.h"
@@ -34,6 +35,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     se::Config config = se::load_config(host->config_file);
     se::features::install_building_map_mode(config);
     se::features::install_buildings_ai(config);
+    se::features::install_change_flag(config);
     se::features::install_country_upgrade(config);
     se::features::install_demand_province(config);
     se::features::install_event_background(config);

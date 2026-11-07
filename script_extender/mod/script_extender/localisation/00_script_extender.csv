@@ -201,3 +201,5 @@ treaty_cede_colony_to_ally;Cede Colony to Ally;;;;;;;;;;;;;x
 treaty_cede_colony_to_ally_desc;Hand over a §Ycolony§W to one of our §Yallies§W;;;;;;;;;;;;;x
 treaty_cede_colony_to_ally_setup;$RECIPIENT$ cedes a colony to an ally of ours;;;;;;;;;;;;;x
 treaty_cede_colony_to_ally_short;Colony to ally;;;;;;;;;;;;;x
+SE_CHANGE_FLAG_EFFECT;The country adopts the flag $FLAG$.;;;;;;;;;;;;;x
+SE_CHANGE_FLAG_DEFAULT_EFFECT;The country takes back the flag of its government.;;;;;;;;;;;;;x

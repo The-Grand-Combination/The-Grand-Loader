@@ -21,6 +21,7 @@ add_library(performance_patch SHARED
     src/features/performance/relations_prefetch.cpp
     src/features/performance/pops_prefetch.cpp
     src/features/memory/flag_cache.cpp
+    src/features/memory/flag_atlas_share.cpp
     src/features/performance/ai_queue.cpp
     src/features/performance/events_parallel.cpp
     src/features/performance/country_prepass.cpp

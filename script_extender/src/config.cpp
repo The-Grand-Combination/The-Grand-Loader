@@ -37,6 +37,7 @@ constexpr Key kKeys[] = {
     {"province_flags", &Config::province_flags, nullptr},
     {"demand_province", &Config::demand_province, nullptr},
     {"event_background", &Config::event_background, nullptr},
+    {"change_flag", &Config::change_flag, nullptr},
     {"vassal_map_color", &Config::vassal_map_color, nullptr},
     {"vassal_map_color_own", nullptr, &Config::vassal_map_color_own, 0, 100},
     {"treaty", &Config::treaty, nullptr},

@@ -33,6 +33,7 @@ constexpr Key kKeys[] = {
     {"prefetch_ai_relations", &Config::prefetch_ai_relations, nullptr},
     {"skip_clean_resets", &Config::skip_clean_resets, nullptr},
     {"compress_flag_cache", &Config::compress_flag_cache, nullptr},
+    {"share_flag_atlases", &Config::share_flag_atlases, nullptr},
     {"fast_ai_queue", &Config::fast_ai_queue, nullptr},
     {"parallel_decisions", nullptr, &Config::parallel_decisions},
     {"parallel_events", nullptr, &Config::parallel_events},

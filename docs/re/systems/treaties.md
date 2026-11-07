@@ -668,7 +668,7 @@ All sites are in `patch_sites.csv`; the engine rows of the table under "Hooks" c
 | `se_treaty_load` (chained with `se_demand_province_load`) | `0x0063DCD2` | tokens and the merged CB file |
 | `se_treaty_gfx`, `se_treaty_gui`, `se_treaty_messagetypes` | `0x00635D89`, `0x0063690D`, `0x0063C4AA` | the screens and the answer messages |
 | `se_treaty_button_ctor`, `se_treaty_button_reset`, `se_treaty_button`, `se_treaty_button_tooltip` | `0x0061BE1B`, `0x0061C096`, `0x0062B9FC`, `0x00E07478` | the "Propose Treaty" button |
-| `se_treaty_effect_factory` | `0x00876B30` | the dismantle effects (effects.md) |
+| `se_effect_factory` | `0x00876B30` | the dismantle effects (effects.md) |
 | `se_treaty_peace_execute` | `0x00E344F4` | forced treaties taken after the peace |
 
 ## Open questions

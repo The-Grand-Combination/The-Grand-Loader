@@ -21,6 +21,7 @@ struct Config {
     bool skip_clean_resets = false;     // skip Country_PrePass's per-country table reset when it would write
                                         // what is already there
     bool compress_flag_cache = false;   // create, cache and load the flag atlases as DXT1 instead of uncompressed
+    bool share_flag_atlases = false;    // governments with the same flagType share one flag atlas
     bool fast_ai_queue = false;         // at max speed, finish the AI job queue in the frame it started in
     int parallel_decisions = 0;         // 0 off, 1 AI decision checks on worker threads, 2 shadow mode (compare only)
     int parallel_events = 0;            // 0 off, 1 event scan triggers on worker threads, 2 shadow mode (compare only)

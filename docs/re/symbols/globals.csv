@@ -242,3 +242,6 @@ va,name,kind,conf,src,note
 0x00E2ACF8,CSetProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882A90
 0x00E2AD30,CClrProvinceFlagEffect_vftable,vtable,C,cp,slot 11 = Execute 0x00882B00
 0x01258720,g_navalBaseIndex,u32,C,cp,index of the naval base building in CProvince+0x118 (Country_HasColonialRangeTo)
+0x0131BD5C,g_governments,ptr,C,cp,"governments.txt: 0x1C-byte named table (FUN_008B0060: 0x1FF buckets at +0x08), CGovernment* vector at +0x0C/+0x10 in file order; created on first use"
+0x012589B8,g_flagOwner,ptr,C,cp,"set by FUN_007E06F0 (its constructor, I); +0x158 texture manager, +0x6BD6C vector<FlagAtlas*>, +0x6BDAC government name -> atlas index (CTernary<int>, vt 4 find, vt 0x18 insert); the same layout as g_renderDevice (I: the same object)"
+0x00E2A99C,CGovernmentEffect_vftable,vtable,C,cp,slot 7 0x00880030 parse; slot 11 0x008802F0 Execute

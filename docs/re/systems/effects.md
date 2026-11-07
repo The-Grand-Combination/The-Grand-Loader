@@ -120,14 +120,17 @@ one template, one vtable copy per keyword, and the vtable tells them apart in Ex
    that use the token are parsed. The plugin registers its tokens right before `CBManager_Load`
    (the call at `0x0063DCD2`), which comes before events and decisions **[I]**: the dismantle effect in
    `cb_types.txt` itself is read inside that call, after the registration.
-2. **Hook the factory entry.**
+2. **Hook the factory entry.** In the Script Extender this is done once, by `game/effects.cpp`
+   (`game::add_effect_builder`): each feature adds a builder that sees every token first and builds its
+   own (`game::build_template`, `game::copy_effect_vtable`). On its own:
    - Use `hooks::make_trampoline(0x00876B30, 6)` plus `hooks::jump_hook` to a
      `__fastcall (block, edx, parser, token)` function.
    - Return what the trampoline returns, and pass every other token through.
    - A hook on the four direct calls would miss the vtable slot 4 of every compound effect, so it must be
      the entry.
 3. **Build a template effect.** For your token, call the trampoline with the token of an existing
-   effect whose value parse fits. For example `release_vassal` (`0x700`) takes `TAG`, `THIS` or `FROM`.
+   effect whose value parse fits. For example `release_vassal` (`0x700`) takes `TAG`, `THIS` or `FROM`;
+   `set_country_flag` (`0x40B`) keeps any text as a `std::string` at `+0x20` (`change_flag`, [flags.md](flags.md)).
    The factory allocates, appends and parses it as usual.
 4. **Swap the vtable.**
    - Read the new child from the block's tail (`*(*(block+0x0C))`), and check that it changed and
@@ -164,7 +167,7 @@ one template, one vtable copy per keyword, and the vtable tells them apart in Ex
 
 | id (`patch_sites.csv`) | site | what |
 |---|---|---|
-| `se_treaty_effect_factory` | `0x00876B30`, entry of `EffectBlock_AddChild` | the dismantle keywords build a `release_vassal` template and get the plugin's vtable |
+| `se_effect_factory` | `0x00876B30`, entry of `EffectBlock_AddChild` | one hook for every new effect (`game/effects.cpp`): the dismantle keywords build a `release_vassal` template, `change_flag` a `set_country_flag` one; each gets the plugin's vtable |
 | `se_treaty_peace_execute` | `0x00E344F4`, `CPeaceAction` slot 32 | the work queued by the effect is taken after the peace |
 | `cp_add_province_modifier_tooltip` / `_execute`, `cp_add_country_modifier_tooltip` / `_execute`, `cp_remove_province_modifier_tooltip` / `_execute`, `cp_remove_country_modifier_tooltip` / `_execute` | slots 9 and 11 of the four modifier effects | `fix_missing_modifier`: a null modifier gives an empty tooltip and a skipped Execute |
 | `cp_clr_country_flag_slot`, `cp_clr_global_flag_slot` | slot 11 of `CClrCountryFlagEffect` / `CClrGlobalFlagEffect` | `cull_decision_checks` notices a cleared flag |

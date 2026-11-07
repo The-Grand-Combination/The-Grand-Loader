@@ -27,6 +27,19 @@ std::string_view trim(std::string_view s) {
     return s;
 }
 
+// The line up to its `#` comment; a `#` inside quotes is part of the value.
+std::string_view strip_comment(std::string_view line) {
+    bool quoted = false;
+    for (size_t i = 0; i < line.size(); ++i) {
+        if (line[i] == '"') {
+            quoted = !quoted;
+        } else if (line[i] == '#' && !quoted) {
+            return line.substr(0, i);
+        }
+    }
+    return line;
+}
+
 // The .mod files are in the system code page, as the game reads them.
 std::wstring widen(std::string_view s) {
     int n = MultiByteToWideChar(CP_ACP, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
@@ -71,9 +84,9 @@ void read_mod_file(const std::wstring& game_dir, const std::wstring& mod_file, s
     }
     std::string line;
     while (std::getline(in, line)) {
-        std::string_view text = trim(line);
+        std::string_view text = trim(strip_comment(line));  // `load = "x.dll" # comment` is allowed
         size_t eq = text.find('=');
-        if (text.empty() || text.front() == '#' || eq == std::string_view::npos) {
+        if (text.empty() || eq == std::string_view::npos) {
             continue;
         }
         if (trim(text.substr(0, eq)) != "load") {

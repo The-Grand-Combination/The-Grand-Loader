@@ -839,3 +839,30 @@ Each candidate was re-read in the decompilation and the exe bytes, and implement
   (64 lines at most). Changes results where vanilla leaves ghosts.
 - **Open:** first run (a save with known ghosts); whether a fleet carrying another country's army
   should unload it rather than let `World_DeleteArmy` do what the annexation does.
+
+## 2026-11-07 — Flags: one atlas per government; extra flags by effect
+
+- **Found:** `FlagAtlas_CreateAll` (`0x007E0C00`) loops over `g_governments` (`0x0131BD5C`), not over flag
+  types. Each government gets a new atlas of `flagfiles_<flagType>` (`CGovernment+0x60`), keyed by the
+  government's name (`+0x24`) in `g_flagOwner+0x6BDAC`. Governments sharing a `flagType` hold identical
+  textures: 18 governments with 11 flag types keep 18 atlases. The atlases are never freed one by one.
+  → [systems/flags.md](systems/flags.md)
+- **Found:** every flag drawn goes through `Country_GetFlagTexture` (`0x0052FC10`), which returns an atlas
+  index. The caller cuts the country's cell (index `CCountry+0x20`) from the atlas's cell table (`+0x14`)
+  with `1/columns`, `1/rows`. `CCountry+0x154C` is `govt_flag`: per government, the government whose flag
+  is shown. It is read from history (`CGovernmentFlagChange`) and saves (`CCountry_OnKeyword` case
+  `0x25F`), and no effect sets it.
+- **Built:** `share_flag_atlases` (Performance Patch): the `CALL FlagAtlas_BuildOrLoad` at `0x007E0DE1`
+  copies the first atlas of a flag type for the later governments (`AddRef` on the texture).
+- **Built:** `change_flag = "path"` (Script Extender).
+  - The effect is a `set_country_flag` template with the plugin's vtable. It keeps the choice as the
+    country flag `se_flag_<path, / as __>`, so the save holds it.
+  - A hook on `Country_GetFlagTexture` returns a one-cell atlas of `gfx/flags/extra/<path>.tga` for that
+    country. The texture comes from `TextureManager_GetOrLoad`, and every cell is at `(0, 0)`.
+  - The effect factory hook moved from `treaty.cpp` to `game/effects.cpp` (`se_effect_factory`), shared
+    by the dismantle effects and `change_flag`.
+- **Open:** first run of both. To check in game:
+  - flags drawn right on shields, the map and the ledger;
+  - a shield already open after the effect;
+  - a save reloaded with an extra flag;
+  - the `AddRef` balance at exit.

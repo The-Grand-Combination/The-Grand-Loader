@@ -6,9 +6,9 @@
 
 ## Why
 
-The game draws flags from one atlas per government type (`flagfiles*.tga`), built from the individual
-flags and cached in the user folder as uncompressed TGA (A8R8G8B8). TGC has 11 atlases of 4096×2048,
-32 MB each, all loaded as `D3DPOOL_MANAGED` textures, which keep a system-memory copy inside the 32-bit
+The game draws flags from one atlas per government (the `flagfiles*.tga` of its flag type), built from
+the individual flags and cached in the user folder as uncompressed TGA (A8R8G8B8). TGC has 11 atlas files of
+4096×2048, 32 MB each, all loaded as `D3DPOOL_MANAGED` textures, which keep a system-memory copy inside the 32-bit
 process for the whole session (~350 MB).
 
 ## How

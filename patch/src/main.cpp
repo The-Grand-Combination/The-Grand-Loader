@@ -8,6 +8,7 @@
 #include "features/interface/clipboard_paste.h"
 #include "features/interface/join_port.h"
 #include "features/interface/last_ip.h"
+#include "features/memory/flag_atlas_share.h"
 #include "features/memory/flag_cache.h"
 #include "features/multiplayer/fpu_pin.h"
 #include "features/multiplayer/host_wait.h"
@@ -79,6 +80,7 @@ extern "C" __declspec(dllexport) int TGL_PluginInit(const TGL_HostApi* host) {
     cp::features::install_ai_relations_prefetch(config);
     cp::features::install_pops_prefetch(config);
     cp::features::install_flag_cache(config);
+    cp::features::install_flag_atlas_share(config);
     cp::parallel::install_trigger_locks(config);  // before anything evaluates triggers on workers
     cp::features::install_events_parallel(config);
     cp::features::install_country_prepass(config);

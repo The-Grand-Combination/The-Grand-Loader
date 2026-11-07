@@ -477,3 +477,21 @@ GuiWindow,0x67,shown,u8,I,cp,"CDiplomacyView slot 7 (0x00753B60) returns it for 
 CUnit,0xC0,ownerTag,u32,C,cp,read with +0xC4 by World_DeleteArmy
 CUnit,0xC4,ownerIndex,u32,C,cp,country index; World_DeleteArmy looks the unit up in that country's +0x7B4 list
 CUnit,0x1A4,embarked,list,C,cp,fleet: the armies it carries; World_DeleteArmy unloads them first
+CCountry,0xBD0,government,CGovernment*,C,cp,"Country_SetGovernment writes it; Country_GetFlagTexture, Country_GetMapColor read +0x40"
+CCountry,0x154C,governmentFlags,vector<CGovernment*>,C,cp,"one entry per government (index +0x40), CNullGovernment by default (country ctor 0x00503020): the government whose flag the country shows under that government; govt_flag in history and saves"
+CGovernment,0x20,nameToken,int,C,cp,Token_AddDynamic(name)
+CGovernment,0x24,name,std::string,C,cp,key of g_flagOwner+0x6BDAC (atlas of this government)
+CGovernment,0x40,index,int,C,cp,position in g_governments; index of CCountry+0x154C and of CCountry+0x15CC colours
+CGovernment,0x60,flagType,std::string,C,cp,"flagType of governments.txt (empty by default): the atlas is gfx/flags/flagfiles_<flagType>, cells TAG_<flagType>.tga"
+FlagAtlas,0x00,texture,IDirect3DTexture9*,C,cp,0x44 bytes; never freed one by one
+FlagAtlas,0x04,cellList,?,I,cp,"+0x04..+0x10 linked cells used while building ({country index, ..., next +0x0C})"
+FlagAtlas,0x14,cellTable,vector,C,cp,"16-byte rows {begin, end, ...} of {u, v} float pairs; cell (index-1) = row (index-1)/w, column (index-1)%w, w = entries of row 0"
+FlagAtlas,0x24,hasCell,vector<int>,C,cp,"by country index: 1 = the atlas has the country's flag (else Country_GetFlagTexture returns 0, the base atlas)"
+FlagAtlas,0x34,rows,int,C,cp,cell height in UV = 1 / rows
+FlagAtlas,0x38,columns,int,C,cp,cell width in UV = 1 / columns
+FlagAtlas,0x3C,cellWidth,int,C,cp,0x5D (93 px)
+FlagAtlas,0x40,cellHeight,int,C,cp,0x40 (64 px)
+CShieldObject,0x1A0,atlas,FlagAtlas*,C,cp,CShieldObject_SetAtlas
+CGovernmentEffect,0x20,government,CGovernment*,C,cp,CGovernmentEffect_Parse
+CSetCountryFlagEffect,0x20,name,std::string,C,cp,"0x3C bytes; CClrCountryFlagEffect has the same layout; both Execute read only +0x20 and the scope's country (+0x0C)"
+CFlagsNode,0x00,entry,CFlagEntry*,C,cp,"CFlags tree node (CFlags_WriteSet): left +0x08, next +0x0C, right +0x10"

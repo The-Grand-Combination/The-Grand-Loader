@@ -15,6 +15,7 @@
 #include "features/treaty_ai_dismantle.h"
 #include "features/treaty_ui.h"
 #include "game/console.h"
+#include "game/effects.h"
 #include "game/localisation.h"
 #include "game/map.h"
 #include "game/objects.h"
@@ -177,14 +178,9 @@ constexpr uint32_t kEconomyDefines = 0x012586DC;  // +0x40 country defines; ther
 constexpr uint32_t kWorldLocalPlayer = 0xB60;
 
 // Script effects (docs/re/systems/effects.md)
-constexpr uint32_t kEffectFactory = 0x00876B30;  // effect slot 4: thiscall (block, parser, token), RET 8
-constexpr uint8_t kEffectFactoryEntry[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8};
-constexpr uint32_t kEffectListTail = 0x0C;  // block: list of children {effect, prev, next}; +0x08 head, +0x10 count
 constexpr int kTokenReleaseVassal = 0x700;
 constexpr uint32_t kReleaseVassalEffectVtable = 0x00E2B4AC;  // CReleaseVassalEffect, 0x2C bytes
-constexpr uint32_t kEffectSlots = 14;
-constexpr uint32_t kEffectSlotTooltip = 9;   // thiscall (std::string* out, scope, std::string by value, int), RET 0x28
-constexpr uint32_t kEffectSlotExecute = 11;  // thiscall (scope, ?), RET 8
+using game::kEffectSlots;  // the factory hook and the slots: game/effects.h
 constexpr uint32_t kEffectUsesThis = 0x1C;     // u8: `= THIS`
 constexpr uint32_t kEffectUsesFrom = 0x1D;     // u8: `= FROM`
 constexpr uint32_t kEffectTargetIndex = 0x24;  // `= TAG`: {tag, index} at +0x20
@@ -1956,7 +1952,6 @@ void queue_dismantle(int winner, int loser, int budget) {
     }
     g_dismantles().push_back({winner, loser, budget});
 }
-uintptr_t g_effect_factory_trampoline = 0;
 uintptr_t g_peace_execute = 0;
 uintptr_t g_effect_vtable_storage[kDismantleEffects][kEffectSlots + 1];  // per effect: [0] = RTTI locator, then the slots
 
@@ -2224,11 +2219,8 @@ uintptr_t __fastcall dismantle_tooltip(uintptr_t effect, void*, uintptr_t out, u
     return out;
 }
 
-// Replaces the effect factory (effect slot 4 and its direct calls): thiscall (block, parser, token),
-// RET 8. Our tokens become a release_vassal effect with our vtable.
-uintptr_t __fastcall effect_factory(uintptr_t block, void*, uintptr_t parser, int token) {
-    using FactoryFn = uintptr_t(__fastcall*)(uintptr_t, void*, uintptr_t, int);
-    auto factory = reinterpret_cast<FactoryFn>(g_effect_factory_trampoline);
+// The effect factory's builder (game/effects.h): our tokens become a release_vassal effect with our vtable.
+bool build_dismantle(uintptr_t block, uintptr_t parser, int token, uintptr_t& result) {
     size_t kind = kDismantleEffects;
     for (size_t i = 0; i < kDismantleEffects; ++i) {
         if (g_dismantle_effects[i].token && token == g_dismantle_effects[i].token) {
@@ -2236,19 +2228,16 @@ uintptr_t __fastcall effect_factory(uintptr_t block, void*, uintptr_t parser, in
         }
     }
     if (kind == kDismantleEffects) {
-        return factory(block, nullptr, parser, token);
+        return false;
     }
-    uintptr_t tail_before = read<uintptr_t>(block + kEffectListTail);
-    uintptr_t result = factory(block, nullptr, parser, kTokenReleaseVassal);
-    uintptr_t tail = read<uintptr_t>(block + kEffectListTail);
-    uintptr_t effect = tail && tail != tail_before ? read<uintptr_t>(tail) : 0;
-    if (effect && read<uintptr_t>(effect) == hooks::exe_va(kReleaseVassalEffectVtable)) {
+    uintptr_t effect = game::build_template(block, parser, kTokenReleaseVassal, hooks::exe_va(kReleaseVassalEffectVtable), result);
+    if (effect) {
         *reinterpret_cast<uintptr_t*>(effect) = reinterpret_cast<uintptr_t>(&g_effect_vtable_storage[kind][1]);
         logf("treaty: %s effect read", g_dismantle_effects[kind].keyword);
     } else {
         logf("treaty: a dismantle effect could not be built");
     }
-    return result;
+    return true;
 }
 
 // Replaces CPeaceAction slot 32: the turns waiting for this peace are taken once it has ended the war.
@@ -2262,18 +2251,11 @@ void __fastcall peace_execute(uintptr_t self, void*, void* context) {
 void install_dismantle() {
     uintptr_t base = hooks::exe_va(kReleaseVassalEffectVtable);
     for (auto& storage : g_effect_vtable_storage) {
-        storage[0] = read<uintptr_t>(base - 4);
-        for (uint32_t i = 0; i < kEffectSlots; ++i) {
-            storage[i + 1] = read<uintptr_t>(base + i * 4);
-        }
-        storage[kEffectSlotTooltip + 1] = reinterpret_cast<uintptr_t>(&dismantle_tooltip);
-        storage[kEffectSlotExecute + 1] = reinterpret_cast<uintptr_t>(&dismantle_execute);
+        game::copy_effect_vtable(base, storage, reinterpret_cast<uintptr_t>(&dismantle_tooltip),
+                                 reinterpret_cast<uintptr_t>(&dismantle_execute));
     }
-    uintptr_t factory = hooks::exe_va(kEffectFactory);
-    if (!hooks::expect_bytes(factory, kEffectFactoryEntry, sizeof(kEffectFactoryEntry)) ||
-        !(g_effect_factory_trampoline = hooks::make_trampoline(factory, sizeof(kEffectFactoryEntry))) ||
-        !hooks::jump_hook(factory, kEffectFactoryEntry, sizeof(kEffectFactoryEntry), reinterpret_cast<uintptr_t>(&effect_factory))) {
-        logf("treaty: the effect factory at %08X is not the expected one; no dismantle effect", kEffectFactory);
+    if (!game::add_effect_builder(&build_dismantle)) {
+        logf("treaty: no effect factory hook; no dismantle effect");
         return;
     }
     g_peace_execute = hooks::exe_va(kPeaceExecute);
