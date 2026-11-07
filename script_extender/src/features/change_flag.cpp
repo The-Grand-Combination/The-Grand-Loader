@@ -1,5 +1,7 @@
 #include "features/change_flag.h"
 
+#include <windows.h>
+
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -24,7 +26,7 @@
 //   country's index +0x20) and cell size (1 / columns +0x38, 1 / rows +0x34).
 // - Its entry (`56 8B F0 8B 8E D0 0B 00 00`: PUSH ESI; MOV ESI,EAX; MOV ECX,[ESI+0xBD0]) jumps to
 //   flag_texture_thunk. For a country with an extra flag it returns the index of a one-cell atlas of the
-//   plugin's: the file's texture (from the game's texture manager, owner+0x158), one column and one row,
+//   plugin's: the file's texture (D3DX at its own size, as the single flags), one column and one row,
 //   and a cell table whose every cell is at (0, 0), so any country's cell is the whole texture. Every other
 //   country goes to the original. One atlas per file, appended to the game's atlas vector when first drawn.
 // - `change_flag` is built as a set_country_flag effect (token 0x40B, the value as a std::string at +0x20)
@@ -73,11 +75,15 @@ constexpr uint32_t kFlagSet = 0x1C;  // u8 in the entry (name std::string at +0)
 constexpr uint32_t kFlagTexture = 0x0052FC10;  // Country_GetFlagTexture
 constexpr unsigned char kFlagTextureEntry[] = {0x56, 0x8B, 0xF0, 0x8B, 0x8E, 0xD0, 0x0B, 0x00, 0x00};
 constexpr uint32_t kFlagOwner = 0x012589B8;  // g_flagOwner: the atlases and the texture manager
-constexpr uint32_t kOwnerTextures = 0x158;   // texture manager: entries of 0x2C, texture at +4
+constexpr uint32_t kOwnerDevice = 0x64;      // IDirect3DDevice9*
 constexpr uint32_t kOwnerAtlases = 0x6BD6C;  // vector<FlagAtlas*> {begin, end, capacity}
-constexpr uint32_t kAcquireTexture = 0x009BCBF0;  // EAX = texture manager, (const std::string* path, bool), RET 8
-constexpr uint32_t kTextureEntry = 0x2C;
-constexpr uint32_t kTextureEntryTexture = 0x04;
+// D3DXCreateTextureFromFileInMemoryEx, the import the flag builder uses for the single flags (0x007E55CC).
+// Not TextureManager_GetOrLoad: it rounds the size up to a power of two without stretching (filter NONE),
+// so a 93x64 flag fills 93/128 of its texture and the one-cell atlas would show the black rest.
+constexpr uint32_t kIatCreateTextureFromFileInMemoryEx = 0x00C8A424;
+constexpr uint32_t kD3dxDefault = 0xFFFFFFFF;
+constexpr uint32_t kD3dxDefaultNonPow2 = 0xFFFFFFFE;
+constexpr uint32_t kPoolManaged = 1;
 constexpr uint32_t kFinalizeEconomyCall = 0x0066321D;  // CALL EconomyManager_UpdateFull, once per load
 constexpr uint32_t kEconomyUpdateFull = 0x0068BF00;
 constexpr uint32_t kPhysfsExists = 0x00B21820;  // cdecl (const char* path)
@@ -240,19 +246,55 @@ std::string find_file(const std::string& path) {
     return {};
 }
 
-uintptr_t acquire_texture(uintptr_t manager, const std::string& file) {
-    GameString game_file(file);  // the manager copies it
-    const GameString* arg = &game_file;
-    uintptr_t fn = hooks::exe_va(kAcquireTexture);
-    int index;
-    __asm {
-        push 1
-        push arg
-        mov eax, manager
-        call fn
-        mov index, eax
+// The whole file at the PhysFS path `file` (the mounted mod folders over the game's: a mod's file can be
+// found under the game's path), through the exe's PhysFS exports; empty on failure.
+std::vector<char> read_physfs(const std::string& file) {
+    HMODULE exe = GetModuleHandleW(nullptr);
+    using OpenFn = void*(__cdecl*)(const char*);
+    using LengthFn = long long(__cdecl*)(void*);
+    using ReadFn = long long(__cdecl*)(void*, void*, unsigned, unsigned);
+    using CloseFn = int(__cdecl*)(void*);
+    auto open = reinterpret_cast<OpenFn>(GetProcAddress(exe, "PHYSFS_openRead"));
+    auto length = reinterpret_cast<LengthFn>(GetProcAddress(exe, "PHYSFS_fileLength"));
+    auto read_fn = reinterpret_cast<ReadFn>(GetProcAddress(exe, "PHYSFS_read"));
+    auto close = reinterpret_cast<CloseFn>(GetProcAddress(exe, "PHYSFS_close"));
+    std::vector<char> data;
+    void* handle = open && length && read_fn && close ? open(file.c_str()) : nullptr;
+    if (!handle) {
+        return data;
     }
-    return index < 0 ? 0 : read<uintptr_t>(manager + static_cast<uint32_t>(index) * kTextureEntry + kTextureEntryTexture);
+    long long size = length(handle);
+    if (size > 0 && size < (64 << 20)) {
+        data.resize(static_cast<size_t>(size));
+        if (read_fn(handle, data.data(), 1, static_cast<unsigned>(size)) != size) {
+            data.clear();
+        }
+    }
+    close(handle);
+    return data;
+}
+
+// The file at `file` (a PhysFS path) as a texture of the image's own size (stretched to a power of two
+// only where the device needs it), MANAGED; 0 on failure. Kept for the session.
+uintptr_t load_texture(uintptr_t owner, const std::string& file) {
+    std::vector<char> data = read_physfs(file);
+    void* device = read<void*>(owner + kOwnerDevice);
+    if (data.empty() || !device) {
+        logf("change_flag: %s: %s", file.c_str(), data.empty() ? "could not be read" : "no device");
+        return 0;
+    }
+    using LoadFn = HRESULT(WINAPI*)(void*, const void*, UINT, UINT, UINT, UINT, DWORD, DWORD, DWORD, DWORD, DWORD,
+                                    DWORD, void*, void*, void**);
+    auto load = read<LoadFn>(hooks::exe_va(kIatCreateTextureFromFileInMemoryEx));
+    void* texture = nullptr;
+    HRESULT hr = load(device, data.data(), static_cast<UINT>(data.size()), kD3dxDefaultNonPow2, kD3dxDefaultNonPow2,
+                      kD3dxDefault, 0, 0 /* D3DFMT_UNKNOWN: from the file */, kPoolManaged, kD3dxDefault, kD3dxDefault,
+                      0, nullptr, nullptr, &texture);
+    if (FAILED(hr)) {
+        logf("change_flag: %s: D3DX error %08lX", file.c_str(), static_cast<unsigned long>(hr));
+        return 0;
+    }
+    return reinterpret_cast<uintptr_t>(texture);
 }
 
 // The cell tables every plugin atlas shares (read only): one row of kCells cells at (0, 0), and every
@@ -318,7 +360,7 @@ int atlas_for(const std::string& path) {
     if (owner && file.empty()) {
         report_once("no gfx/flags/extra/" + path + ".dds or .tga; the government's flag is shown");
     }
-    uintptr_t texture = file.empty() ? 0 : acquire_texture(owner + kOwnerTextures, file);
+    uintptr_t texture = file.empty() ? 0 : load_texture(owner, file);
     if (!file.empty() && !texture) {
         report_once(file + " did not load; the government's flag is shown");
     }

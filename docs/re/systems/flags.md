@@ -118,8 +118,13 @@ government. `script_extender/src/features/change_flag.cpp`:
   - The result is cached per country index. It is read again when the tree root changes, after the
     effect, and after a load (`se_change_flag_finalize`).
   - For a country with an extra flag, it returns the index of a **one-cell atlas**: the file's texture
-    (`TextureManager_GetOrLoad`), 1 row, 1 column, and one row of 8192 cells all at `(0, 0)`. So any
-    country index's cell is the whole texture.
+    loaded with `D3DXCreateTextureFromFileInMemoryEx` at the image's own size (`D3DX_DEFAULT_NONPOW2`,
+    default filter), 1 row, 1 column, and one row of 8192 cells all at `(0, 0)`. So any country index's
+    cell is the whole texture.
+  - Not `TextureManager_GetOrLoad`: it loads with size `D3DX_DEFAULT` and filter `NONE`, so a 93×64
+    file fills only 93/128 of a 128×64 texture and the rest shows black (seen in game, 2026-11-07). **[C]**
+  - The file is read through the exe's PhysFS exports (`PHYSFS_openRead` ...), not from disk: a mod's file
+    is found under the game's path `gfx/...` once the mod folder is mounted. **[C]**
   - That atlas is appended to `owner+0x6BD6C` on the game heap the first time the file is drawn, one per
     file.
   - Every other country goes to the original code.
